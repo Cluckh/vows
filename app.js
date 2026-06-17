@@ -129,7 +129,7 @@
     const ms = [];
     D.VOWS.forEach((v) => { const s = streakOf(STARTS[v.id]); if (D.MILESTONES.includes(s)) ms.push({ name: v.name, num: s, msg: D.MILESTONE_MSGS[s] || "" }); });
 
-    const P = reduce ? { date: 650, quote: 1750, milestone: 850 } : D.APP_CONFIG.introPaceMs;
+    const P = reduce ? { date: 650, quote: 750, milestone: 850 } : D.APP_CONFIG.introPaceMs;
     let t = 0;
 
     timers.push(setTimeout(() => {

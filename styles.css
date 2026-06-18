@@ -182,6 +182,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .replay svg{width:13px;height:13px}
 .board__date{font-family:var(--f-serif);font-style:italic;font-size:13px;color:var(--ash-2)}
 
+/* --- Трапези (місячний лічильник): компактніший за обітниці, та сама стилістика --- */
+.feast{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;
+  margin-top:14px;padding:13px 14px;border:1px solid var(--edge-soft);border-radius:13px;
+  background:rgba(205,163,73,.025);transition:background .2s ease}
+.feast:hover{background:rgba(205,163,73,.05)}
+.feast:active{background:rgba(205,163,73,.08)}
+.feast__icon{width:22px;height:22px;color:var(--gold);opacity:.85}
+.feast__icon svg{width:100%;height:100%;display:block}
+.feast__label{font-family:var(--f-display);font-size:13px;font-weight:600;letter-spacing:.04em;
+  color:var(--ash);text-align:left}
+.feast__dots{display:inline-flex;gap:7px}
+.feast__dot{width:9px;height:9px;border-radius:50%;border:1px solid var(--gold-dim);box-sizing:border-box}
+.feast__dot.on{background:var(--gold);border-color:var(--gold);box-shadow:0 0 6px rgba(205,163,73,.45)}
+.feast__dot.off{opacity:.45}
+
 /* =========================================================== ШТОРКА/SHEET === */
 .scrim{position:fixed;inset:0;z-index:60;background:rgba(5,6,10,.66);
   opacity:0;pointer-events:none;transition:opacity .3s ease;backdrop-filter:blur(2px)}

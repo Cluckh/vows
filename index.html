@@ -67,6 +67,10 @@
       <path d="M6 14.5 5 17M12 17v2.6M18 14.5 19 17M9 16.4l-.5 2.4M15 16.4l.5 2.4"/>
     </symbol>
 
+    <symbol id="i-feast" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 3v4.5a2.5 2.5 0 0 0 5 0V3"/><path d="M8.5 3v4.5"/><path d="M8.5 7.5V21"/>
+      <path d="M16.5 21V3c2.4 0 3.5 2.6 3.5 6s-1.1 5-3.5 5"/>
+    </symbol>
     <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></symbol>
   </defs>
 </svg>
@@ -116,6 +120,12 @@
 
     <ul class="oaths" id="oaths"></ul>
 
+    <button class="feast" id="feast" type="button">
+      <span class="feast__icon"><svg><use href="#i-feast"></use></svg></span>
+      <span class="feast__label" id="feastLabel">Трапези</span>
+      <span class="feast__dots" id="feastDots"></span>
+    </button>
+
     <footer class="board__foot">
       <button class="replay" id="replay"><svg><use href="#i-play"/></svg>програти ритуал</button>
       <span class="board__date" id="footDate"></span>
@@ -152,6 +162,16 @@
     <p class="confirm__text">Лічильник почне з нуля від сьогодні. Це чесна дія, не покарання — встанеш і підеш далі.</p>
     <button class="btn btn--reset" id="cfYes">Так, я зірвався</button>
     <button class="btn btn--ghost" id="cfNo">Скасувати</button>
+  </div>
+</div>
+
+<!-- ===================== ТРАПЕЗИ — МІНІ-ВІКНО ===================== -->
+<div class="confirm" id="feastModal" role="alertdialog" aria-modal="true">
+  <div class="confirm__card">
+    <div class="confirm__title" id="feastTitle">Трапези</div>
+    <p class="confirm__text" id="feastText">—</p>
+    <button class="btn btn--gold" id="feastYes">−1</button>
+    <button class="btn btn--ghost" id="feastNo">Скасувати</button>
   </div>
 </div>
 

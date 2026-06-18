@@ -19,6 +19,7 @@
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const parseLocal = (s) => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
   function todayKey() { const d = new Date(), p = (n) => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  function monthKey() { const d = new Date(), p = (n) => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}`; }
   function streakOf(s) { return Math.max(0, Math.round((startOfDay(new Date()) - startOfDay(parseLocal(s))) / 86400000)); }
   function pluralUk(n, f) { const a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
   const daysWord = (n) => pluralUk(n, ["день","дні","днів"]);
@@ -95,7 +96,7 @@
     $("shNext").textContent = nm ? `${nm} (через ${nm - s} ${daysWord(nm - s)})` : "усі взято";
   }
   $("shClose").onclick = closeSheet;
-  $("scrim").onclick = () => { closeSheet(); closeConfirm(); };
+  $("scrim").onclick = () => { closeSheet(); closeConfirm(); closeFeast(); };
   $("shDate").addEventListener("change", (e) => {
     if (!e.target.value) return;
     setStart(sheetVow, e.target.value); refreshSheet(); renderBoard();
@@ -106,6 +107,41 @@
   const closeConfirm = () => $("confirm").classList.remove("open");
   $("cfNo").onclick = closeConfirm;
   $("cfYes").onclick = () => { setStart(sheetVow, todayKey()); closeConfirm(); closeSheet(); renderBoard(); };
+
+  /* ---- Трапези (місячний лічильник) ---- */
+  const F = D.FEASTS || { label: "Трапези", total: 4 };
+  function loadFeast() {
+    const s = LS.get("ordo.feast", null), mk = monthKey();
+    if (!s || s.month !== mk) { const f = { month: mk, left: F.total }; LS.set("ordo.feast", f); return f; }
+    return s;
+  }
+  let FEAST = loadFeast();
+  function renderFeast() {
+    $("feastLabel").textContent = F.label;
+    const box = $("feastDots"); box.innerHTML = "";
+    for (let i = 0; i < F.total; i++) {
+      const d = document.createElement("span");
+      d.className = "feast__dot " + (i < FEAST.left ? "on" : "off");
+      box.appendChild(d);
+    }
+  }
+  function openFeast() {
+    $("feastTitle").textContent = F.label;
+    if (FEAST.left > 0) {
+      $("feastText").innerHTML = `Відмітити трапезу? Залишиться <b>${FEAST.left - 1} з ${F.total}</b>.`;
+      $("feastYes").style.display = "";
+      $("feastNo").textContent = "Скасувати";
+    } else {
+      $("feastText").textContent = `Усі ${F.total} цього місяця відмічені. Поновляться 1-го числа.`;
+      $("feastYes").style.display = "none";
+      $("feastNo").textContent = "Закрити";
+    }
+    $("scrim").classList.add("open"); $("feastModal").classList.add("open");
+  }
+  const closeFeast = () => { $("scrim").classList.remove("open"); $("feastModal").classList.remove("open"); };
+  $("feast").onclick = openFeast;
+  $("feastNo").onclick = closeFeast;
+  $("feastYes").onclick = () => { FEAST.left = Math.max(0, FEAST.left - 1); LS.set("ordo.feast", FEAST); renderFeast(); closeFeast(); };
 
   /* ---- ритуал ---- */
   let timers = [], introDone = false;
@@ -159,10 +195,11 @@
   $("intro").addEventListener("pointerdown", onSkip);
   $("intro").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSkip(); } });
   $("replay").onclick = () => { $("board").classList.remove("reveal"); runIntro(); };
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeConfirm(); closeSheet(); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeConfirm(); closeSheet(); closeFeast(); } });
 
   /* ---- старт ---- */
   renderBoard();
+  renderFeast();
   if (LS.get("ordo.lastIntro", "") !== todayKey()) {
     LS.set("ordo.lastIntro", todayKey());
     runIntro();

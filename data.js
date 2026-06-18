@@ -12,8 +12,11 @@ const APP_CONFIG = {
   title: "ОРДЕН",
   subtitle: "обітниць",
   // На скільки секунд розтягнути промальовку ритуалу (тап/клік — пропустити):
-  introPaceMs: { date: 2600, quote: 6500, milestone: 6500 }
+  introPaceMs: { date: 2600, quote: 2600, milestone: 3200 }
 };
+
+/* --- Трапези: місячний лічильник. total — скільки на місяць; 1-го числа поновлюється. --- */
+const FEASTS = { label: "Трапези", total: 4 };
 
 /* --- Обітниці. id — технічний ключ (не міняй), решту можна правити. --------- */
 const VOWS = [
@@ -93,4 +96,4 @@ const QUOTES = [
 ];
 
 // Доступ із app.js
-window.ORDO_DATA = { APP_CONFIG, VOWS, MILESTONES, MILESTONE_MSGS, QUOTES };
+window.ORDO_DATA = { APP_CONFIG, VOWS, MILESTONES, MILESTONE_MSGS, QUOTES, FEASTS };

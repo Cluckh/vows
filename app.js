@@ -1,10 +1,13 @@
 /* ============================================================================
    ORDO — двигун. Логіку правити не обовʼязково; контент живе в data.js.
+   Усі звернення до елементів захищені: якщо чогось нема — пропускаємо,
+   додаток не падає (важливо під час оновлення/кешу).
    ========================================================================== */
 (function () {
   "use strict";
   const D = window.ORDO_DATA;
   const $ = (id) => document.getElementById(id);
+  const on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ---- сховище (localStorage) ---- */
@@ -55,10 +58,11 @@
 
   /* ---- табло ---- */
   function renderBoard() {
-    $("crestTitle").textContent = D.APP_CONFIG.title;
-    $("crestSub").textContent = D.APP_CONFIG.subtitle;
-    $("footDate").textContent = fmtShort(new Date());
-    const ul = $("oaths"); ul.innerHTML = "";
+    const ct = $("crestTitle"); if (ct) ct.textContent = D.APP_CONFIG.title;
+    const cs = $("crestSub"); if (cs) cs.textContent = D.APP_CONFIG.subtitle;
+    const fd = $("footDate"); if (fd) fd.textContent = fmtShort(new Date());
+    const ul = $("oaths"); if (!ul) return;
+    ul.innerHTML = "";
     D.VOWS.forEach((v) => {
       const s = streakOf(STARTS[v.id]);
       const nm = nextMilestone(s), pm = prevMilestone(s);
@@ -82,79 +86,82 @@
   function openSheet(id) {
     sheetVow = id;
     const v = D.VOWS.find((x) => x.id === id), s = streakOf(STARTS[id]), nm = nextMilestone(s);
-    $("shTitle").textContent = v.name;
-    $("shStat").textContent = `${s} ${daysWord(s)} стійко`;
-    $("shIcon").innerHTML = `<use href="#i-${v.icon}"></use>`;
-    $("shNext").textContent = nm ? `${nm} (через ${nm - s} ${daysWord(nm - s)})` : "усі взято";
-    const di = $("shDate"); di.value = STARTS[id]; di.max = todayKey();
-    $("scrim").classList.add("open"); $("sheet").classList.add("open");
+    const T = $("shTitle"); if (T) T.textContent = v.name;
+    const St = $("shStat"); if (St) St.textContent = `${s} ${daysWord(s)} стійко`;
+    const Ic = $("shIcon"); if (Ic) Ic.innerHTML = `<use href="#i-${v.icon}"></use>`;
+    const Nx = $("shNext"); if (Nx) Nx.textContent = nm ? `${nm} (через ${nm - s} ${daysWord(nm - s)})` : "усі взято";
+    const di = $("shDate"); if (di) { di.value = STARTS[id]; di.max = todayKey(); }
+    $("scrim") && $("scrim").classList.add("open");
+    $("sheet") && $("sheet").classList.add("open");
   }
-  const closeSheet = () => { $("scrim").classList.remove("open"); $("sheet").classList.remove("open"); };
+  const closeSheet = () => { $("scrim") && $("scrim").classList.remove("open"); $("sheet") && $("sheet").classList.remove("open"); };
   function refreshSheet() {
     const s = streakOf(STARTS[sheetVow]), nm = nextMilestone(s);
-    $("shStat").textContent = `${s} ${daysWord(s)} стійко`;
-    $("shNext").textContent = nm ? `${nm} (через ${nm - s} ${daysWord(nm - s)})` : "усі взято";
+    const St = $("shStat"); if (St) St.textContent = `${s} ${daysWord(s)} стійко`;
+    const Nx = $("shNext"); if (Nx) Nx.textContent = nm ? `${nm} (через ${nm - s} ${daysWord(nm - s)})` : "усі взято";
   }
-  $("shClose").onclick = closeSheet;
-  $("scrim").onclick = () => { closeSheet(); closeConfirm(); closeFeast(); };
-  $("shDate").addEventListener("change", (e) => {
-    if (!e.target.value) return;
-    setStart(sheetVow, e.target.value); refreshSheet(); renderBoard();
-  });
+  on("shClose", "click", closeSheet);
+  on("shDate", "change", (e) => { if (!e.target.value) return; setStart(sheetVow, e.target.value); refreshSheet(); renderBoard(); });
 
   /* ---- підтвердження зриву ---- */
-  $("shReset").onclick = () => { $("cfName").textContent = D.VOWS.find((x) => x.id === sheetVow).name; $("confirm").classList.add("open"); };
-  const closeConfirm = () => $("confirm").classList.remove("open");
-  $("cfNo").onclick = closeConfirm;
-  $("cfYes").onclick = () => { setStart(sheetVow, todayKey()); closeConfirm(); closeSheet(); renderBoard(); };
+  const closeConfirm = () => { $("confirm") && $("confirm").classList.remove("open"); };
+  on("shReset", "click", () => { const n = $("cfName"); if (n) n.textContent = D.VOWS.find((x) => x.id === sheetVow).name; $("confirm") && $("confirm").classList.add("open"); });
+  on("cfNo", "click", closeConfirm);
+  on("cfYes", "click", () => { setStart(sheetVow, todayKey()); closeConfirm(); closeSheet(); renderBoard(); });
 
-  /* ---- Трапези (місячний лічильник) ---- */
+  /* ---- Трапези (місячний лічильник; залишок — кружечки) ---- */
   const F = D.FEASTS || { label: "Трапези", total: 4 };
   function loadFeast() {
     const s = LS.get("ordo.feast", null), mk = monthKey();
     if (!s || s.month !== mk) { const f = { month: mk, left: F.total }; LS.set("ordo.feast", f); return f; }
     if (typeof s.left !== "number") s.left = F.total;
+    if (s.left > F.total) s.left = F.total;
+    if (s.left < 0) s.left = 0;
     return s;
   }
   let FEAST = loadFeast();
-  const clampFeast = (n) => Math.max(0, Math.min(F.total, n));
   function renderFeast() {
-    const num = $("feastNum"); if (num) num.textContent = FEAST.left;
-    const val = $("feastVal"); if (val) val.textContent = FEAST.left;
-    const lt = $("feastLeftTxt"); if (lt) lt.textContent = FEAST.left;
+    const box = $("feastDots");
+    if (box) box.textContent = "●".repeat(FEAST.left) + "○".repeat(Math.max(0, F.total - FEAST.left));
   }
   function openFeast() {
-    $("feastTotalTxt").textContent = F.total;
-    $("feastResetN").textContent = F.total;
-    renderFeast();
-    $("scrim").classList.add("open"); $("feastModal").classList.add("open");
+    const t = $("feastText"), yes = $("feastYes"), no = $("feastNo");
+    if (FEAST.left > 0) {
+      if (t) t.innerHTML = `Відмітити трапезу? Залишиться <b>${FEAST.left - 1} з ${F.total}</b>.`;
+      if (yes) yes.style.display = "";
+      if (no) no.textContent = "Скасувати";
+    } else {
+      if (t) t.textContent = `Усі ${F.total} цього місяця відмічені. Поновляться 1-го числа.`;
+      if (yes) yes.style.display = "none";
+      if (no) no.textContent = "Закрити";
+    }
+    $("scrim") && $("scrim").classList.add("open");
+    $("feastModal") && $("feastModal").classList.add("open");
   }
-  const closeFeast = () => { $("scrim").classList.remove("open"); $("feastModal").classList.remove("open"); };
-  function setFeast(n) { FEAST.left = clampFeast(n); LS.set("ordo.feast", FEAST); renderFeast(); }
-  $("feast").onclick = openFeast;
-  $("feastNo").onclick = closeFeast;
-  $("feastMinus").onclick = () => setFeast(FEAST.left - 1);
-  $("feastPlus").onclick = () => setFeast(FEAST.left + 1);
-  $("feastReset").onclick = () => setFeast(F.total);
+  const closeFeast = () => { $("scrim") && $("scrim").classList.remove("open"); $("feastModal") && $("feastModal").classList.remove("open"); };
+  on("feast", "click", openFeast);
+  on("feastNo", "click", closeFeast);
+  on("feastYes", "click", () => { FEAST.left = Math.max(0, FEAST.left - 1); LS.set("ordo.feast", FEAST); renderFeast(); closeFeast(); });
 
   /* ---- ритуал ---- */
   let timers = [], introDone = false;
   const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
-  function reveal() { introDone = true; clearTimers(); $("intro").setAttribute("hidden", ""); $("board").classList.add("reveal"); }
+  function reveal() { introDone = true; clearTimers(); $("intro") && $("intro").setAttribute("hidden", ""); $("board") && $("board").classList.add("reveal"); }
 
   function runIntro() {
     introDone = false;
     const intro = $("intro");
+    if (!intro) { reveal(); return; }
     intro.removeAttribute("hidden");
-    ["stDate","stQuote","stMs"].forEach((id) => $(id).classList.remove("show","gone"));
+    ["stDate","stQuote","stMs"].forEach((id) => { const el = $(id); if (el) el.classList.remove("show","gone"); });
     intro.classList.remove("drawing","drawn");
     intro.scrollTop = 0;
 
     const d = new Date();
-    $("dWeekday").textContent = WEEK[d.getDay()];
-    $("dMain").textContent = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-    $("dYear").textContent = d.getFullYear();
-    $("qText").textContent = nextQuote();
+    const dw = $("dWeekday"); if (dw) dw.textContent = WEEK[d.getDay()];
+    const dm = $("dMain"); if (dm) dm.textContent = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+    const dy = $("dYear"); if (dy) dy.textContent = d.getFullYear();
+    const qt = $("qText"); if (qt) qt.textContent = nextQuote();
 
     const ms = [];
     D.VOWS.forEach((v) => { const s = streakOf(STARTS[v.id]); if (D.MILESTONES.includes(s)) ms.push({ name: v.name, num: s, msg: D.MILESTONE_MSGS[s] || "" }); });
@@ -163,20 +170,23 @@
     let t = 0;
 
     timers.push(setTimeout(() => {
-      $("stDate").classList.add("show");
+      const sd = $("stDate"); if (sd) sd.classList.add("show");
       requestAnimationFrame(() => { intro.classList.add("drawing"); requestAnimationFrame(() => intro.classList.add("drawn")); });
     }, 140));
     t = P.date + 500;
 
-    timers.push(setTimeout(() => $("stDate").classList.add("gone"), t - 300));
-    timers.push(setTimeout(() => $("stQuote").classList.add("show"), t));
+    timers.push(setTimeout(() => { const sd = $("stDate"); if (sd) sd.classList.add("gone"); }, t - 300));
+    timers.push(setTimeout(() => { const sq = $("stQuote"); if (sq) sq.classList.add("show"); }, t));
     t += P.quote + 550;
 
     ms.forEach((m, i) => {
       timers.push(setTimeout(() => {
-        if (i === 0) $("stQuote").classList.add("gone");
-        const st = $("stMs"); st.classList.remove("show"); void st.offsetWidth;
-        $("msNum").textContent = m.num; $("msVow").textContent = m.name; $("msText").textContent = m.msg;
+        if (i === 0) { const sq = $("stQuote"); if (sq) sq.classList.add("gone"); }
+        const st = $("stMs"); if (!st) return;
+        st.classList.remove("show"); void st.offsetWidth;
+        const mn = $("msNum"); if (mn) mn.textContent = m.num;
+        const mv = $("msVow"); if (mv) mv.textContent = m.name;
+        const mt = $("msText"); if (mt) mt.textContent = m.msg;
         st.classList.add("show");
       }, t));
       t += P.milestone + 650;
@@ -186,9 +196,9 @@
   }
 
   const onSkip = () => { if (!introDone) reveal(); };
-  $("intro").addEventListener("pointerdown", onSkip);
-  $("intro").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSkip(); } });
-  $("replay").onclick = () => { $("board").classList.remove("reveal"); runIntro(); };
+  on("intro", "pointerdown", onSkip);
+  on("intro", "keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSkip(); } });
+  on("replay", "click", () => { $("board") && $("board").classList.remove("reveal"); runIntro(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeConfirm(); closeSheet(); closeFeast(); } });
 
   /* ---- старт ---- */
@@ -198,8 +208,8 @@
     LS.set("ordo.lastIntro", todayKey());
     runIntro();
   } else {
-    $("intro").setAttribute("hidden", "");
-    $("board").classList.add("reveal");
+    $("intro") && $("intro").setAttribute("hidden", "");
+    $("board") && $("board").classList.add("reveal");
   }
 
   /* офлайн */

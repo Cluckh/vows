@@ -1,5 +1,7 @@
-/* ORDO — офлайн. Оновлюючи додаток, зміни 'ordo-v1' на 'ordo-v2' тощо. */
-const CACHE = "ordo-v4";
+/* ORDO — офлайн.
+   Стратегія: СПЕРШУ МЕРЕЖА (щоб оновлення зʼявлялись одразу після заливки),
+   кеш — запасний для офлайну. Версію за бажання можна бампати (ordo-v2 → v3…). */
+const CACHE = "ordo-v2";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./data.js",
   "./manifest.webmanifest", "./emblem.svg",
@@ -21,20 +23,9 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
-
-  // Навігації: спершу мережа (щоб бачити оновлення), кеш — як запасний.
-  if (req.mode === "navigate") {
-    e.respondWith(
-      fetch(req).then((r) => { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(req, cp)); return r; })
-                .catch(() => caches.match("./index.html"))
-    );
-    return;
-  }
-
-  // Решта: спершу кеш, інакше мережа (і кешуємо на майбутнє, зокрема шрифти).
   e.respondWith(
-    caches.match(req).then((hit) =>
-      hit || fetch(req).then((r) => { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(req, cp)); return r; }).catch(() => hit)
-    )
+    fetch(req)
+      .then((r) => { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(req, cp)); return r; })
+      .catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))
   );
 });

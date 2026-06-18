@@ -113,35 +113,29 @@
   function loadFeast() {
     const s = LS.get("ordo.feast", null), mk = monthKey();
     if (!s || s.month !== mk) { const f = { month: mk, left: F.total }; LS.set("ordo.feast", f); return f; }
+    if (typeof s.left !== "number") s.left = F.total;
     return s;
   }
   let FEAST = loadFeast();
+  const clampFeast = (n) => Math.max(0, Math.min(F.total, n));
   function renderFeast() {
-    $("feastLabel").textContent = F.label;
-    const box = $("feastDots"); box.innerHTML = "";
-    for (let i = 0; i < F.total; i++) {
-      const d = document.createElement("span");
-      d.className = "feast__dot " + (i < FEAST.left ? "on" : "off");
-      box.appendChild(d);
-    }
+    const num = $("feastNum"); if (num) num.textContent = FEAST.left;
+    const val = $("feastVal"); if (val) val.textContent = FEAST.left;
+    const lt = $("feastLeftTxt"); if (lt) lt.textContent = FEAST.left;
   }
   function openFeast() {
-    $("feastTitle").textContent = F.label;
-    if (FEAST.left > 0) {
-      $("feastText").innerHTML = `Відмітити трапезу? Залишиться <b>${FEAST.left - 1} з ${F.total}</b>.`;
-      $("feastYes").style.display = "";
-      $("feastNo").textContent = "Скасувати";
-    } else {
-      $("feastText").textContent = `Усі ${F.total} цього місяця відмічені. Поновляться 1-го числа.`;
-      $("feastYes").style.display = "none";
-      $("feastNo").textContent = "Закрити";
-    }
+    $("feastTotalTxt").textContent = F.total;
+    $("feastResetN").textContent = F.total;
+    renderFeast();
     $("scrim").classList.add("open"); $("feastModal").classList.add("open");
   }
   const closeFeast = () => { $("scrim").classList.remove("open"); $("feastModal").classList.remove("open"); };
+  function setFeast(n) { FEAST.left = clampFeast(n); LS.set("ordo.feast", FEAST); renderFeast(); }
   $("feast").onclick = openFeast;
   $("feastNo").onclick = closeFeast;
-  $("feastYes").onclick = () => { FEAST.left = Math.max(0, FEAST.left - 1); LS.set("ordo.feast", FEAST); renderFeast(); closeFeast(); };
+  $("feastMinus").onclick = () => setFeast(FEAST.left - 1);
+  $("feastPlus").onclick = () => setFeast(FEAST.left + 1);
+  $("feastReset").onclick = () => setFeast(F.total);
 
   /* ---- ритуал ---- */
   let timers = [], introDone = false;

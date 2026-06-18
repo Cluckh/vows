@@ -120,10 +120,13 @@
 
     <ul class="oaths" id="oaths"></ul>
 
-    <button class="feast" id="feast" type="button">
-      <span class="feast__icon"><svg><use href="#i-feast"></use></svg></span>
-      <span class="feast__label" id="feastLabel">Трапези</span>
-      <span class="feast__dots" id="feastDots"></span>
+    <button class="oath oath--feast" id="feast" type="button">
+      <span class="oath__icon"><svg><use href="#i-feast"></use></svg></span>
+      <span class="oath__body">
+        <span class="oath__name">Трапези</span>
+        <span class="oath__sub">поновлення 1-го числа · тап, щоб змінити</span>
+      </span>
+      <span class="oath__count"><span class="oath__num" id="feastNum">—</span><span class="oath__unit">залишилось</span></span>
     </button>
 
     <footer class="board__foot">
@@ -165,13 +168,18 @@
   </div>
 </div>
 
-<!-- ===================== ТРАПЕЗИ — МІНІ-ВІКНО ===================== -->
+<!-- ===================== ТРАПЕЗИ — МЕНЮ ЗМІНИ ===================== -->
 <div class="confirm" id="feastModal" role="alertdialog" aria-modal="true">
   <div class="confirm__card">
-    <div class="confirm__title" id="feastTitle">Трапези</div>
-    <p class="confirm__text" id="feastText">—</p>
-    <button class="btn btn--gold" id="feastYes">−1</button>
-    <button class="btn btn--ghost" id="feastNo">Скасувати</button>
+    <div class="confirm__title">Трапези</div>
+    <p class="confirm__text">Залишилось <b id="feastLeftTxt">—</b> з <span id="feastTotalTxt">4</span> цього місяця.</p>
+    <div class="stepper">
+      <button class="stepper__btn" id="feastMinus" type="button" aria-label="мінус один">−</button>
+      <span class="stepper__val" id="feastVal">—</span>
+      <button class="stepper__btn" id="feastPlus" type="button" aria-label="плюс один">+</button>
+    </div>
+    <button class="btn btn--ghost" id="feastReset" type="button">Поновити до <span id="feastResetN">4</span></button>
+    <button class="btn btn--ghost" id="feastNo" type="button">Закрити</button>
   </div>
 </div>
 

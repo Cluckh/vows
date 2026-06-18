@@ -1,5 +1,5 @@
 /* ORDO — офлайн. Оновлюючи додаток, зміни 'ordo-v1' на 'ordo-v2' тощо. */
-const CACHE = "ordo-v3";
+const CACHE = "ordo-v4";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./data.js",
   "./manifest.webmanifest", "./emblem.svg",

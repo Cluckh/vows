@@ -205,13 +205,16 @@
   let shownDay = null;
   function sync() {
     const today = todayKey();
-    FEAST = loadFeast();          // перевірка місячного скидання трапез
-    renderBoard();                // стріки рахуються від поточної дати
-    renderFeast();
+    const dayChanged = shownDay !== today;
+    if (dayChanged) {             // перемальовуємо табло ЛИШЕ коли змінився день,
+      FEAST = loadFeast();        // інакше бари рестартували б пульс при кожному відкритті
+      renderBoard();
+      renderFeast();
+    }
     if (LS.get("ordo.lastIntro", "") !== today) {
       LS.set("ordo.lastIntro", today);
       runIntro();                 // перший запуск за день → ритуал
-    } else if (shownDay !== today) {
+    } else if (dayChanged) {
       $("intro") && $("intro").setAttribute("hidden", "");
       $("board") && $("board").classList.add("reveal");
     }

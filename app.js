@@ -65,9 +65,9 @@
     ul.innerHTML = "";
     D.VOWS.forEach((v) => {
       const s = streakOf(STARTS[v.id]);
-      const nm = nextMilestone(s), pm = prevMilestone(s);
+      const nm = nextMilestone(s);
       const sub = nm ? `ціль ${nm} · лишилось ${nm - s} ${daysWord(nm - s)}` : "усі віхи взято";
-      const prog = nm ? Math.min(100, ((s - pm) / (nm - pm)) * 100) : 100;
+      const prog = nm ? Math.min(100, (s / nm) * 100) : 100;
       const li = document.createElement("li");
       const btn = document.createElement("button");
       btn.className = "oath"; btn.type = "button";
@@ -201,16 +201,29 @@
   on("replay", "click", () => { $("board") && $("board").classList.remove("reveal"); runIntro(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeConfirm(); closeSheet(); closeFeast(); } });
 
-  /* ---- старт ---- */
-  renderBoard();
-  renderFeast();
-  if (LS.get("ordo.lastIntro", "") !== todayKey()) {
-    LS.set("ordo.lastIntro", todayKey());
-    runIntro();
-  } else {
-    $("intro") && $("intro").setAttribute("hidden", "");
-    $("board") && $("board").classList.add("reveal");
+  /* ---- старт + щоденна синхронізація ---- */
+  let shownDay = null;
+  function sync() {
+    const today = todayKey();
+    FEAST = loadFeast();          // перевірка місячного скидання трапез
+    renderBoard();                // стріки рахуються від поточної дати
+    renderFeast();
+    if (LS.get("ordo.lastIntro", "") !== today) {
+      LS.set("ordo.lastIntro", today);
+      runIntro();                 // перший запуск за день → ритуал
+    } else if (shownDay !== today) {
+      $("intro") && $("intro").setAttribute("hidden", "");
+      $("board") && $("board").classList.add("reveal");
+    }
+    shownDay = today;
   }
+
+  sync();
+
+  /* iOS часто «заморожує» PWA і не перезапускає скрипт при поверненні —
+     тож пересинхронізуємо дату/ритуал, коли застосунок знову стає видимим. */
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted) sync(); });
 
   /* офлайн */
   if ("serviceWorker" in navigator) {

@@ -23,7 +23,7 @@ const VOWS = [
   { id: "alcohol",   name: "Алкоголь",                icon: "goblet", start: "2025-11-01" },
   { id: "nicotine",  name: "Нікотин",                 icon: "smoke",  start: "2026-06-16" },
   { id: "transfers", name: "Перекази / платний секс", icon: "coin",   start: "2026-06-16" },
-  { id: "nocontact", name: "Ноуконтакт з Е.",         icon: "chain",  start: "2026-06-16" },
+  { id: "nocontact", name: "Ноуконтакт",         icon: "chain",  start: "2026-06-16" },
   { id: "corn",      name: "Порно",                   icon: "eye",    start: "2026-06-16" }
 ];
 

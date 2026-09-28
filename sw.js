@@ -1,7 +1,7 @@
 /* ORDO — офлайн.
    Стратегія: СПЕРШУ МЕРЕЖА (щоб оновлення зʼявлялись одразу після заливки),
    кеш — запасний для офлайну. Версію за бажання можна бампати (ordo-v2 → v3…). */
-const CACHE = "ordo-v3";
+const CACHE = "ordo-v4";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./data.js",
   "./manifest.webmanifest", "./emblem.svg",

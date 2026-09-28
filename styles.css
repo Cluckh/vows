@@ -147,15 +147,15 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .board.reveal{animation:boardIn 1s var(--ease) forwards}
 @keyframes boardIn{to{opacity:1;transform:none}}
 
-.crest{text-align:center;padding:0 0 14px}
-.crest__sigil{width:52px;height:52px;margin:0 auto 8px;display:block;
+.crest{text-align:center;padding:0 0 12px}
+.crest__sigil{width:44px;height:44px;margin:0 auto 6px;display:block;
   filter:drop-shadow(0 0 13px rgba(205,163,73,.28));
   animation:sigilBreath 4.4s ease-in-out infinite}
 @keyframes sigilBreath{
   0%,100%{filter:drop-shadow(0 0 13px rgba(205,163,73,.28))}
   50%{filter:drop-shadow(0 0 30px rgba(231,199,119,.85))}
 }
-.crest__title{font-family:var(--f-display);font-weight:700;font-size:clamp(20px,5.5vw,27px);
+.crest__title{font-family:var(--f-display);font-weight:700;font-size:clamp(20px,5.5vw,25px);
   letter-spacing:.18em;color:var(--bone)}
 .crest__sub{font-family:var(--f-serif);font-style:italic;font-size:14px;letter-spacing:.1em;
   color:var(--gold);margin-top:2px}
@@ -168,7 +168,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   transition:background .25s ease;
 }
 .oath:hover{background:rgba(205,163,73,.04)}
-.oath:active{background:rgba(205,163,73,.07)}
+.oath:active{background:rgba(205,163,73,.07);transform:scale(.992)}
+.oath{transition:background .25s ease,transform .15s ease}
 .oath__icon{width:34px;height:34px;color:var(--gold);flex:none;
   filter:drop-shadow(0 0 6px rgba(205,163,73,.18))}
 .oath__icon svg{width:100%;height:100%;display:block}
@@ -204,8 +205,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 /* --- Трапези: рядок у стилі обітниць, трохи менший; залишок — кружечки --- */
 .oath--feast{margin-top:8px;border-bottom:none;opacity:.97}
 .oath--feast .oath__icon{width:30px;height:30px}
-.feast__dots{font-size:20px;letter-spacing:6px;color:var(--gold);line-height:1;
-  text-shadow:0 0 7px rgba(205,163,73,.4);white-space:nowrap}
+
 
 /* =========================================================== ШТОРКА/SHEET === */
 .scrim{position:fixed;inset:0;z-index:60;background:rgba(5,6,10,.66);
@@ -248,7 +248,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .confirm__card--codex{text-align:left;max-width:430px}
 .confirm__card--codex .confirm__title{text-align:center}
 .sheet__codex--proto{max-height:56vh;margin-bottom:14px}
-.board__acts{display:flex;align-items:center;gap:20px}
+.board__acts{display:flex;align-items:center;gap:18px}
 .sheet input[type=date]{
   font-family:var(--f-ui);font-size:14px;color:var(--bone);
   background:var(--bg-2);border:1px solid var(--edge);border-radius:9px;
@@ -281,7 +281,133 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .confirm__text{font-family:var(--f-serif);font-size:16px;line-height:1.55;color:var(--ash);margin-bottom:22px}
 
 /* доступність + дрібні екрани */
-@media (max-width:360px){ .frame{padding-left:16px;padding-right:16px} .oath{gap:12px} }
+@media (max-width:360px){ .frame{padding-left:16px;padding-right:16px} .oath{gap:12px} .board__acts{gap:12px} .crusade__track{gap:1px} }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
+
+
+/* ======================================================= ВІДГУК / ДРІБНЕ === */
+.hx{position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+.board__end{display:flex;align-items:center;gap:10px}
+.icobtn{width:30px;height:30px;display:grid;place-items:center;color:var(--ash);border-radius:8px;transition:color .2s ease}
+.icobtn svg{width:17px;height:17px}
+.icobtn:hover{color:var(--gold-2)}
+.icobtn--off{color:var(--ash-2)}
+.oath__sub--warn{color:var(--ember-2)}
+
+/* зрив: рядок коротко спалахує жаром */
+.oath--fall{animation:oathFall 1.6s var(--ease)}
+@keyframes oathFall{0%{background:rgba(181,86,63,.32)}100%{background:transparent}}
+
+/* ==================================================== ХРЕСТОВИЙ ПОХІД === */
+/* табличка з гравірованими кутами — та сама мова, що й рамка дати в ритуалі */
+.crusade{
+  display:block;width:100%;text-align:left;position:relative;
+  margin:0 0 10px;padding:10px 13px 10px;border-radius:2px;
+  --c:rgba(205,163,73,.75);
+  background:
+    linear-gradient(var(--c),var(--c)) left top/11px 1px no-repeat,
+    linear-gradient(var(--c),var(--c)) left top/1px 11px no-repeat,
+    linear-gradient(var(--c),var(--c)) right top/11px 1px no-repeat,
+    linear-gradient(var(--c),var(--c)) right top/1px 11px no-repeat,
+    linear-gradient(var(--c),var(--c)) left bottom/11px 1px no-repeat,
+    linear-gradient(var(--c),var(--c)) left bottom/1px 11px no-repeat,
+    linear-gradient(var(--c),var(--c)) right bottom/11px 1px no-repeat,
+    linear-gradient(var(--c),var(--c)) right bottom/1px 11px no-repeat,
+    linear-gradient(180deg,rgba(205,163,73,.06),rgba(205,163,73,.015));
+  box-shadow:inset 0 0 0 1px var(--edge-soft);
+  transition:transform .15s ease;
+}
+.crusade[hidden]{display:none}
+.crusade:active{transform:scale(.994)}
+.crusade__head{display:flex;align-items:center;gap:9px}
+.crusade__ic{width:19px;height:19px;color:var(--gold);flex:none;filter:drop-shadow(0 0 5px rgba(205,163,73,.25))}
+.crusade__name{flex:1;font-family:var(--f-display);font-size:13.5px;font-weight:600;letter-spacing:.07em;color:var(--bone)}
+.crusade__day{font-family:var(--f-display);font-weight:700;white-space:nowrap;line-height:1}
+.crusade__day em{font-family:var(--f-serif);font-style:italic;font-weight:500;font-size:13px;color:var(--ash);margin-right:3px}
+.crusade__day b{font-size:21px;background:linear-gradient(180deg,var(--gold-2),var(--gold) 60%,var(--gold-dim));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.crusade__day i{font-style:normal;font-size:12px;color:var(--ash-2);margin-left:1px}
+/* сто зарубок: пройдені — золото, сьогодні — світиться разом із барами, віхи походу — вищі */
+.crusade__track{display:grid;grid-template-columns:repeat(100,1fr);gap:1.5px;align-items:end;height:12px;margin:9px 0 8px}
+.crusade__track span{height:6px;border-radius:1px;background:rgba(205,163,73,.13)}
+.crusade__track span.m{height:12px;background:rgba(205,163,73,.24)}
+.crusade__track span.p{background:linear-gradient(180deg,var(--gold-2),var(--gold-dim))}
+.crusade__track span.n{background:var(--halo);box-shadow:0 0 5px rgba(240,214,138,.9);
+  animation:notchPulse 3.6s ease-in-out 1s infinite}
+@keyframes notchPulse{0%,100%{box-shadow:0 0 4px rgba(240,214,138,.55)}50%{box-shadow:0 0 12px rgba(240,214,138,1)}}
+.crusade__order{font-family:var(--f-serif);font-style:italic;font-size:14.5px;line-height:1.36;color:var(--bone);opacity:.88;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* вікно походу */
+.cru-ic{display:block;width:30px;height:30px;margin:0 auto 8px;color:var(--gold)}
+.cru-stat{font-family:var(--f-serif);font-style:italic;color:var(--gold);font-size:15px;text-align:center;margin:-4px 0 14px}
+.cru-order{font-family:var(--f-serif);font-size:17px;line-height:1.5;color:var(--bone);text-align:center;
+  margin:0 4px 16px;padding:0 0 14px;border-bottom:1px solid var(--edge-soft)}
+
+/* =================================================== ТРАПЕЗИ: КРУЖЕЧКИ === */
+.feast__dots{display:inline-flex;align-items:center;gap:9px;line-height:1}
+.fd{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--gold);opacity:.7;flex:none}
+.fd--on{opacity:1;border-color:var(--gold-2);
+  background:radial-gradient(circle at 35% 32%,var(--halo),var(--gold) 58%,var(--gold-dim));
+  box-shadow:0 0 8px rgba(205,163,73,.45)}
+.fd--over{opacity:1;border-color:var(--ember-2);position:relative}
+.fd--over::before,.fd--over::after{content:"";position:absolute;left:50%;top:50%;width:9px;height:1.5px;
+  background:var(--ember-2);transform:translate(-50%,-50%) rotate(45deg)}
+.fd--over::after{transform:translate(-50%,-50%) rotate(-45deg)}
+.fd--spent{animation:dotOut 1s var(--ease)}
+@keyframes dotOut{0%{background:var(--halo);box-shadow:0 0 18px var(--halo);transform:scale(1.35);opacity:1}100%{}}
+.fd--new{animation:dotOver 1s var(--ease)}
+@keyframes dotOver{0%{transform:scale(1.6);box-shadow:0 0 16px rgba(208,106,79,.9)}100%{}}
+.feast__fast{font-family:var(--f-serif);font-style:italic;font-size:18px;color:var(--gold);letter-spacing:.04em;
+  text-shadow:0 0 10px rgba(205,163,73,.35)}
+
+/* ============================================ КОДЕКС: ПЛАВНЕ РОЗГОРТАННЯ === */
+.fold{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .45s var(--ease),opacity .35s ease}
+.fold.open{grid-template-rows:1fr;opacity:1}
+.fold__in{overflow:hidden;min-height:0}
+.sheet{transition:transform .5s cubic-bezier(.2,.9,.25,1)}
+
+/* ================================================= РИТУАЛ: ДОПОВНЕННЯ === */
+.date-crusade{margin-top:16px;font-family:var(--f-serif);font-style:italic;font-size:15px;color:var(--gold);
+  opacity:0;transition:opacity 1s ease 1.5s}
+.drawn .date-crusade{opacity:.95}
+
+/* іскри віхи */
+.sparks{position:absolute;left:50%;top:54px;width:0;height:0;pointer-events:none}
+.spark{position:absolute;left:-1.5px;top:-1.5px;width:3px;height:3px;border-radius:50%;
+  background:var(--halo);box-shadow:0 0 6px var(--halo);opacity:0;
+  animation:spark 1.7s var(--ease) forwards}
+@keyframes spark{0%{transform:translate(0,0) scale(1);opacity:0}15%{opacity:1}100%{transform:translate(var(--x),var(--y)) scale(.3);opacity:0}}
+
+/* печатка */
+.intro.sealed .intro__skip{display:none}
+.seal-disc{width:132px;height:132px;margin:0 auto 26px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 38% 30%,#9a3a2c,#65201a 58%,#3d110d);
+  box-shadow:0 0 0 4px rgba(101,32,26,.45),0 0 46px rgba(181,86,63,.38),inset 0 -8px 16px rgba(0,0,0,.45),inset 0 5px 12px rgba(255,170,130,.14);
+  animation:sealBreath 3.2s ease-in-out infinite}
+.seal-disc svg{width:82px;height:82px;opacity:.85;filter:drop-shadow(0 1px 0 rgba(0,0,0,.5))}
+@keyframes sealBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+.seal-text{font-family:var(--f-serif);font-style:italic;font-size:clamp(19px,5vw,23px);line-height:1.5;color:var(--bone);max-width:24ch;margin:0 auto}
+.seal-hint{margin-top:26px;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);
+  animation:hintPulse 2.2s ease-in-out infinite}
+@keyframes hintPulse{0%,100%{opacity:.45}50%{opacity:1}}
+.stage--seal{pointer-events:none}
+.stage.cracked .seal-disc{animation:sealBreak .75s var(--ease) forwards}
+@keyframes sealBreak{0%{transform:scale(1)}35%{transform:scale(1.12) rotate(-4deg);filter:brightness(1.4)}100%{transform:scale(1.6) rotate(8deg);opacity:0;filter:blur(3px)}}
+
+/* рік */
+.stage--year .sparks--year{top:70px}
+.yr-kicker{font-family:var(--f-display);font-size:13px;letter-spacing:.42em;text-transform:uppercase;color:var(--halo);
+  text-shadow:0 0 16px rgba(240,214,138,.6)}
+.yr-num{font-family:var(--f-display);font-weight:700;font-size:clamp(86px,27vw,128px);line-height:1;margin-top:10px;
+  background:linear-gradient(180deg,#fff3c9,var(--gold-2) 35%,var(--gold) 65%,var(--gold-dim));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 4px 30px rgba(231,199,119,.45))}
+.yr-unit{font-family:var(--f-display);font-size:13px;letter-spacing:.34em;text-transform:uppercase;color:var(--ash);margin-top:6px}
+.yr-lines{margin:26px auto 0;max-width:30ch}
+.yr-lines p{font-family:var(--f-serif);font-style:italic;font-size:clamp(17px,4.4vw,20px);line-height:1.5;color:var(--bone);
+  margin-top:12px;opacity:0;transform:translateY(8px);transition:opacity 1.2s var(--ease),transform 1.2s var(--ease)}
+.yr-lines p.on{opacity:1;transform:none}
+.yr-lines p.yr-sign{font-style:normal;font-family:var(--f-display);font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin-top:22px}

@@ -18,14 +18,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2">
+<link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 
 <!-- тактильний відгук на iPhone: системний перемикач, невидимий -->
 <input type="checkbox" switch id="hx" class="hx" tabindex="-1" aria-hidden="true"><label for="hx" id="hxLabel" class="hx" aria-hidden="true"></label>
 
-<!-- ===== Бібліотека SVG (сигіл + іконки обітниць). Малюється векторно. ===== -->
+<!-- ===== Бібліотека SVG ===== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="sigil" viewBox="0 0 100 100">
@@ -127,13 +127,36 @@
     </symbol>
     <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6c0 .6.7 1 1.2.7l10.3-6.8c.5-.3.5-1 0-1.3L9.2 4.5C8.7 4.2 8 4.6 8 5.2Z"/></symbol>
 
-  </defs>
+  
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.8 19.4 5v6.1c0 4.4-3.1 7.9-7.4 10.1-4.3-2.2-7.4-5.7-7.4-10.1V5Z"/>
+      <path d="M12 7v9.4M8.6 10.6h6.8"/>
+    </symbol>
+    <symbol id="i-medal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 2.8h8l-2.2 6.4h-3.6Z"/>
+      <circle cx="12" cy="15" r="6"/>
+      <path d="M12 12.2v5.6M9.2 15h5.6" opacity=".7"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+
+    <!-- медаль: кольори беруться з класу рівня (--m1 світло, --m2 основа, --m3 тінь, --rb стрічка) -->
+    <symbol id="medal" viewBox="0 0 100 132">
+      <path d="M33 0h34v36l-17 11-17-11Z" style="fill:var(--rb)"/>
+      <path d="M41 0h6v41M53 0h6v40" style="fill:none;stroke:var(--rb2);stroke-width:3"/>
+      <circle cx="50" cy="86" r="36" style="fill:var(--m2);stroke:var(--m3);stroke-width:2"/>
+      <ellipse cx="41" cy="74" rx="19" ry="12" transform="rotate(-28 41 74)" style="fill:var(--m1);opacity:.32"/>
+      <circle cx="50" cy="86" r="28.5" style="fill:none;stroke:var(--m3);stroke-width:1.4;opacity:.8"/>
+      <circle cx="50" cy="86" r="31.5" style="fill:none;stroke:var(--m1);stroke-width:.8;opacity:.7"/>
+      <path d="M50 64.5c2.2 5.6 3 9.6 3 13.4 3.8 0 7.8.8 13.4 3-5.6 2.2-9.6 3-13.4 3 0 3.8-.8 7.8-3 13.4-2.2-5.6-3-9.6-3-13.4-3.8 0-7.8-.8-13.4-3 5.6-2.2 9.6-3 13.4-3 0-3.8.8-7.8 3-13.4Z"
+            style="fill:var(--m1);stroke:var(--m3);stroke-width:1"/>
+      <circle cx="50" cy="80.9" r="2.2" style="fill:var(--m3)"/>
+    </symbol>
+</defs>
 </svg>
 
 <!-- ============================ РИТУАЛ ============================ -->
 <div class="intro" id="intro" role="button" tabindex="0" aria-label="Пропустити вступ">
-
-  <!-- 1 · дата -->
   <section class="stage date-tablet" id="stDate">
     <svg class="date-frame" viewBox="0 0 320 160" preserveAspectRatio="none" aria-hidden="true">
       <path pathLength="1" d="M14 6 H306 a8 8 0 0 1 8 8 V146 a8 8 0 0 1 -8 8 H14 a8 8 0 0 1 -8 -8 V14 a8 8 0 0 1 8 -8 Z"/>
@@ -142,10 +165,9 @@
     <div class="date-weekday" id="dWeekday"></div>
     <div class="date-main" id="dMain"></div>
     <div class="date-year" id="dYear"></div>
-    <div class="date-crusade" id="dCrusade" hidden></div>
+    <div class="date-crusade" id="dNote" hidden></div>
   </section>
 
-  <!-- 2 · цитата -->
   <section class="stage" id="stQuote">
     <div class="quote-legend" id="qLegend" hidden>легендарний сувій</div>
     <div class="quote-mark">“</div>
@@ -153,7 +175,6 @@
     <div class="quote-rule"></div>
   </section>
 
-  <!-- 3 · віха -->
   <section class="stage" id="stMs">
     <div class="sparks" id="msSparks" aria-hidden="true"></div>
     <svg class="ms-sigil"><use href="#sigil"/></svg>
@@ -164,7 +185,6 @@
     <p class="ms-text" id="msText"></p>
   </section>
 
-  <!-- 4 · рідкісні знаки -->
   <section class="stage" id="stSign">
     <svg class="ms-sigil"><use href="#sigil"/></svg>
     <div class="ms-kicker" id="signKicker"></div>
@@ -174,7 +194,6 @@
     <p class="ms-text" id="signText"></p>
   </section>
 
-  <!-- 5 · запечатано: відкривається само, коли прийде строк -->
   <section class="stage stage--seal" id="stSeal">
     <div class="seal-disc" id="sealDisc"><svg><use href="#sigil"/></svg></div>
     <p class="seal-text" id="sealText"></p>
@@ -191,55 +210,102 @@
   <div class="intro__skip">тап, щоб пропустити</div>
 </div>
 
-<!-- ============================ ТАБЛО ============================ -->
+<!-- ======================== ЦІЛІ: ВВЕДЕННЯ / РЕВЮ ======================== -->
+<div class="rite" id="rite" hidden>
+  <section class="rite__stage" id="riteEntry">
+    <svg class="rite__ic"><use href="#i-banner"/></svg>
+    <div class="rite__title" id="enTitle"></div>
+    <p class="rite__lead" id="enLead"></p>
+    <div class="entry">
+      <textarea id="enInput" rows="2" maxlength="140" enterkeyhint="done" placeholder="Одна ціль — коротко і вимірно"></textarea>
+      <button class="btn btn--gold" id="enAdd" type="button">Прийняти ціль</button>
+    </div>
+    <ol class="entry__list" id="enList"></ol>
+    <div class="rite__acts">
+      <button class="btn btn--line" id="enDone" type="button" hidden>Це все</button>
+      <button class="btn btn--ghost" id="enLater" type="button">Пізніше</button>
+    </div>
+  </section>
+
+  <section class="rite__stage rite__stage--center" id="riteReview">
+    <div class="rite__kicker" id="rvKicker"></div>
+    <div class="rv__count" id="rvCount"></div>
+    <div class="rv__card" id="rvCard">
+      <p class="rv__text" id="rvText"></p>
+      <div class="rv__stamp" id="rvStamp"></div>
+    </div>
+    <div class="rv__acts">
+      <button class="btn btn--gold" id="rvYes" type="button">Виконав</button>
+      <button class="btn btn--ghost" id="rvNo" type="button">Не виконав</button>
+    </div>
+  </section>
+
+  <section class="rite__stage rite__stage--center" id="riteResult">
+    <div class="rite__kicker" id="rsKicker"></div>
+    <div class="rs__wrap">
+      <svg class="rs__ring" viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="rs__track" cx="100" cy="100" r="90"/>
+        <circle class="rs__fill" id="rsFill" cx="100" cy="100" r="90" pathLength="1"/>
+      </svg>
+      <div class="rs__pct" id="rsPct">0%</div>
+      <div class="rs__medal" id="rsMedal"><div class="sparks sparks--medal" id="rsSparks"></div><svg><use href="#medal"/></svg></div>
+    </div>
+    <div class="rs__name" id="rsName"></div>
+    <p class="rs__text" id="rsText"></p>
+    <button class="btn btn--gold rs__ok" id="rsOk" type="button">Прийняти</button>
+  </section>
+</div>
+
+<!-- ============================ ЕКРАНИ ============================ -->
 <main class="frame">
-  <div class="board" id="board">
-    <header class="crest">
-      <svg class="crest__sigil"><use href="#sigil"/></svg>
-      <div class="crest__title" id="crestTitle">ОРДЕН</div>
-      <div class="crest__sub" id="crestSub">обітниць</div>
-    </header>
 
-    <button class="crusade" id="crusade" type="button" hidden>
-      <span class="crusade__head">
-        <svg class="crusade__ic"><use href="#i-banner"/></svg>
-        <span class="crusade__name" id="cruName">Хрестовий похід</span>
-        <span class="crusade__day" id="cruDay"></span>
-      </span>
-      <span class="crusade__track" id="cruTrack" aria-hidden="true"></span>
-      <span class="crusade__order" id="cruOrder"></span>
-    </button>
+  <!-- — Обітниці — -->
+  <div class="view is-on" id="vBoard" data-view="board">
+    <div class="board" id="board">
+      <header class="crest">
+        <svg class="crest__sigil"><use href="#sigil"/></svg>
+        <div class="crest__title" id="crestTitle">ОРДЕН</div>
+        <div class="crest__sub" id="crestSub">обітниць</div>
+      </header>
+      <ul class="oaths" id="oaths"></ul>
+      <footer class="board__foot">
+        <div class="board__acts">
+          <button class="replay" id="replay" type="button"><svg><use href="#i-play"/></svg>ритуал</button>
+          <button class="replay" id="protoBtn" type="button"><svg><use href="#i-scroll"/></svg>протокол</button>
+        </div>
+        <div class="board__end">
+          <button class="icobtn" id="sndBtn" type="button" aria-label="Звук і вібро"><svg id="sndIc"><use href="#i-bell"/></svg></button>
+          <span class="board__date" id="footDate"></span>
+        </div>
+      </footer>
+    </div>
+  </div>
 
-    <ul class="oaths" id="oaths"></ul>
+  <!-- — Літопис — -->
+  <div class="view" id="vStats" data-view="stats">
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-scroll"/></svg><div class="vhead__title">Літопис</div><div class="vhead__sub" id="stSub"></div></header>
+    <div id="statsBody"></div>
+  </div>
 
-    <button class="oath oath--feast" id="feast" type="button">
-      <span class="oath__icon"><svg><use href="#i-feast"></use></svg></span>
-      <span class="oath__body">
-        <span class="oath__name">Трапези</span>
-        <span class="oath__sub" id="feastSub">тап — відмітити</span>
-      </span>
-      <span class="oath__count"><span class="feast__dots" id="feastDots">—</span></span>
-    </button>
-
-    <footer class="board__foot">
-      <div class="board__acts">
-        <button class="replay" id="replay" type="button"><svg><use href="#i-play"/></svg>ритуал</button>
-        <button class="replay" id="protoBtn" type="button"><svg><use href="#i-scroll"/></svg>протокол</button>
-      </div>
-      <div class="board__end">
-        <button class="icobtn" id="sndBtn" type="button" aria-label="Звук і вібро"><svg id="sndIc"><use href="#i-bell"/></svg></button>
-        <span class="board__date" id="footDate"></span>
-      </div>
-    </footer>
+  <!-- — Цілі — -->
+  <div class="view" id="vGoals" data-view="goals">
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-medal"/></svg><div class="vhead__title">Цілі</div><div class="vhead__sub" id="glSub"></div></header>
+    <div id="goalsBody"></div>
   </div>
 </main>
+
+<nav class="tabs" id="tabs" aria-label="Розділи">
+  <button class="tab is-on" data-tab="board" type="button"><svg><use href="#i-shield"/></svg><span>Обітниці</span></button>
+  <button class="tab" data-tab="stats" type="button"><svg><use href="#i-scroll"/></svg><span>Літопис</span></button>
+  <button class="tab" data-tab="goals" type="button"><svg><use href="#i-medal"/></svg><span>Цілі</span><i class="tab__dot" id="goalsDot" hidden></i></button>
+</nav>
 
 <!-- ============================ ШТОРКА ============================ -->
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle">
   <div class="sheet__grip"></div>
   <div class="sheet__head">
-    <svg class="sheet__icon" id="shIcon"><use href="#i-coin"/></svg>
+    <svg class="sheet__icon" id="shIcon"><use href="#i-goblet"/></svg>
     <div>
       <div class="sheet__title" id="shTitle">—</div>
       <div class="sheet__stat" id="shStat">—</div>
@@ -250,61 +316,50 @@
     <span class="codex__chev" id="shCodexChev">розгорнути</span>
   </button>
   <div class="fold" id="shFold"><div class="fold__in"><div class="sheet__codex" id="shCodex"></div></div></div>
-  <div class="sheet__row">
-    <label>Наступна віха</label><span id="shNext">—</span>
-  </div>
-  <div class="sheet__row">
-    <label for="shDate">Початок стріку</label>
-    <input type="date" id="shDate">
-  </div>
-  <button class="btn btn--reset" id="shReset">Зрив — обнулити стрік</button>
-  <button class="btn btn--ghost" id="shClose">Закрити</button>
+  <div class="sheet__row" id="shWinRow"><label>Вікна місяця</label><span id="shWin">—</span></div>
+  <div class="sheet__row"><label>Рекорд</label><span id="shBest">—</span></div>
+  <div class="sheet__row"><label>Наступна віха</label><span id="shNext">—</span></div>
+  <div class="sheet__row"><label for="shDate">Початок стріку</label><input type="date" id="shDate"></div>
+  <button class="btn btn--line" id="shMark" type="button">Використати вікно</button>
+  <button class="btn btn--reset" id="shReset" type="button">Зрив — обнулити стрік</button>
+  <button class="btn btn--ghost" id="shClose" type="button">Закрити</button>
 </div>
 
-<!-- ========================== ПІДТВЕРДЖЕННЯ ========================== -->
+<!-- ========================== ПІДТВЕРДЖЕННЯ ЗРИВУ ========================== -->
 <div class="confirm" id="confirm" role="alertdialog" aria-modal="true">
   <div class="confirm__card">
     <div class="confirm__title">Обнулити «<b id="cfName">—</b>»?</div>
     <p class="confirm__text">Лічильник почне з нуля від сьогодні. Це чесна дія, не покарання — встанеш і підеш далі.</p>
-    <button class="btn btn--reset" id="cfYes">Так, я зірвався</button>
-    <button class="btn btn--ghost" id="cfNo">Скасувати</button>
+    <button class="btn btn--reset" id="cfYes" type="button">Так, я зірвався</button>
+    <button class="btn btn--ghost" id="cfNo" type="button">Скасувати</button>
   </div>
 </div>
 
-<!-- ===================== ТРАПЕЗИ — МЕНЮ ЗМІНИ ===================== -->
-<div class="confirm" id="feastModal" role="alertdialog" aria-modal="true">
+<!-- ============================ ВІДМІТКА ВІКНА ============================ -->
+<div class="confirm" id="markModal" role="alertdialog" aria-modal="true">
   <div class="confirm__card">
-    <div class="confirm__title">Трапези</div>
-    <p class="confirm__text" id="feastText">—</p>
-    <button class="codex-inline" id="feastCodexBtn" type="button"><svg class="codex__ic"><use href="#i-scroll"/></svg>кодекс трапез</button>
-    <div class="fold" id="feastFold"><div class="fold__in"><div class="sheet__codex sheet__codex--modal" id="feastCodex"></div></div></div>
-    <button class="btn btn--gold" id="feastYes" type="button">Відмітити (−1)</button>
-    <button class="btn btn--ghost" id="feastNo" type="button">Скасувати</button>
+    <svg class="mk-ic" id="mkIcon"><use href="#i-smoke"/></svg>
+    <div class="confirm__title" id="mkTitle">—</div>
+    <p class="confirm__text" id="mkText">—</p>
+    <div class="mk-count" id="mkCount" hidden>
+      <div class="mk-count__label">Скільки сьогодні</div>
+      <div class="mk-count__row" id="mkCountRow"></div>
+    </div>
+    <button class="btn btn--gold" id="mkYes" type="button">Відмітити</button>
+    <button class="btn btn--ghost" id="mkNo" type="button">Скасувати</button>
   </div>
 </div>
 
-<!-- ======================= ПРОТОКОЛ ТРИВОГ ======================= -->
+<!-- ======================= ПРОТОКОЛ ======================= -->
 <div class="confirm" id="protoModal" role="dialog" aria-modal="true">
   <div class="confirm__card confirm__card--codex">
-    <div class="confirm__title">Протокол тривог</div>
+    <div class="confirm__title">Протокол</div>
     <div class="sheet__codex sheet__codex--proto" id="protoText"></div>
     <button class="btn btn--ghost" id="protoClose" type="button">Закрити</button>
   </div>
 </div>
 
-<!-- ========================= ХРЕСТОВИЙ ПОХІД ========================= -->
-<div class="confirm" id="cruModal" role="dialog" aria-modal="true">
-  <div class="confirm__card confirm__card--codex">
-    <svg class="cru-ic"><use href="#i-banner"/></svg>
-    <div class="confirm__title" id="cruTitle">Хрестовий похід</div>
-    <p class="cru-stat" id="cruStat"></p>
-    <p class="cru-order" id="cruOrderFull"></p>
-    <div class="sheet__codex sheet__codex--proto" id="cruRules"></div>
-    <button class="btn btn--ghost" id="cruClose" type="button">Закрити</button>
-  </div>
-</div>
-
-<script src="data.js?v=2"></script>
-<script src="app.js?v=2"></script>
+<script src="data.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

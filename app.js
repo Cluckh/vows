@@ -113,6 +113,16 @@
   const saveLog = () => { if (LOG.length > 3000) LOG = LOG.slice(-3000); LS.set("ordo.log", LOG); };
   const logPush = (e) => { e.ts = Date.now(); LOG.push(e); saveLog(); };
 
+  /* одноразово: нікотин і чистота стали суворими, гідність повернулась — фіксуємо чесні дати */
+  if (!LS.get("ordo.mig4", false)) {
+    const fix = { nicotine: "2026-10-01", dignity: "2026-10-02", purity: "2026-10-02" };
+    Object.keys(fix).forEach((id) => {
+      const old = STARTS[id];
+      if (old && old < fix[id]) LOG.push({ k: "breach", v: id, d: fix[id], why: "manual", prev: Math.max(0, dayDiff(parseLocal(fix[id]), parseLocal(old))), ts: Date.now() });
+      if (!old || old < fix[id]) STARTS[id] = fix[id];
+    });
+    LS.set("ordo.starts", STARTS); saveLog(); LS.set("ordo.mig4", true);
+  }
   let BEST = LS.get("ordo.best", {});
   const vowById = (id) => D.VOWS.find((v) => v.id === id);
 

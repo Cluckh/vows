@@ -164,7 +164,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .oath{
   width:100%;text-align:left;position:relative;cursor:pointer;
   display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;
-  padding:17px 6px;border-bottom:1px solid var(--edge-soft);
+  padding:15px 6px;border-bottom:1px solid var(--edge-soft);
   transition:background .25s ease;
 }
 .oath:hover{background:rgba(205,163,73,.04)}

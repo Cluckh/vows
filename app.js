@@ -123,6 +123,16 @@
     });
     LS.set("ordo.starts", STARTS); saveLog(); LS.set("ordo.mig4", true);
   }
+  /* одноразово: повернулось Мовчання — фіксуємо чесну дату */
+  if (!LS.get("ordo.mig5", false)) {
+    const fix = { silence: "2026-10-02" };
+    Object.keys(fix).forEach((id) => {
+      const old = STARTS[id];
+      if (old && old < fix[id]) LOG.push({ k: "breach", v: id, d: fix[id], why: "manual", prev: Math.max(0, dayDiff(parseLocal(fix[id]), parseLocal(old))), ts: Date.now() });
+      if (!old || old < fix[id]) STARTS[id] = fix[id];
+    });
+    LS.set("ordo.starts", STARTS); saveLog(); LS.set("ordo.mig5", true);
+  }
   let BEST = LS.get("ordo.best", {});
   const vowById = (id) => D.VOWS.find((v) => v.id === id);
 

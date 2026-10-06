@@ -15,7 +15,7 @@
   const API = `https://api.github.com/repos/${REPO}/contents/`;
   const BRANCH = "main";                        // явно: основною в репозиторії може бути інша гілка
   const KDF_IT = 600000;
-  const AUTO_EVERY = 10 * 60 * 1000;            // не частіше, ніж раз на 10 хв (і завжди — коли додаток згортають)
+  const SYNC_EVERY = 20 * 1000;                 // поки додаток відкритий: що 20 с забрати чуже й віддати своє (лише якщо щось змінилось)
 
   const LS = {
     get(k, f) { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } },
@@ -85,7 +85,7 @@
      Кожен пристрій має свій підпис. Відкрив додаток → якщо в сховищі є свіжіша
      копія з ІНШОГО пристрою, вона підтягується (якщо тут теж були зміни —
      обʼєднується: літопис складається, цілі зливаються, рекорди — максимум).
-     Змінив щось → копія відправляється (раз на 10 хв або коли згортаєш).
+     Змінив щось → копія відправляється за ~20 с (або одразу, коли згортаєш).
      Налаштування пристрою (звук, музика, сьогоднішній ритуал) не синхронізуються. */
   const LOCAL_ONLY = ["ordo.lastIntro", "ordo.qQueue", "ordo.qLast", "ordo.statsMode", "ordo.ver", "ordo.sound", "ordo.music"];
   const DATA_KEY = (k) => k.startsWith("ordo.") && !k.startsWith("ordo.k.") && !k.startsWith("ordo.bk.") && !LOCAL_ONLY.includes(k);
@@ -151,7 +151,7 @@
   }
 
   let busy = false;
-  /* push: "auto" — якщо є зміни й минуло 10 хв; "now" — якщо є зміни; "force" — завжди */
+  /* push: "now" — віддати, якщо є зміни; "force" — завжди */
   async function syncNow(push) {
     if (busy || !token() || !LS.get(K.backup, null)) return { pulled: false };
     busy = true; status("saving");
@@ -171,7 +171,7 @@
         }
       }
       const cur = LS.get("ordo.bk.last", {}), changed = snapHash() !== cur.h;
-      const due = push === "force" || (changed && (push === "now" || !cur.at || Date.now() - cur.at > AUTO_EVERY));
+      const due = push === "force" || changed;
       if (due) {
         const b = await makeBackup();
         await putFile("backups/latest.json", b.file, "копія");
@@ -348,11 +348,11 @@
     if (typeof window.ORDO_START === "function") window.ORDO_START();
     const vb = $("vaultBtn"); if (vb) vb.addEventListener("click", openVault);
     wireVault(); status();
-    setInterval(() => { if (!document.hidden) syncNow("auto"); }, 90 * 1000);
+    setInterval(() => { if (!document.hidden) syncNow("now"); }, SYNC_EVERY);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }
       else if (reloadPending && calm()) location.reload();
-      else syncNow("auto");
+      else syncNow("now");
     });
   }
   window.ORDO_VAULT = { backupNow, syncNow, open: openVault };
@@ -364,7 +364,7 @@
     const data = await unlockContent(vault);
     if (data) {
       /* перед стартом — коротко підтягнути зміни з інших пристроїв (не довше 3 с) */
-      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("auto"), new Promise((r) => setTimeout(r, 3000))]);
+      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("now"), new Promise((r) => setTimeout(r, 3000))]);
       start(data); return;
     }
     stepToken(vault);

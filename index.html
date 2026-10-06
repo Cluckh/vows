@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Орден обітниць</title>
+<meta name="theme-color" content="#0a0b11">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Орден">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="fonts/CormorantSC-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/EBGaramond-500i-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css?v=15">
+</head>
+<body>
+
+
+
+<!-- ===== Бібліотека SVG ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="sigil" viewBox="0 0 100 100">
+      <g class="halo" style="transform-box:fill-box;transform-origin:center">
+        <g fill="none" stroke="var(--gold)" stroke-width="1.4" stroke-linecap="round" opacity=".85">
+          <path d="M50 5 V14"/><path d="M34 9 l3 8"/><path d="M66 9 l-3 8"/>
+          <path d="M22 19 l5 7"/><path d="M78 19 l-5 7"/>
+          <path d="M12 33 l7 5"/><path d="M88 33 l-7 5"/>
+        </g>
+      </g>
+      <!-- щит -->
+      <path d="M50 22 L78 30 V52 C78 68 65 78 50 86 C35 78 22 68 22 52 V30 Z"
+            fill="rgba(205,163,73,.05)" stroke="var(--gold)" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M50 28 L72 34 V52 C72 64 62 72 50 79 C38 72 28 64 28 52 V34 Z"
+            fill="none" stroke="var(--gold)" stroke-width=".7" opacity=".5"/>
+      <!-- меч-хрест -->
+      <g stroke="var(--gold-2)" stroke-width="2.2" stroke-linecap="round">
+        <path d="M50 31 V72"/>
+        <path d="M40 44 H60"/>
+      </g>
+      <circle cx="50" cy="30" r="2.4" fill="var(--gold-2)"/>
+      <path d="M50 72 l3.5 5 -3.5 3 -3.5 -3 Z" fill="var(--gold-2)"/>
+    </symbol>
+
+    <!-- іконки: гравірна лінія 1.4, currentColor -->
+    <symbol id="i-goblet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5.2 3.4h13.6"/>
+      <path d="M5.7 3.4c.3 5.2 2.8 8.3 6.3 8.3s6-3.1 6.3-8.3"/>
+      <path d="M7.6 6.9c1.4.6 2.8.8 4.4.8s3-.2 4.4-.8" opacity=".45"/>
+      <path d="M12 11.7v6.9"/>
+      <path d="M12 13.8l.9.9-.9.9-.9-.9Z" fill="currentColor"/>
+      <path d="M8.6 20.4c.9-1.1 2.1-1.8 3.4-1.8s2.5.7 3.4 1.8"/>
+      <path d="M7.8 20.6h8.4"/>
+    </symbol>
+    <symbol id="i-smoke" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11.4 19.2c-2.6-1.8 1.9-3.6-.2-6.3s1.8-4.5.9-8.1"/>
+      <path d="M15.2 17.6c-1.5-1.2 1.2-2.4.1-4.2s1-2.6.4-4.4"/>
+      <path d="M8 15.4c-1.1-.9.7-1.9-.2-3.3"/>
+      <path d="M6.5 21h11" opacity=".45"/>
+    </symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.6"/>
+      <circle cx="12" cy="12" r="6.4" opacity=".45"/>
+      <path d="M12 8.3v7.4M8.3 12h7.4"/>
+      <path d="M10.9 8.3h2.2M10.9 15.7h2.2M8.3 10.9v2.2M15.7 10.9v2.2"/>
+    </symbol>
+    <symbol id="i-seal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3.2" y="5.6" width="17.6" height="12.8" rx="1.6"/>
+      <path d="M3.6 6.2 12 12.4l8.4-6.2"/>
+      <path d="M3.6 17.8l6-4.8M20.4 17.8l-6-4.8" opacity=".45"/>
+      <circle cx="12" cy="13.3" r="2.7" fill="currentColor" stroke="none"/>
+      <path d="M12 11.9v2.8M10.6 13.3h2.8" stroke="#0a0b11" stroke-width="1.1"/>
+    </symbol>
+    <symbol id="i-lily" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.8c-2.3 2.6-2.6 6.3 0 9.9 2.6-3.6 2.3-7.3 0-9.9Z"/>
+      <path d="M10.7 13.4C9.9 9.9 6.9 8.3 4.9 9.9c-1.6 1.3-.8 3.9 1.2 3.9.9 0 1.5-.6 1.4-1.4"/>
+      <path d="M13.3 13.4c.8-3.5 3.8-5.1 5.8-3.5 1.6 1.3.8 3.9-1.2 3.9-.9 0-1.5-.6-1.4-1.4"/>
+      <path d="M7.6 13.6h8.8"/>
+      <path d="M12 13.6v3.2"/>
+      <path d="M12 15.6c-.6 2.1-1.9 3.6-3.8 4.6M12 15.6c.6 2.1 1.9 3.6 3.8 4.6"/>
+    </symbol>
+    <symbol id="i-dice" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.1l7.9 4.4v9L12 20.9l-7.9-4.4v-9Z"/>
+      <path d="M4.1 7.5 12 11.9l7.9-4.4M12 11.9v9" opacity=".6"/>
+      <ellipse cx="12" cy="7.5" rx="1.25" ry=".75" fill="currentColor" stroke="none"/>
+      <circle cx="7" cy="11.6" r=".85" fill="currentColor" stroke="none"/>
+      <circle cx="9.1" cy="16.4" r=".85" fill="currentColor" stroke="none"/>
+      <circle cx="14.3" cy="12.3" r=".85" fill="currentColor" stroke="none"/>
+      <circle cx="15.9" cy="14.4" r=".85" fill="currentColor" stroke="none"/>
+      <circle cx="17.5" cy="16.5" r=".85" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="i-feast" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6.4 3v4.6a2.3 2.3 0 0 0 4.6 0V3"/>
+      <path d="M8.7 3v4.3"/>
+      <path d="M8.7 9.9V21"/>
+      <path d="M16.6 21V3c2.3.9 3.3 3.4 3.3 6.4 0 2.4-1.1 3.8-3.3 3.8"/>
+    </symbol>
+    <symbol id="i-banner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5.6 21.2V3.6"/>
+      <circle cx="5.6" cy="2.6" r=".9" fill="currentColor" stroke="none"/>
+      <path d="M5.6 4.2h13l-3 4 3 4h-13"/>
+      <path d="M10.9 5.8v4.8M8.5 8.2h4.8"/>
+    </symbol>
+    <symbol id="i-scroll" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7 4.5h11.2a1.8 1.8 0 0 1 0 3.6H17v10.4a2 2 0 0 1-2 2H6.4"/>
+      <path d="M7 4.5a1.8 1.8 0 0 0-1.8 1.8v12.1a2 2 0 1 0 4 0v-.8h7.8"/>
+      <path d="M9.4 9.4h5M9.4 12.2h5M9.4 15h3" opacity=".55"/>
+    </symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.2v1.4"/>
+      <path d="M6.3 16.8c1-1.2 1.4-2.8 1.4-4.8v-1.3a4.3 4.3 0 0 1 8.6 0V12c0 2 .4 3.6 1.4 4.8Z"/>
+      <path d="M10.2 19.2a1.9 1.9 0 0 0 3.6 0"/>
+    </symbol>
+    <symbol id="i-bell-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.2v1.4"/>
+      <path d="M6.3 16.8c1-1.2 1.4-2.8 1.4-4.8v-1.3a4.3 4.3 0 0 1 8.6 0V12c0 2 .4 3.6 1.4 4.8Z" opacity=".45"/>
+      <path d="M10.2 19.2a1.9 1.9 0 0 0 3.6 0" opacity=".45"/>
+      <path d="M4.5 4.5l15 15"/>
+    </symbol>
+    <symbol id="i-vault" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="10.4" width="14" height="10" rx="2"/>
+      <path d="M8.2 10.4V8a3.8 3.8 0 0 1 7.6 0v2.4"/>
+      <path d="M12 13.6v3.6M10.2 15.4h3.6" opacity=".7"/>
+    </symbol>
+    <symbol id="i-lyre" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7.4 4.4C5.3 6 5 9.7 6.7 12.7c1.1 2 1.3 3.7.8 5.7"/>
+      <path d="M16.6 4.4c2.1 1.6 2.4 5.3.7 8.3-1.1 2-1.3 3.7-.8 5.7"/>
+      <path d="M6.4 8.4h11.2"/>
+      <path d="M7.2 18.6h9.6"/>
+      <path d="M10 8.4v10.2M12 8.4v10.2M14 8.4v10.2" opacity=".55"/>
+      <circle cx="7.6" cy="3.6" r=".85" fill="currentColor" stroke="none"/><circle cx="16.4" cy="3.6" r=".85" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6c0 .6.7 1 1.2.7l10.3-6.8c.5-.3.5-1 0-1.3L9.2 4.5C8.7 4.2 8 4.6 8 5.2Z"/></symbol>
+
+  
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.8 19.4 5v6.1c0 4.4-3.1 7.9-7.4 10.1-4.3-2.2-7.4-5.7-7.4-10.1V5Z"/>
+      <path d="M12 7v9.4M8.6 10.6h6.8"/>
+    </symbol>
+    <symbol id="i-medal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 2.8h8l-2.2 6.4h-3.6Z"/>
+      <circle cx="12" cy="15" r="6"/>
+      <path d="M12 12.2v5.6M9.2 15h5.6" opacity=".7"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+
+    <!-- медаль: кольори беруться з класу рівня (--m1 світло, --m2 основа, --m3 тінь, --rb стрічка) -->
+    <symbol id="medal" viewBox="0 0 100 132">
+      <path d="M33 0h34v36l-17 11-17-11Z" style="fill:var(--rb)"/>
+      <path d="M41 0h6v41M53 0h6v40" style="fill:none;stroke:var(--rb2);stroke-width:3"/>
+      <circle cx="50" cy="86" r="36" style="fill:var(--m2);stroke:var(--m3);stroke-width:2"/>
+      <ellipse cx="41" cy="74" rx="19" ry="12" transform="rotate(-28 41 74)" style="fill:var(--m1);opacity:.32"/>
+      <circle cx="50" cy="86" r="28.5" style="fill:none;stroke:var(--m3);stroke-width:1.4;opacity:.8"/>
+      <circle cx="50" cy="86" r="31.5" style="fill:none;stroke:var(--m1);stroke-width:.8;opacity:.7"/>
+      <path d="M50 64.5c2.2 5.6 3 9.6 3 13.4 3.8 0 7.8.8 13.4 3-5.6 2.2-9.6 3-13.4 3 0 3.8-.8 7.8-3 13.4-2.2-5.6-3-9.6-3-13.4-3.8 0-7.8-.8-13.4-3 5.6-2.2 9.6-3 13.4-3 0-3.8.8-7.8 3-13.4Z"
+            style="fill:var(--m1);stroke:var(--m3);stroke-width:1"/>
+      <circle cx="50" cy="80.9" r="2.2" style="fill:var(--m3)"/>
+    </symbol>
+</defs>
+</svg>
+
+<!-- ============================ РИТУАЛ ============================ -->
+<div class="intro" id="intro" role="button" tabindex="0" aria-label="Пропустити вступ">
+  <section class="stage date-tablet" id="stDate">
+    <svg class="date-frame" viewBox="0 0 320 160" preserveAspectRatio="none" aria-hidden="true">
+      <path pathLength="1" d="M14 6 H306 a8 8 0 0 1 8 8 V146 a8 8 0 0 1 -8 8 H14 a8 8 0 0 1 -8 -8 V14 a8 8 0 0 1 8 -8 Z"/>
+      <path pathLength="1" d="M30 6 H14 a8 8 0 0 0 -8 8 V30 M290 6 H306 a8 8 0 0 1 8 8 V30 M30 154 H14 a8 8 0 0 1 -8 -8 V130 M290 154 H306 a8 8 0 0 0 8 -8 V130"/>
+    </svg>
+    <svg class="date-frame date-crown" viewBox="0 -14 160 94" aria-hidden="true">
+      <path pathLength="1" d="M4 79 C36 79 60 62 69 38 C73 27 77 17 80 7 C83 17 87 27 91 38 C100 62 124 79 156 79"/>
+      <path pathLength="1" d="M24 79 C48 77 64 63 72 44 C75 37 78 30 80 23 C82 30 85 37 88 44 C96 63 112 77 136 79"/>
+      <path pathLength="1" d="M80 7 V-10 M74.5 -4.5 H85.5"/>
+      <path pathLength="1" d="M80 48 m-9 0 a4.5 4.5 0 1 1 9 -4.5 a4.5 4.5 0 1 1 9 4.5 a4.5 4.5 0 1 1 -9 4.5 a4.5 4.5 0 1 1 -9 -4.5 Z"/>
+      <path pathLength="1" d="M58 66 l2.2 -2.2 2.2 2.2 -2.2 2.2 Z M97.8 66 l2.2 -2.2 2.2 2.2 -2.2 2.2 Z"/>
+    </svg>
+    <svg class="date-frame date-foot" viewBox="0 0 120 16" aria-hidden="true">
+      <path pathLength="1" d="M4 8 H46 M74 8 H116"/>
+      <path pathLength="1" d="M60 2 L66 8 L60 14 L54 8 Z"/>
+      <path pathLength="1" d="M46 8 c3 -4 6 -4 8 0 M74 8 c-3 -4 -6 -4 -8 0"/>
+    </svg>
+    <div class="date-weekday" id="dWeekday"></div>
+    <div class="date-main" id="dMain"></div>
+    <div class="date-year" id="dYear"></div>
+    <div class="date-crusade" id="dNote" hidden></div>
+  </section>
+
+  <section class="stage" id="stQuote">
+    <div class="quote-legend" id="qLegend" hidden>легендарний сувій</div>
+    <div class="candle" aria-hidden="true">
+      <div class="candle__glow"></div>
+      <svg class="candle__svg" viewBox="0 0 60 124">
+        <defs>
+          <radialGradient id="flameG" cx="50%" cy="72%" r="60%">
+            <stop offset="0" stop-color="#fffbe8"/><stop offset=".32" stop-color="#ffe6a3"/>
+            <stop offset=".68" stop-color="#f0a948" stop-opacity=".9"/><stop offset="1" stop-color="#c8641e" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <g class="candle__flame">
+          <path d="M30 6 C35 16 40 24 40 33 C40 40 35.5 45 30 45 C24.5 45 20 40 20 33 C20 24 25 16 30 6 Z" fill="url(#flameG)"/>
+          <path d="M30 22 C32.5 28 34.5 32 34.5 36 C34.5 39.6 32.4 42 30 42 C27.6 42 25.5 39.6 25.5 36 C25.5 32 27.5 28 30 22 Z" fill="#fffdf2" opacity=".8"/>
+        </g>
+        <path d="M30 44 V50" stroke="#2a2216" stroke-width="1.6" stroke-linecap="round"/>
+        <g fill="none" stroke="var(--gold)" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
+          <path d="M21 52 C24 50 27 50.5 30 50 C33 50.5 36 50 39 52 V102 H21 Z" fill="rgba(236,230,216,.07)"/>
+          <path d="M24 52 V62 C24 64 26 64 26 62 V55" opacity=".7"/>
+          <path d="M35 52 V70 C35 72.4 37.4 72.4 37.4 70 V53" opacity=".7"/>
+          <path d="M8 104 C8 99.5 52 99.5 52 104 C52 108.5 8 108.5 8 104 Z"/>
+          <path d="M14 108 C18 112 26 113 30 113 C34 113 42 112 46 108" opacity=".7"/>
+          <path d="M22 113 L18 121 H42 L38 113" opacity=".85"/>
+          <path d="M52 104 C57 104 58 98 54 96" opacity=".7"/>
+        </g>
+      </svg>
+    </div>
+    <div class="quote-mark">“</div>
+    <p class="quote-text" id="qText"></p>
+    <div class="quote-rule"></div>
+  </section>
+
+  <section class="stage" id="stMs">
+    <div class="rays" aria-hidden="true"></div>
+    <div class="sparks" id="msSparks" aria-hidden="true"></div>
+    <svg class="ms-sigil"><use href="#sigil"/></svg>
+    <div class="ms-kicker">Віха вистояна</div>
+    <div class="ms-number" id="msNum"></div>
+    <div class="ms-days">днів</div>
+    <div class="ms-vow" id="msVow"></div>
+    <p class="ms-text" id="msText"></p>
+  </section>
+
+  <section class="stage" id="stSign">
+    <div class="rays rays--soft" aria-hidden="true"></div>
+    <svg class="ms-sigil"><use href="#sigil"/></svg>
+    <div class="ms-kicker" id="signKicker"></div>
+    <div class="ms-number" id="signNum"></div>
+    <div class="ms-days" id="signUnit"></div>
+    <div class="ms-vow" id="signVow"></div>
+    <p class="ms-text" id="signText"></p>
+  </section>
+
+  <section class="stage stage--seal" id="stSeal">
+    <div class="seal-disc" id="sealDisc"><svg><use href="#sigil"/></svg></div>
+    <p class="seal-text" id="sealText"></p>
+    <div class="seal-hint" id="sealHint"></div>
+  </section>
+  <section class="stage stage--year" id="stYear">
+    <div class="rays rays--year" aria-hidden="true"></div>
+    <div class="sparks sparks--year" id="yrSparks" aria-hidden="true"></div>
+    <div class="yr-kicker" id="yrKicker"></div>
+    <div class="yr-num" id="yrNum"></div>
+    <div class="yr-unit" id="yrUnit"></div>
+    <div class="yr-lines" id="yrLines"></div>
+  </section>
+
+  <div class="intro__skip">тап, щоб пропустити</div>
+</div>
+
+<!-- ======================== ЦІЛІ: ВВЕДЕННЯ / РЕВЮ ======================== -->
+<div class="rite" id="rite" hidden>
+  <section class="rite__stage" id="riteEntry">
+    <svg class="rite__ic"><use href="#i-banner"/></svg>
+    <div class="rite__title" id="enTitle"></div>
+    <p class="rite__lead" id="enLead"></p>
+    <div class="entry">
+      <div class="cmp" id="enComposer"></div>
+      <button class="btn btn--gold" id="enAdd" type="button">Прийняти ціль</button>
+    </div>
+    <ol class="entry__list" id="enList"></ol>
+    <div class="rite__acts">
+      <button class="btn btn--line" id="enDone" type="button" hidden>Це все</button>
+      <button class="btn btn--ghost" id="enLater" type="button">Пізніше</button>
+    </div>
+  </section>
+
+  <section class="rite__stage rite__stage--center" id="riteReview">
+    <div class="rite__kicker" id="rvKicker"></div>
+    <div class="rv__count" id="rvCount"></div>
+    <div class="rv__card" id="rvCard">
+      <div class="rv__inner"><p class="rv__text" id="rvText"></p><div class="rv__extra" id="rvExtra"></div></div>
+      <div class="rv__stamp" id="rvStamp"></div>
+    </div>
+    <div class="rv__acts">
+      <button class="btn btn--gold" id="rvYes" type="button">Виконав</button>
+      <button class="btn btn--ghost" id="rvNo" type="button">Не виконав</button>
+    </div>
+  </section>
+
+  <section class="rite__stage rite__stage--center" id="riteResult">
+    <div class="rite__kicker" id="rsKicker"></div>
+    <div class="rs__wrap">
+      <svg class="rs__ring" viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="rs__track" cx="100" cy="100" r="90"/>
+        <circle class="rs__fill" id="rsFill" cx="100" cy="100" r="90" pathLength="1"/>
+      </svg>
+      <div class="rs__pct" id="rsPct">0%</div>
+      <div class="rs__medal" id="rsMedal"><div class="sparks sparks--medal" id="rsSparks"></div><svg><use href="#medal"/></svg></div>
+    </div>
+    <div class="rs__name" id="rsName"></div>
+    <p class="rs__text" id="rsText"></p>
+    <button class="btn btn--gold rs__ok" id="rsOk" type="button">Прийняти</button>
+  </section>
+</div>
+
+<!-- ============================ ЕКРАНИ ============================ -->
+<main class="frame">
+
+  <!-- — Обітниці — -->
+  <div class="view is-on" id="vBoard" data-view="board">
+    <div class="board" id="board">
+      <header class="crest">
+        <svg class="crest__sigil"><use href="#sigil"/></svg>
+        <div class="crest__title" id="crestTitle">ОРДЕН</div>
+        <div class="crest__sub" id="crestSub">обітниць</div>
+        <svg class="crest__rule" viewBox="0 0 220 18" aria-hidden="true">
+          <path pathLength="1" d="M8 9 H86 M134 9 H212"/>
+          <path pathLength="1" d="M86 9 c4 -6 9 -6 12 -1 c2 3 -1 6 -3 4 M134 9 c-4 -6 -9 -6 -12 -1 c-2 3 1 6 3 4"/>
+          <path pathLength="1" d="M110 2 L117 9 L110 16 L103 9 Z"/>
+          <circle cx="110" cy="9" r="1.6" class="crest__dot"/>
+        </svg>
+      </header>
+      <ul class="oaths" id="oaths"></ul>
+      <footer class="board__foot">
+        <div class="board__acts">
+          <button class="replay" id="replay" type="button"><svg><use href="#i-play"/></svg>ритуал</button>
+          <button class="replay" id="protoBtn" type="button"><svg><use href="#i-scroll"/></svg>протокол</button>
+        </div>
+        <div class="board__end">
+          <button class="icobtn" id="vaultBtn" type="button" aria-label="Сховище"><svg><use href="#i-vault"/></svg></button>
+          <button class="icobtn" id="musBtn" type="button" aria-label="Музика"><svg><use href="#i-lyre"/></svg></button>
+          <button class="icobtn" id="sndBtn" type="button" aria-label="Звук"><svg id="sndIc"><use href="#i-bell"/></svg></button>
+        </div>
+        <span class="board__date" id="footDate"></span>
+      </footer>
+    </div>
+  </div>
+
+  <!-- — Літопис — -->
+  <div class="view" id="vStats" data-view="stats">
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-scroll"/></svg><div class="vhead__title">Літопис</div><div class="vhead__sub" id="stSub"></div></header>
+    <div id="statsBody"></div>
+  </div>
+
+  <!-- — Цілі — -->
+  <div class="view" id="vGoals" data-view="goals">
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-medal"/></svg><div class="vhead__title">Цілі</div><div class="vhead__sub" id="glSub"></div></header>
+    <div id="goalsBody"></div>
+  </div>
+</main>
+
+<nav class="tabs" id="tabs" aria-label="Розділи">
+  <button class="tab is-on" data-tab="board" type="button"><svg><use href="#i-shield"/></svg><span>Обітниці</span></button>
+  <button class="tab" data-tab="stats" type="button"><svg><use href="#i-scroll"/></svg><span>Літопис</span></button>
+  <button class="tab" data-tab="goals" type="button"><svg><use href="#i-medal"/></svg><span>Цілі</span><i class="tab__dot" id="goalsDot" hidden></i></button>
+</nav>
+
+<!-- ============================ ШТОРКА ============================ -->
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+  <div class="sheet__grip"></div>
+  <div class="sheet__head">
+    <svg class="sheet__icon" id="shIcon"><use href="#i-goblet"/></svg>
+    <div>
+      <div class="sheet__title" id="shTitle">—</div>
+      <div class="sheet__stat" id="shStat">—</div>
+    </div>
+  </div>
+  <button class="sheet__row sheet__codexbtn" id="shCodexBtn" type="button">
+    <span class="codex__label"><svg class="codex__ic"><use href="#i-scroll"/></svg>Кодекс обітниці</span>
+    <span class="codex__chev" id="shCodexChev">розгорнути</span>
+  </button>
+  <div class="fold" id="shFold"><div class="fold__in"><div class="sheet__codex" id="shCodex"></div></div></div>
+  <div class="sheet__row" id="shWinRow"><label>Вікна місяця</label><span id="shWin">—</span></div>
+  <div class="sheet__row"><label>Рекорд</label><span id="shBest">—</span></div>
+  <div class="sheet__row"><label>Наступна віха</label><span id="shNext">—</span></div>
+  <div class="sheet__row"><label for="shDate">Початок стріку</label><input type="date" id="shDate"></div>
+  <button class="btn btn--line" id="shMark" type="button">Використати вікно</button>
+  <button class="btn btn--reset" id="shReset" type="button">Зрив — обнулити стрік</button>
+  <button class="btn btn--ghost" id="shClose" type="button">Закрити</button>
+</div>
+
+<!-- ============================ ШТОРКА ЦІЛІ ============================ -->
+<div class="sheet gsheet" id="gSheet" role="dialog" aria-modal="true">
+  <div class="sheet__grip"></div>
+  <div id="gsBody"></div>
+</div>
+
+<!-- ========================== ПІДТВЕРДЖЕННЯ ЗРИВУ ========================== -->
+<div class="confirm" id="confirm" role="alertdialog" aria-modal="true">
+  <div class="confirm__card">
+    <div class="confirm__title">Обнулити «<b id="cfName">—</b>»?</div>
+    <p class="confirm__text">Лічильник почне з нуля від сьогодні. Це чесна дія, не покарання — встанеш і підеш далі.</p>
+    <button class="btn btn--reset" id="cfYes" type="button">Так, я зірвався</button>
+    <button class="btn btn--ghost" id="cfNo" type="button">Скасувати</button>
+  </div>
+</div>
+
+<!-- ============================ ВІДМІТКА ВІКНА ============================ -->
+<div class="confirm" id="markModal" role="alertdialog" aria-modal="true">
+  <div class="confirm__card">
+    <svg class="mk-ic" id="mkIcon"><use href="#i-smoke"/></svg>
+    <div class="confirm__title" id="mkTitle">—</div>
+    <p class="confirm__text" id="mkText">—</p>
+    <div class="mk-count" id="mkCount" hidden>
+      <div class="mk-count__label">Скільки сьогодні</div>
+      <div class="mk-count__row" id="mkCountRow"></div>
+    </div>
+    <button class="btn btn--gold" id="mkYes" type="button">Відмітити</button>
+    <button class="btn btn--ghost" id="mkNo" type="button">Скасувати</button>
+  </div>
+</div>
+
+<!-- ======================= ПРОТОКОЛ ======================= -->
+<div class="confirm" id="vaultModal" role="dialog" aria-modal="true" aria-label="Сховище">
+  <div class="confirm__card vt-card">
+    <div class="vt-head"><svg><use href="#i-vault"/></svg><span>Сховище Ордену</span></div>
+    <div id="vaultBody"></div>
+  </div>
+</div>
+
+<div class="confirm" id="protoModal" role="dialog" aria-modal="true">
+  <div class="confirm__card confirm__card--codex">
+    <div class="confirm__title">Протокол</div>
+    <div class="sheet__codex sheet__codex--proto" id="protoText"></div>
+    <button class="btn btn--ghost" id="protoClose" type="button">Закрити</button>
+  </div>
+</div>
+
+<script src="app.js?v=22"></script>
+<script src="boot.js?v=1"></script>
+</body>
+</html>

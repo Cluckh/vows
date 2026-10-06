@@ -985,3 +985,23 @@ button:disabled>.hx-ovl,[aria-disabled="true"]>.hx-ovl{pointer-events:none}
 /* дата й версія — окремим тихим рядком під кнопками (у рядку тепер три іконки) */
 .board__foot{flex-wrap:wrap}
 .board__foot>.board__date{flex:1 0 100%;text-align:center;margin:10px 0 0}
+
+/* — цілі в Літописі — */
+.st-h--goals{display:flex;align-items:baseline;justify-content:space-between;margin-top:26px}
+.st-h--goals em{font-family:var(--f-serif);font-style:italic;font-size:14px;letter-spacing:.02em;text-transform:none;color:var(--ash)}
+.st-goal .st-vow__name{font-family:var(--f-serif);font-weight:500;font-size:16px;letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-goal .st-vow__nums{white-space:nowrap}
+.st-goal .st-vow__nums b{font-size:16px}
+.st-vow__nums b.gs-ok{color:var(--gold-2)}
+.st-vow__nums b.gs-no{color:var(--ash-2);font-size:14px}
+.st-vow__nums b.gs-off{color:var(--ember-2)}
+.st-goal .gl-bar{margin:10px 0 6px}
+.st-cal i.g-0{background:rgba(205,163,73,.08)}
+.st-cal i.g-a{background:rgba(205,163,73,.6)}
+.st-cal i.g-d{background:linear-gradient(180deg,var(--halo),var(--gold));box-shadow:0 0 6px rgba(240,214,138,.7)}
+.st-legend .g-a{background:rgba(205,163,73,.6)}.st-legend .g-d{background:var(--halo);box-shadow:0 0 5px rgba(240,214,138,.7)}
+.st-award{padding:4px 2px 8px}
+.st-award svg{width:34px;height:46px}
+.st-award span{font-size:12.5px;color:var(--ash)}
+.ym-p{background:rgba(205,163,73,.16);color:var(--gold-2);font-size:10px}
+.ym-t{background:linear-gradient(180deg,var(--m1),var(--m2));color:#15110a;font-size:10px}

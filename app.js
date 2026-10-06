@@ -348,6 +348,22 @@ window.ORDO_START = function () {
   const saveLog = () => { if (LOG.length > 3000) LOG = LOG.slice(-3000); LS.set("ordo.log", LOG); };
   const logPush = (e) => { e.ts = Date.now(); LOG.push(e); saveLog(); };
 
+  /* одноразові виправлення літопису (приходять у зашифрованому вмісті, D.PATCHES):
+     застосовуються один раз; час запису детермінований, тож на різних пристроях
+     це той самий запис і синхронізація його не подвоїть */
+  (function applyPatches() {
+    const done = LS.get("ordo.patches", []); let changed = false;
+    (D.PATCHES || []).forEach((p) => {
+      if (done.includes(p.id)) return;
+      (p.log || []).forEach((e) => {
+        if (LOG.some((x) => x.k === e.k && x.v === e.v && x.d === e.d)) return;
+        LOG.push(Object.assign({ ts: new Date(e.d + "T12:00:00").getTime() }, e)); changed = true;
+      });
+      done.push(p.id);
+    });
+    if (changed) { LOG.sort((a, b) => (a.ts || 0) - (b.ts || 0)); saveLog(); }
+    if ((D.PATCHES || []).length) LS.set("ordo.patches", done);
+  })();
   let BEST = LS.get("ordo.best", {});
   const vowById = (id) => D.VOWS.find((v) => v.id === id);
 
@@ -699,7 +715,65 @@ window.ORDO_START = function () {
         <div class="st-vow__meta">${winTxt}${mBr} ${brWord(mBr)} у ${loc}</div>
       </div>`;
     });
-    return h + `<div class="st-legend"><span><i class="c-c"></i>чистий</span><span><i class="c-w"></i>вікно</span><span><i class="c-b"></i>зрив</span><span><i class="c-x"></i>без запису</span></div>`;
+    return h + `<div class="st-legend"><span><i class="c-c"></i>чистий</span><span><i class="c-w"></i>вікно</span><span><i class="c-b"></i>зрив</span><span><i class="c-x"></i>без запису</span></div>` +
+      goalsMonthHTML(mk, N, isCur);
+  }
+
+  /* ---- цілі в Літописі: дні з дією, прогрес, медаль ---- */
+  const GL_ICON = { once: "i-medal", count: "i-plus", measure: "i-scroll", stages: "i-banner", vows: "i-shield" };
+  function goalDays(it) {                       // { "РРРР-ММ-ДД": "a" — була дія | "d" — виконано }
+    const m = {};
+    (it.hist || []).forEach((h) => { m[h.d] = "a"; });
+    (it.parts || []).forEach((p) => { if (p.done) m[p.done] = "a"; });
+    if (it.done) m[it.done] = "d";
+    return m;
+  }
+  function goalStatus(it, P) {
+    const t = tyOf(it);
+    if (P.res) return P.res[it.id] ? `<b class="gs-ok">виконано</b>` : `<b class="gs-no">не виконано</b>`;
+    if (complete(it)) return `<b class="gs-ok">виконано</b>${it.done ? ` <em>${fmtKey(it.done)}</em>` : ""}`;
+    if (t === "count") return `<b>${fmtN(it.cur || 0)}</b> <em>/ ${fmtN(it.target)}</em>`;
+    if (t === "measure") { const lv = lastVal(it); return lv ? `<b class="${msState(it) === "ok" ? "gs-ok" : "gs-off"}">${fmtN(lv.v)}</b> <em>${OPS[it.op]} ${fmtN(it.target)}</em>` : `<em>значень нема</em>`; }
+    if (t === "stages") { const ps = it.parts || []; return `<b>${ps.filter(partDone).length}</b> <em>/ ${ps.length}</em>`; }
+    if (t === "vows") return `<b>${minVow(it)}</b> <em>/ ${fmtN(it.target)}</em>`;
+    return `<em>ще ні</em>`;
+  }
+  function goalsMonthHTML(mk, N, isCur) {
+    const P = G.m[mk], head = (x) => `<div class="st-h st-h--goals"><span>Цілі місяця</span>${x || ""}</div>`;
+    if (!P || !P.items.length) return head() + `<p class="st-empty">Цілей на ${monthName(mk)} не ставилось.</p>`;
+    const done = P.items.filter((it) => P.res ? P.res[it.id] : complete(it)).length, today = todayKey();
+    let h = head(`<em>${done} з ${P.items.length}</em>`);
+    if (P.res) { const a = tierFor(D.MEDALS, pctOf(P)); h += `<div class="gl-award tier-${a.tier} st-award"><svg><use href="#medal"/></svg><div><b>${a.name}</b><span>${pctOf(P)}% цілей місяця</span></div></div>`; }
+    h += P.items.map((it) => {
+      const days = goalDays(it), t = tyOf(it); let cells = "";
+      for (let i = 1; i <= N; i++) {
+        const dk = `${mk}-${pad(i)}`, st = days[dk];
+        cells += `<i class="${st === "d" ? "g-d" : st === "a" ? "g-a" : dk > today ? "c-f" : "g-0"}${isCur && i === new Date().getDate() ? " c-now" : ""}"></i>`;
+      }
+      const act = Object.keys(days).filter((d) => d.slice(0, 7) === mk).length;
+      return `<div class="st-vow st-goal"><div class="st-vow__head"><svg><use href="#${GL_ICON[t] || "i-medal"}"/></svg><span class="st-vow__name">${esc(it.t)}</span><span class="st-vow__nums">${goalStatus(it, P)}</span></div>
+        <div class="st-cal" style="grid-template-columns:repeat(${N},1fr)">${cells}</div>
+        <div class="st-vow__meta">${GT[t].name} · ${act ? `${act} ${pluralUk(act, ["день", "дні", "днів"])} з дією` : "ще без дій"}${t !== "measure" && !P.res ? ` · ${Math.round(progressOf(it) * 100)}%` : ""}</div></div>`;
+    }).join("");
+    return h + `<div class="st-legend"><span><i class="g-a"></i>була дія</span><span><i class="g-d"></i>виконано</span></div>`;
+  }
+  function goalsYearHTML(Y, curMk) {
+    let cells = "";
+    for (let m = 1; m <= 12; m++) {
+      const mk = `${Y}-${pad(m)}`, P = G.m[mk];
+      if (mk > curMk || !P || !P.items.length) { cells += `<i class="ym ym-f"></i>`; continue; }
+      const done = P.items.filter((it) => P.res ? P.res[it.id] : complete(it)).length;
+      const tier = P.res ? tierFor(D.MEDALS, pctOf(P)).tier : "";
+      cells += `<i class="ym ${tier ? `ym-t tier-${tier}` : "ym-p"}${mk === curMk ? " ym-now" : ""}" data-mk="${mk}">${done}/${P.items.length}</i>`;
+    }
+    let h = `<div class="st-h st-h--goals"><span>Цілі</span></div>
+      <div class="st-vow st-vow--y"><div class="st-vow__head"><svg><use href="#i-medal"/></svg><span class="st-vow__name">Цілі місяця</span></div>
+      <div class="st-year">${cells}</div><div class="st-vow__meta">число — виконано з поставлених; колір — медаль місяця після ревю</div></div>`;
+    const YP = G.y[String(Y)];
+    if (YP && YP.items.length) h += YP.items.map((it) => `<div class="st-vow st-goal"><div class="st-vow__head"><svg><use href="#${GL_ICON[tyOf(it)] || "i-medal"}"/></svg>
+      <span class="st-vow__name">${esc(it.t)}</span><span class="st-vow__nums">${goalStatus(it, YP)}</span></div>
+      <div class="gl-bar"><i style="width:${Math.round(progressOf(it) * 100)}%"></i></div><div class="st-vow__meta">ціль ${Y} року · ${GT[tyOf(it)].name}</div></div>`).join("");
+    return h;
   }
 
   function yearHTML() {
@@ -741,7 +815,8 @@ window.ORDO_START = function () {
     <div class="st-yhead">${MON3.map((m) => `<span>${m}</span>`).join("")}</div>
     ${rows}
     <div class="st-legend"><span><i class="c-c"></i>місяць без зривів</span><span><i class="c-w"></i>були вікна</span><span><i class="c-b"></i>були зриви</span></div>
-    <p class="st-note">Число в клітинці — скільки зривів (або вікон) було того місяця. Тап по місяцю відкриває його детально. Найдовший стрік серед обітниць — ${bestAll} ${daysWord(bestAll)}.</p>`;
+    <p class="st-note">Число в клітинці — скільки зривів (або вікон) було того місяця. Тап по місяцю відкриває його детально. Найдовший стрік серед обітниць — ${bestAll} ${daysWord(bestAll)}.</p>` +
+    goalsYearHTML(Y, curMk);
   }
 
   on("statsBody", "click", (e) => {

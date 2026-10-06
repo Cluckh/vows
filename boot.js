@@ -81,58 +81,116 @@
     try { return JSON.parse(await open(unb64(raw), vault)); } catch (e) { return null; }
   }
 
-  /* -------------------------------------------------------- резервні копії */
-  const DATA_KEY = (k) => k.startsWith("ordo.") && !k.startsWith("ordo.k.") && !k.startsWith("ordo.bk.");
+  /* ------------------------------------------- копії й синхронізація ----
+     Кожен пристрій має свій підпис. Відкрив додаток → якщо в сховищі є свіжіша
+     копія з ІНШОГО пристрою, вона підтягується (якщо тут теж були зміни —
+     обʼєднується: літопис складається, цілі зливаються, рекорди — максимум).
+     Змінив щось → копія відправляється (раз на 10 хв або коли згортаєш).
+     Налаштування пристрою (звук, музика, сьогоднішній ритуал) не синхронізуються. */
+  const LOCAL_ONLY = ["ordo.lastIntro", "ordo.qQueue", "ordo.qLast", "ordo.statsMode", "ordo.ver", "ordo.sound", "ordo.music"];
+  const DATA_KEY = (k) => k.startsWith("ordo.") && !k.startsWith("ordo.k.") && !k.startsWith("ordo.bk.") && !LOCAL_ONLY.includes(k);
   function snapshot() {
-    const o = {};
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (DATA_KEY(k)) o[k] = localStorage.getItem(k); }
+    const o = {}, keys = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (DATA_KEY(k)) keys.push(k); }
+    keys.sort().forEach((k) => { o[k] = localStorage.getItem(k); });
     return o;
   }
   const hasLocalData = () => !!(localStorage.getItem("ordo.log") || localStorage.getItem("ordo.goals") || localStorage.getItem("ordo.best"));
   function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+  const snapHash = () => hash(JSON.stringify(snapshot()));
   const day = (d) => { d = d || new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+  function devId() { let d = LS.get("ordo.k.dev", ""); if (!d) { d = b64(crypto.getRandomValues(new Uint8Array(9))); LS.set("ordo.k.dev", d); } return d; }
 
   async function makeBackup() {
     const raw = LS.get(K.backup, null), salt = LS.get(K.salt, null);
     if (!raw || !salt) throw new Error("no backup key");
-    const data = snapshot(), text = JSON.stringify(data);
-    const box = await seal(unb64(raw), text);
-    return { file: JSON.stringify({ ordo: "backup", v: 1, kdf: "PBKDF2-SHA256", it: KDF_IT, salt, iv: box.iv, ct: box.ct, at: new Date().toISOString() }), h: hash(text) };
+    const box = await seal(unb64(raw), JSON.stringify(snapshot())), at = new Date().toISOString();
+    return { at, file: JSON.stringify({ ordo: "backup", v: 2, kdf: "PBKDF2-SHA256", it: KDF_IT, salt, iv: box.iv, ct: box.ct, at, dev: devId() }) };
   }
   async function readBackup(fileText, pass) {
     const f = JSON.parse(fileText);
     if (f.ordo !== "backup") throw new Error("not a backup");
     const raw = pass ? await derive(pass, unb64(f.salt)) : unb64(LS.get(K.backup, ""));
     const data = JSON.parse(await open(raw, f));
-    return { data, raw, salt: f.salt, at: f.at };
+    return { data, raw, salt: f.salt, at: f.at, dev: f.dev };
   }
   function applyData(data) {
     const drop = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (DATA_KEY(k)) drop.push(k); }
     drop.forEach((k) => localStorage.removeItem(k));
     Object.keys(data).forEach((k) => { if (DATA_KEY(k)) localStorage.setItem(k, data[k]); });
   }
+  /* обʼєднання, коли зміни були на обох пристроях: нічого не губимо */
+  function mergeData(L, R) {
+    const P = (o, k, f) => { try { return o[k] != null ? JSON.parse(o[k]) : f; } catch (e) { return f; } };
+    const out = Object.assign({}, R, L);
+    const seen = new Set(), log = [];
+    [].concat(P(R, "ordo.log", []), P(L, "ordo.log", [])).forEach((e) => {
+      const id = [e.k, e.v, e.d, e.ts, e.gid || ""].join("|"); if (!seen.has(id)) { seen.add(id); log.push(e); }
+    });
+    log.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    out["ordo.log"] = JSON.stringify(log);
+    const sL = P(L, "ordo.starts", {}), sR = P(R, "ordo.starts", {}), st = Object.assign({}, sR, sL);
+    Object.keys(sR).forEach((k) => { if (sL[k] && sR[k] > sL[k]) st[k] = sR[k]; });     // зрив зсуває старт уперед — пізніша дата свіжіша
+    out["ordo.starts"] = JSON.stringify(st);
+    const bL = P(L, "ordo.best", {}), bR = P(R, "ordo.best", {}), be = Object.assign({}, bR, bL);
+    Object.keys(bR).forEach((k) => { be[k] = Math.max(bL[k] || 0, bR[k] || 0); });
+    out["ordo.best"] = JSON.stringify(be);
+    const gL = P(L, "ordo.goals", { y: {}, m: {} }), gR = P(R, "ordo.goals", { y: {}, m: {} }), g = { y: {}, m: {} };
+    ["y", "m"].forEach((kind) => {
+      const A = gL[kind] || {}, B = gR[kind] || {};
+      new Set(Object.keys(A).concat(Object.keys(B))).forEach((key) => {
+        const a = A[key], b = B[key]; if (!a || !b) { g[kind][key] = a || b; return; }
+        const items = (a.items || []).slice(), ids = new Set(items.map((i) => i.id));
+        (b.items || []).forEach((i) => { if (!ids.has(i.id)) items.push(i); });
+        g[kind][key] = Object.assign({}, b, a, { items, res: a.res || b.res, skip: !!(a.skip && b.skip) });
+      });
+    });
+    out["ordo.goals"] = JSON.stringify(g);
+    Object.keys(out).forEach((k) => { if (out[k] == null) delete out[k]; });
+    return out;
+  }
 
   let busy = false;
-  async function backupNow(force) {
-    if (busy || !token() || !LS.get(K.backup, null)) return false;
-    const text = JSON.stringify(snapshot()), h = hash(text);
-    const last = LS.get("ordo.bk.last", {});
-    if (!force && last.h === h) return false;
+  /* push: "auto" — якщо є зміни й минуло 10 хв; "now" — якщо є зміни; "force" — завжди */
+  async function syncNow(push) {
+    if (busy || !token() || !LS.get(K.backup, null)) return { pulled: false };
     busy = true; status("saving");
+    let pulled = false;
     try {
-      const b = await makeBackup();
-      await putFile("backups/latest.json", b.file, "копія");
-      await putFile(`backups/${day()}.json`, b.file, "копія дня");
-      LS.set("ordo.bk.last", { h: b.h, at: Date.now() }); LS.del("ordo.bk.err");
-      status("ok"); return true;
+      const last = LS.get("ordo.bk.last", {});
+      const dirty = snapHash() !== last.h;
+      const remote = await gh("backups/latest.json", { raw: true });
+      if (remote) {
+        const meta = JSON.parse(remote);
+        if (meta.dev && meta.dev !== devId() && meta.at && (!last.remoteAt || meta.at > last.remoteAt)) {
+          const r = await readBackup(remote, null);
+          applyData(dirty ? mergeData(snapshot(), r.data) : r.data);
+          pulled = true;
+          LS.set("ordo.bk.last", { h: dirty ? "" : snapHash(), at: last.at || 0, remoteAt: meta.at });
+          if (dirty) push = "force";                // обʼєднане одразу віддаємо іншим пристроям
+        }
+      }
+      const cur = LS.get("ordo.bk.last", {}), changed = snapHash() !== cur.h;
+      const due = push === "force" || (changed && (push === "now" || !cur.at || Date.now() - cur.at > AUTO_EVERY));
+      if (due) {
+        const b = await makeBackup();
+        await putFile("backups/latest.json", b.file, "копія");
+        await putFile(`backups/${day()}.json`, b.file, "копія дня");
+        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at });
+      }
+      LS.del("ordo.bk.err"); status("ok");
     } catch (e) {
-      LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err"); return false;
+      LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err");
     } finally { busy = false; }
+    if (pulled && window.__ordoStarted) reloadWhenCalm();
+    return { pulled };
   }
-  function autoBackup(always) {
-    const last = LS.get("ordo.bk.last", {});
-    if (always || !last.at || Date.now() - last.at > AUTO_EVERY) backupNow(false);
-  }
+  const backupNow = () => syncNow("force");
+  /* підтягнуті дані показуємо перезапуском — але не посеред дії */
+  let reloadPending = false;
+  const calm = () => { const a = document.activeElement, intro = $("intro");
+    return (!intro || intro.hasAttribute("hidden")) && !document.querySelector(".sheet.open, .confirm.open, .rite.open") && !(a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !a.classList.contains("hx-ovl")); };
+  function reloadWhenCalm() { if (document.hidden || calm()) location.reload(); else reloadPending = true; }
 
   /* ---------------------------------------------------------------- ворота */
   function gate(html) {
@@ -194,12 +252,13 @@
         if (exists) {
           const r = await readBackup(latest, p);
           LS.set(K.backup, b64(r.raw)); LS.set(K.salt, r.salt);
-          if (!hasLocalData()) applyData(r.data);         // новий телефон — повертаємо все з копії
+          applyData(hasLocalData() ? mergeData(snapshot(), r.data) : r.data);   // новий пристрій — усе з копії; є свої дані — обʼєднуємо
+          LS.set("ordo.bk.last", { h: "", at: 0, remoteAt: r.at });
         } else {
           const salt = crypto.getRandomValues(new Uint8Array(16));
           LS.set(K.backup, b64(await derive(p, salt))); LS.set(K.salt, b64(salt));
         }
-        closeGate(); start(data); backupNow(true);
+        closeGate(); start(data); syncNow("force");
       } catch (e) {
         btnBusy(b, false, "Відчинити");
         msg(exists ? "Ключ не підходить до цієї копії." : "Не вдалося. Спробуй ще раз.");
@@ -219,10 +278,10 @@
     const last = LS.get("ordo.bk.last", {}), err = LS.get("ordo.bk.err", null);
     const line = busy ? `<span class="vt-st">зберігаю…</span>`
       : err ? `<span class="vt-st is-err">${err.code === 401 ? "токен не підходить — онови його" : "не вдалося зберегти — спробую пізніше"}</span>`
-      : last.at ? `<span class="vt-st is-ok">остання копія ${when(last.at)}</span>` : `<span class="vt-st">копій ще не було</span>`;
-    box.innerHTML = `<p class="vt-lead">Твої дані автоматично копіюються в приватне сховище, зашифровані твоїм ключем Ордену.</p>
+      : last.at ? `<span class="vt-st is-ok">синхронізовано ${when(last.at)}</span>` : `<span class="vt-st">копій ще не було</span>`;
+    box.innerHTML = `<p class="vt-lead">Твої дані автоматично синхронізуються між пристроями через приватне сховище — зашифровані твоїм ключем Ордену.</p>
       <div class="vt-row">${line}</div>
-      <button class="btn btn--gold" type="button" data-vt="now">Зберегти зараз</button>
+      <button class="btn btn--gold" type="button" data-vt="now">Синхронізувати зараз</button>
       <button class="btn btn--line" type="button" data-vt="list">Відновити з копії…</button>
       <div id="vtList"></div>
       <button class="btn btn--line" type="button" data-vt="file">Зберегти копію у файл</button>
@@ -249,10 +308,10 @@
       if (e.target === m) return closeVault();
       const a = e.target.closest("[data-vt]"), act = a && a.dataset.vt;
       if (act === "close") return closeVault();
-      if (act === "now") { await backupNow(true); return; }
+      if (act === "now") { await syncNow("force"); return; }
       if (act === "token") {
         const t = prompt("Новий токен доступу GitHub:"); if (!t) return;
-        try { await gh("vault.key", { raw: true, token: t.trim() }); LS.set(K.token, t.trim()); LS.del("ordo.bk.err"); await backupNow(true); }
+        try { await gh("vault.key", { raw: true, token: t.trim() }); LS.set(K.token, t.trim()); LS.del("ordo.bk.err"); await syncNow("force"); }
         catch (err) { alert("Токен не підходить."); }
         return;
       }
@@ -289,18 +348,25 @@
     if (typeof window.ORDO_START === "function") window.ORDO_START();
     const vb = $("vaultBtn"); if (vb) vb.addEventListener("click", openVault);
     wireVault(); status();
-    setTimeout(() => autoBackup(false), 4000);
-    setInterval(() => autoBackup(false), 60 * 1000);
-    document.addEventListener("visibilitychange", () => { if (document.hidden) autoBackup(true); });
+    setInterval(() => { if (!document.hidden) syncNow("auto"); }, 90 * 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }
+      else if (reloadPending && calm()) location.reload();
+      else syncNow("auto");
+    });
   }
-  window.ORDO_VAULT = { backupNow, open: openVault };
+  window.ORDO_VAULT = { backupNow, syncNow, open: openVault };
 
   async function boot() {
     let vault;
     try { vault = await loadVault(); }
     catch (e) { gate(`<p class="gate__lead">Не вдалося завантажити Орден. Перевір зʼєднання і відкрий знову.</p>`); return; }
     const data = await unlockContent(vault);
-    if (data) { start(data); return; }
+    if (data) {
+      /* перед стартом — коротко підтягнути зміни з інших пристроїв (не довше 3 с) */
+      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("auto"), new Promise((r) => setTimeout(r, 3000))]);
+      start(data); return;
+    }
     stepToken(vault);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();

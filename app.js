@@ -353,6 +353,13 @@ window.ORDO_START = function () {
      це той самий запис і синхронізація його не подвоїть */
   (function applyPatches() {
     const done = LS.get("ordo.patches", []); let changed = false;
+    /* «надгробки»: записи до p.before прибираються щоразу — щоб синк з іншого пристрою чи старої копії їх не повернув */
+    (D.PATCHES || []).forEach((p) => {
+      if (!p.before || !done.includes(p.id)) return;
+      const cut = Date.parse(p.before);
+      (p.drop || []).forEach((q) => { const m = LOG.length; LOG = LOG.filter((x) => !(x.v === q.v && x.d === q.d && (!q.k || x.k === q.k) && (x.ts || 0) < cut && !(p.log || []).some((e) => e.k === x.k && e.v === x.v && e.d === x.d && e.why === x.why))); if (LOG.length !== m) changed = true; });
+      (p.log || []).forEach((e) => { if (!LOG.some((x) => x.k === e.k && x.v === e.v && x.d === e.d)) { LOG.push(Object.assign({ ts: new Date(e.d + "T12:00:00").getTime() }, e)); changed = true; } });
+    });
     (D.PATCHES || []).forEach((p) => {
       if (done.includes(p.id)) return;
       /* drop: прибрати записи (обітниця + дата, за потреби — вид) */

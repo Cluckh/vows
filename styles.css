@@ -1016,7 +1016,7 @@ button:disabled>.hx-ovl,[aria-disabled="true"]>.hx-ovl{pointer-events:none}
 /* — гравюра храмовника — */
 .tp{display:block;width:100%;height:100%;overflow:visible}
 .tp .tp-f{fill:rgba(10,11,17,.92);stroke:none}
-.tp .tp-f.tp-cape{fill:rgba(205,163,73,.06)}
+.tp .tp-f.tp-cape{fill:var(--tp-cape,rgba(205,163,73,.06))}
 .tp .tp-f.tp-pauldron{fill:rgba(14,16,24,.95)}
 .tp .tp-f.tp-shield{fill:rgba(205,163,73,.07)}
 .tp .tp-f.tp-gold{fill:rgba(231,199,119,.18)}
@@ -1026,6 +1026,13 @@ button:disabled>.hx-ovl,[aria-disabled="true"]>.hx-ovl{pointer-events:none}
 .tp .tp-l.tp-cross{stroke:var(--gold-2);stroke-width:2.4}
 .tp .tp-l.tp-blade{stroke:var(--bone);stroke-width:2.2;opacity:.85}
 .tp .tp-l.tp-plume{stroke:var(--ember-2);stroke-width:1.4}
+.tp .tp-l.tp-crest{stroke:var(--gold-2);stroke-width:1.3}
+.tp .tp-l.tp-gilt{stroke:var(--gold-2);stroke-width:1.3}
+.tp .tp-l.tp-scar{stroke:var(--ember-2);stroke-width:1.1;opacity:.75}
+.tp .tp-f.tp-crossf{fill:rgba(231,199,119,.16)}
+.tp .tp-mail{fill:none;stroke:var(--gold);stroke-width:.9;stroke-dasharray:1.4 2.2;stroke-linecap:round;opacity:0}
+.drawn .tp .tp-mail{transition:opacity 1.6s ease 2.8s;opacity:.55}
+.md__fig .tp .tp-mail{opacity:.55}
 .tp .tp-eye{fill:none;stroke:var(--halo);stroke-width:2;stroke-linecap:round;opacity:0;filter:drop-shadow(0 0 4px var(--halo)) drop-shadow(0 0 10px rgba(240,214,138,.8))}
 .tp .tp-eyes{fill:var(--halo);opacity:0;filter:drop-shadow(0 0 4px var(--halo))}
 .tp .tp-dot{fill:var(--gold);opacity:0}

@@ -720,10 +720,10 @@ window.ORDO_START = function () {
   function witness(kind, it) {
     if (it && tyOf(it) === "vows") {
       const vs = vowsOf(it).filter((v) => D.KEEPERS && D.KEEPERS[v.id]);
-      if (vs.length && vs.length < D.VOWS.length) { const v = pickR(vs); return { who: D.KEEPERS[v.id], fig: { icon: v.icon }, keeper: true }; }
+      if (vs.length && vs.length < D.VOWS.length) { const v = pickR(vs); return { who: D.KEEPERS[v.id], fig: { icon: v.icon, look: D.KEEPERS[v.id].look }, keeper: true }; }
     }
-    if (kind === "y" && D.KEEPERS && D.KEEPERS.supreme) return { who: D.KEEPERS.supreme, fig: { supreme: true } };
-    return { who: D.SENESCHAL, fig: { head: "plume" } };
+    if (kind === "y" && D.KEEPERS && D.KEEPERS.supreme) return { who: D.KEEPERS.supreme, fig: { supreme: true, look: D.KEEPERS.supreme.look } };
+    return { who: D.SENESCHAL, fig: { head: "plume", look: D.SENESCHAL && D.SENESCHAL.look } };
   }
   function voice(id, w, text) {
     const el = $(id); if (!el || !w || !w.who || !text) return;
@@ -741,14 +741,14 @@ window.ORDO_START = function () {
   }
   function seneschal() {
     const S = D.SENESCHAL; if (!S) return "";
-    if (senSay && Date.now() - senSay.at < 10 * 60000) return medallion(S, "plume", senSay.t, "md--voice");
+    if (senSay && Date.now() - senSay.at < 10 * 60000) return medallion(S, { head: "plume", look: S.look }, senSay.t, "md--voice");
     const M = monthKey(), P = G.m[M], left = daysIn(M) - new Date().getDate();
     let t;
     if (!P || !P.items.length) t = S.none;
     else if (P.items.every((it) => complete(it))) t = S.all;
     else if (left === 0) t = S.review;
     else t = fill(S.progress, { done: P.items.filter((it) => complete(it)).length, total: P.items.length, days: `${left} ${daysWord(left)}` });
-    return medallion(S, "plume", t);
+    return medallion(S, { head: "plume", look: S.look }, t);
   }
 
   function renderStats() {
@@ -1680,7 +1680,7 @@ window.ORDO_START = function () {
     if (voice.mode === "candle") { const qt = $("qText"); if (qt) qt.textContent = legendary ? LQ[h % LQ.length] : nextQuote(); }
     if (voice.mode === "keeper") {
       const K = D.KEEPERS[voice.v.id];
-      const f = $("kpFig"); if (f) { f.innerHTML = window.ORDO_HALL.figure({ icon: voice.v.icon }); f.classList.remove("drawn"); }
+      const f = $("kpFig"); if (f) { f.innerHTML = window.ORDO_HALL.figure({ icon: voice.v.icon, look: K.look }); f.classList.remove("drawn"); }
       const kn = $("kpName"); if (kn) kn.textContent = K.name;
       const kt = $("kpTitle"); if (kt) kt.textContent = K.title;
       /* інколи замість репліки — що саме дає стрік на цьому дні */

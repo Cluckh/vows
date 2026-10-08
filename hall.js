@@ -29,23 +29,88 @@
      figure({ kind: "bust" | "full", head: "helm" | "hood" | "plume", icon, supreme }) */
   const L = (d, k) => `<path class="tp-l${k ? " " + k : ""}" pathLength="1" d="${d}"/>`;
   const F = (d, k) => `<path class="tp-f${k ? " " + k : ""}" d="${d}"/>`;
-  function helm(cx, top, w, supreme, plume) {
-    const x0 = cx - w / 2, x1 = cx + w / 2, h = w * 1.18, bot = top + h;
-    let s = F(`M${x0} ${top + 16} C${x0} ${top} ${x1} ${top} ${x1} ${top + 16} L${x1 + 2} ${bot - 14} C${x1 + 2} ${bot - 4} ${cx + w * .2} ${bot + 4} ${cx} ${bot + 5} C${cx - w * .2} ${bot + 4} ${x0 - 2} ${bot - 4} ${x0 - 2} ${bot - 14} Z`);
-    s += L(`M${x0} ${top + 16} C${x0} ${top} ${x1} ${top} ${x1} ${top + 16} L${x1 + 2} ${bot - 14} C${x1 + 2} ${bot - 4} ${cx + w * .2} ${bot + 4} ${cx} ${bot + 5} C${cx - w * .2} ${bot + 4} ${x0 - 2} ${bot - 4} ${x0 - 2} ${bot - 14} Z`);
-    s += L(`M${cx} ${top + 3} V${top + 24}`, "tp-thin");                                     // гребінь
-    s += L(`M${x0 + 1} ${top + 24} H${x1 - 1}`, "tp-thin");                                   // обідок
-    const ey = top + h * .4;
-    s += L(`M${x0 + 6} ${ey} H${x1 - 6} M${cx} ${ey} V${bot - 6}`, "tp-slit");               // хрестоподібна проріз
-    s += `<path class="tp-eye" d="M${x0 + 6} ${ey} H${x1 - 6} M${cx} ${ey} V${bot - 6}"/>`;  // світло з-під шолома
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) s += `<circle class="tp-dot" cx="${x1 - 9 - j * 5}" cy="${ey + 10 + i * 6}" r=".9"/>`;
-    if (supreme) {
-      const c = top + 2;
-      s += F(`M${x0 - 1} ${c + 8} L${x0 + 4} ${c - 9} L${cx - w * .2} ${c + 2} L${cx} ${c - 14} L${cx + w * .2} ${c + 2} L${x1 - 4} ${c - 9} L${x1 + 1} ${c + 8} Z`, "tp-gold");
-      s += L(`M${x0 - 1} ${c + 8} L${x0 + 4} ${c - 9} L${cx - w * .2} ${c + 2} L${cx} ${c - 14} L${cx + w * .2} ${c + 2} L${x1 - 4} ${c - 9} L${x1 + 1} ${c + 8} Z`);
-      s += `<circle class="tp-gem" cx="${cx}" cy="${c - 3}" r="2.4"/>`;
+  /* ---- шоломи: усі мають однакову висоту (низ = top + w·1.18), щоб сідати на шию ---- */
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const dots = (pts, cls, r) => pts.map(([x, y]) => `<circle class="${cls || "tp-dot"}" cx="${r1(x)}" cy="${r1(y)}" r="${r || .9}"/>`).join("");
+  const glow = (d) => L(d, "tp-slit") + `<path class="tp-eye" d="${d}"/>`;
+  const eyes = (cx, y, dx) => `<circle class="tp-eyes" cx="${r1(cx - dx)}" cy="${r1(y)}" r="1.5"/><circle class="tp-eyes" cx="${r1(cx + dx)}" cy="${r1(y)}" r="1.5"/>`;
+  const mail = (d) => `<path class="tp-mail" d="${d}"/>`;
+  function helm(cx, top, w, look) {
+    const kind = look.helm || "great";
+    const x0 = r1(cx - w / 2), x1 = r1(cx + w / 2), h = w * 1.18, bot = r1(top + h), ey = r1(top + h * .4), k = w / 74;
+    const low = `L${x1 + 2} ${bot - 14} C${x1 + 2} ${bot - 4} ${r1(cx + w * .2)} ${bot + 4} ${cx} ${bot + 5} C${r1(cx - w * .2)} ${bot + 4} ${x0 - 2} ${bot - 4} ${x0 - 2} ${bot - 14} Z`;
+    const shell = (d) => F(d) + L(d);
+    let s = "", apex = top;
+    if (kind === "sugar") {                                   // «цукрова голова»: гострий верх, ребро, дихальні отвори
+      apex = r1(top - 14 * k);
+      s += shell(`M${x0} ${r1(top + 34 * k)} C${x0} ${r1(top + 14 * k)} ${r1(cx - 14 * k)} ${r1(top - 4 * k)} ${cx} ${apex} C${r1(cx + 14 * k)} ${r1(top - 4 * k)} ${x1} ${r1(top + 14 * k)} ${x1} ${r1(top + 34 * k)} ${low}`);
+      s += L(`M${cx} ${apex + 2} V${ey - 3}`, "tp-thin");
+      s += glow(`M${r1(x0 + 7 * k)} ${ey} H${r1(cx - 4 * k)} M${r1(cx + 4 * k)} ${ey} H${r1(x1 - 7 * k)}`);
+      const p = []; for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { p.push([x0 + (9 + j * 5) * k, ey + (11 + i * 6) * k]); p.push([x1 - (9 + j * 5) * k, ey + (11 + i * 6) * k]); }
+      s += dots(p);
+    } else if (kind === "kettle") {                           // капелюх-шолом з крисами, під ним кольчужний каптур
+      const bt = r1(top + 30 * k);
+      s += F(`M${x0 + 2} ${bt + 6} L${x0} ${bot - 12} C${x0} ${bot} ${r1(cx - 16 * k)} ${bot + 5} ${cx} ${bot + 5} C${r1(cx + 16 * k)} ${bot + 5} ${x1} ${bot} ${x1} ${bot - 12} L${x1 - 2} ${bt + 6} Z`);
+      s += L(`M${x0 + 2} ${bt + 6} L${x0} ${bot - 12} C${x0} ${bot} ${r1(cx - 16 * k)} ${bot + 5} ${cx} ${bot + 5} C${r1(cx + 16 * k)} ${bot + 5} ${x1} ${bot} ${x1} ${bot - 12} L${x1 - 2} ${bt + 6}`, "tp-thin");
+      for (let i = 0; i < 5; i++) s += mail(`M${r1(x0 + 3)} ${r1(bt + 14 + i * 9 * k)} H${r1(cx - 15 * k)} M${r1(cx + 15 * k)} ${r1(bt + 14 + i * 9 * k)} H${r1(x1 - 3)}`);
+      const face = `M${cx} ${bt + 8} C${r1(cx + 19 * k)} ${bt + 8} ${r1(cx + 21 * k)} ${r1(bt + 34 * k)} ${cx} ${bot - 8} C${r1(cx - 21 * k)} ${r1(bt + 34 * k)} ${r1(cx - 19 * k)} ${bt + 8} ${cx} ${bt + 8} Z`;
+      s += `<path class="tp-shade" d="${face}"/>` + L(face, "tp-thin") + eyes(cx, r1(bt + 20 * k), r1(7 * k));
+      s += shell(`M${r1(x0 + 6)} ${bt} C${r1(x0 + 6)} ${r1(top + 2)} ${r1(x1 - 6)} ${r1(top + 2)} ${r1(x1 - 6)} ${bt} Z`);
+      s += shell(`M${r1(x0 - 16 * k)} ${bt + 4} C${r1(x0 - 8 * k)} ${bt - 6} ${r1(x1 + 8 * k)} ${bt - 6} ${r1(x1 + 16 * k)} ${bt + 4} C${r1(x1 + 6 * k)} ${bt + 11} ${r1(x0 - 6 * k)} ${bt + 11} ${r1(x0 - 16 * k)} ${bt + 4} Z`);
+      s += L(`M${cx} ${r1(top + 6)} V${bt - 3}`, "tp-thin");
+      apex = r1(top + 4);
+    } else if (kind === "bascinet") {                          // бацинет із гострим «писком» забрала
+      apex = r1(top - 8 * k);
+      s += shell(`M${x0 + 2} ${r1(top + 40 * k)} C${x0 + 2} ${r1(top + 14 * k)} ${r1(cx - 12 * k)} ${r1(top - 4 * k)} ${cx} ${apex} C${r1(cx + 12 * k)} ${r1(top - 4 * k)} ${x1 - 2} ${r1(top + 14 * k)} ${x1 - 2} ${r1(top + 40 * k)} ${low}`);
+      const vt = r1(top + 31 * k);
+      const visor = `M${r1(x0 + 4)} ${vt + 3} C${r1(cx - 10 * k)} ${vt - 2} ${r1(cx + 10 * k)} ${vt - 2} ${r1(x1 - 4)} ${vt + 3} L${r1(x1 - 8 * k)} ${r1(vt + 26 * k)} C${r1(x1 - 14 * k)} ${bot - 14} ${r1(cx + 8 * k)} ${bot - 2} ${cx} ${bot + 2} C${r1(cx - 8 * k)} ${bot - 2} ${r1(x0 + 14 * k)} ${bot - 14} ${r1(x0 + 8 * k)} ${r1(vt + 26 * k)} Z`;
+      s += F(visor, "tp-pauldron") + L(visor) + L(`M${cx} ${vt} V${bot + 1}`, "tp-thin");
+      s += glow(`M${r1(x0 + 12 * k)} ${r1(vt + 12 * k)} L${r1(cx - 6 * k)} ${r1(vt + 16 * k)} M${r1(cx + 6 * k)} ${r1(vt + 16 * k)} L${r1(x1 - 12 * k)} ${r1(vt + 12 * k)}`);
+      const p = []; for (let i = 0; i < 4; i++) { p.push([cx - 6 * k, vt + (28 + i * 6) * k]); p.push([cx + 6 * k, vt + (28 + i * 6) * k]); }
+      s += dots(p) + dots([[x0 + 4, vt + 4], [x1 - 4, vt + 4]], "tp-gem", 1.8);
+      s += mail(`M${x0 - 1} ${bot - 8} C${r1(cx - 20 * k)} ${bot + 2} ${r1(cx + 20 * k)} ${bot + 2} ${x1 + 1} ${bot - 8}`);
+    } else if (kind === "barbute") {                           // барбют з Y-прорізом
+      apex = r1(top + 2);
+      s += shell(`M${x0} ${r1(top + 30 * k)} C${x0} ${apex} ${x1} ${apex} ${x1} ${r1(top + 30 * k)} ${low}`);
+      const yt = r1(top + 36 * k);
+      const opening = `M${r1(cx - 17 * k)} ${yt} L${r1(cx + 17 * k)} ${yt} L${r1(cx + 6 * k)} ${r1(yt + 18 * k)} L${r1(cx + 6 * k)} ${bot - 2} L${r1(cx - 6 * k)} ${bot - 2} L${r1(cx - 6 * k)} ${r1(yt + 18 * k)} Z`;
+      s += `<path class="tp-shade" d="${opening}"/>` + L(opening, "tp-thin") + eyes(cx, r1(yt + 7 * k), r1(8 * k));
+      s += L(`M${cx} ${apex + 2} V${yt - 3}`, "tp-thin");
+    } else if (kind === "pot") {                               // круглий горщик-шолом з наносником
+      apex = r1(top + 2);
+      s += shell(`M${x0} ${r1(top + 24 * k)} C${x0} ${apex} ${x1} ${apex} ${x1} ${r1(top + 24 * k)} ${low}`);
+      const br = r1(top + 30 * k);
+      s += `<path class="tp-shade" d="M${r1(x0 + 6)} ${br + 2} H${r1(x1 - 6)} V${r1(br + 20 * k)} H${r1(x0 + 6)} Z"/>` + eyes(cx, r1(br + 10 * k), r1(13 * k));
+      s += L(`M${x0} ${br} H${x1}`, "tp-thin") + dots([0, 1, 2, 3, 4, 5, 6].map((i) => [x0 + 5 + i * (w - 10) / 6, br - 3]));
+      s += L(`M${cx} ${br - 4} V${r1(br + 34 * k)}`, "tp-cross");
+      for (let i = 0; i < 4; i++) s += mail(`M${r1(x0 + 4)} ${r1(br + (26 + i * 8) * k)} H${r1(cx - 8)} M${r1(cx + 8)} ${r1(br + (26 + i * 8) * k)} H${r1(x1 - 4)}`);
+    } else {                                                   // великий шолом (great helm): плаский верх
+      s += shell(`M${x0} ${top + 16} C${x0} ${top} ${x1} ${top} ${x1} ${top + 16} ${low}`);
+      s += L(`M${cx} ${top + 3} V${top + 24}`, "tp-thin") + L(`M${x0 + 1} ${top + 24} H${x1 - 1}`, "tp-thin");
+      if (look.closed) {                                       // мовчазний: одна вузька щілина, хрест на чолі, без отворів
+        s += glow(`M${r1(x0 + 8)} ${ey} H${r1(x1 - 8)}`);
+        s += L(`M${cx} ${top + 8} V${top + 20} M${cx - 5} ${top + 13} H${cx + 5}`, "tp-gilt");
+        s += dots([1, 2, 3, 4, 5].map((i) => [x0 + i * w / 6, top + 28]));
+      } else {
+        s += glow(`M${x0 + 6} ${ey} H${x1 - 6} M${cx} ${ey} V${bot - 6}`);
+        const p = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) p.push([x1 - 9 - j * 5, ey + 10 + i * 6]);
+        s += dots(p);
+      }
+      if (look.scar) s += L(`M${r1(x0 + 7)} ${top + 30} l${r1(12 * k)} ${r1(16 * k)} m${r1(-5 * k)} ${r1(-3 * k)} l${r1(5 * k)} ${r1(-2 * k)}`, "tp-scar");
+      if (look.bands) s += L(`M${x0 - 1} ${r1(bot - 22 * k)} C${r1(cx - 20)} ${r1(bot - 16 * k)} ${r1(cx + 20)} ${r1(bot - 16 * k)} ${x1 + 1} ${r1(bot - 22 * k)}`, "tp-gilt");
     }
-    if (plume) s += L(`M${cx} ${top + 3} C${cx + 6} ${top - 22} ${cx + 30} ${top - 26} ${cx + 44} ${top - 12} C${cx + 30} ${top - 16} ${cx + 16} ${top - 10} ${cx + 8} ${top + 4}`, "tp-plume");
+    /* навершя */
+    const c = look.crest;
+    if (look.crown) {
+      const t = top + 2;
+      const d = `M${x0 - 1} ${t + 8} L${x0 + 4} ${t - 9} L${r1(cx - w * .2)} ${t + 2} L${cx} ${t - 14} L${r1(cx + w * .2)} ${t + 2} L${x1 - 4} ${t - 9} L${x1 + 1} ${t + 8} Z`;
+      s += F(d, "tp-gold") + L(d) + `<circle class="tp-gem" cx="${cx}" cy="${t - 3}" r="2.4"/>`;
+    }
+    if (c === "plume") s += L(`M${cx} ${apex + 3} C${cx + 6} ${apex - 22} ${cx + 30} ${apex - 26} ${cx + 44} ${apex - 12} C${cx + 30} ${apex - 16} ${cx + 16} ${apex - 10} ${cx + 8} ${apex + 4}`, "tp-plume");
+    if (c === "lily") s += L(`M${cx} ${apex} C${cx - 5} ${apex - 8} ${cx - 3} ${apex - 16} ${cx} ${apex - 20} C${cx + 3} ${apex - 16} ${cx + 5} ${apex - 8} ${cx} ${apex} M${cx - 2} ${apex - 4} C${cx - 10} ${apex - 4} ${cx - 14} ${apex - 10} ${cx - 10} ${apex - 15} M${cx + 2} ${apex - 4} C${cx + 10} ${apex - 4} ${cx + 14} ${apex - 10} ${cx + 10} ${apex - 15} M${cx - 6} ${apex - 3} H${cx + 6}`, "tp-crest");
+    if (c === "fan") { const fr = 15 * k; let d = `M${r1(cx - fr)} ${apex + 1} A${r1(fr)} ${r1(fr)} 0 0 1 ${r1(cx + fr)} ${apex + 1} Z`; for (let i = 1; i < 6; i++) { const a = Math.PI * i / 6; d += ` M${cx} ${apex + 1} L${r1(cx - Math.cos(a) * fr)} ${r1(apex + 1 - Math.sin(a) * fr)}`; } s += F(`M${r1(cx - fr)} ${apex + 1} A${r1(fr)} ${r1(fr)} 0 0 1 ${r1(cx + fr)} ${apex + 1} Z`, "tp-gold") + L(d, "tp-crest"); }
+    if (c === "cross") s += L(`M${cx} ${apex - 16} V${apex + 1} M${cx - 6} ${apex - 10} H${cx + 6}`, "tp-crest");
+    if (c === "horns") s += L(`M${r1(x0 + 6)} ${r1(top + 12)} C${r1(x0 - 8)} ${r1(top + 4)} ${r1(x0 - 10)} ${r1(top - 12)} ${r1(x0 - 2)} ${r1(top - 20)} M${r1(x1 - 6)} ${r1(top + 12)} C${r1(x1 + 8)} ${r1(top + 4)} ${r1(x1 + 10)} ${r1(top - 12)} ${r1(x1 + 2)} ${r1(top - 20)}`, "tp-crest");
     return s;
   }
   function hood(cx, top, w) {
@@ -57,15 +122,35 @@
     s += `<circle class="tp-eyes" cx="${cx - 7}" cy="${top + w * .62}" r="1.3"/><circle class="tp-eyes" cx="${cx + 7}" cy="${top + w * .62}" r="1.3"/>`;
     return s;
   }
-  function chest(cx, y, icon, supreme) {
-    if (supreme) return L(`M${cx} ${y - 18} V${y + 40} M${cx - 20} ${y} H${cx + 20}`, "tp-cross") + L(`M${cx - 30} ${y - 26} C${cx - 18} ${y - 8} ${cx - 14} ${y + 20} ${cx - 16} ${y + 50} M${cx + 30} ${y - 26} C${cx + 18} ${y - 8} ${cx + 14} ${y + 20} ${cx + 16} ${y + 50}`, "tp-thin");
-    if (!icon) return L(`M${cx} ${y - 10} V${y + 26} M${cx - 13} ${y + 2} H${cx + 13}`, "tp-cross");
-    return `<circle class="tp-medal" cx="${cx}" cy="${y + 6}" r="17"/>` + `<circle class="tp-l tp-thin" pathLength="1" cx="${cx}" cy="${y + 6}" r="17"/>` +
+  /* хрест на табарді: latin | patee | maltese | jerusalem | lorraine */
+  function crossOf(kind, X, Y, R) {
+    const arm = (d) => [0, 90, 180, 270].map((a) => `<g transform="rotate(${a} ${X} ${Y})">${F(d, "tp-crossf")}${L(d, "tp-thin")}</g>`).join("");
+    if (kind === "patee") return arm(`M${X - 4} ${Y - 6} L${r1(X - R * .38)} ${Y - R} L${r1(X + R * .38)} ${Y - R} L${X + 4} ${Y - 6} Z`);
+    if (kind === "maltese") return arm(`M${X - 3} ${Y - 5} L${r1(X - R * .42)} ${Y - R} L${X} ${r1(Y - R * .8)} L${r1(X + R * .42)} ${Y - R} L${X + 3} ${Y - 5} Z`);
+    if (kind === "jerusalem") { const q = R * .62, m = (x, y) => `M${r1(x)} ${r1(y - 5)} V${r1(y + 5)} M${r1(x - 5)} ${r1(y)} H${r1(x + 5)}`;
+      return L(`M${X} ${Y - R} V${Y + R} M${X - R} ${Y} H${X + R} M${X - 7} ${Y - R} H${X + 7} M${X - 7} ${Y + R} H${X + 7} M${X - R} ${Y - 7} V${Y + 7} M${X + R} ${Y - 7} V${Y + 7}`, "tp-cross") + L(m(X - q, Y - q) + m(X + q, Y - q) + m(X - q, Y + q) + m(X + q, Y + q), "tp-gilt"); }
+    if (kind === "lorraine") return L(`M${X} ${Y - R} V${r1(Y + R * 1.3)} M${r1(X - R * .45)} ${r1(Y - R * .55)} H${r1(X + R * .45)} M${r1(X - R * .75)} ${r1(Y - R * .05)} H${r1(X + R * .75)}`, "tp-cross");
+    return L(`M${X} ${Y - R} V${r1(Y + R * 1.6)} M${r1(X - R * .75)} ${r1(Y - R * .2)} H${r1(X + R * .75)}`, "tp-cross");
+  }
+  function chest(cx, y, icon, supreme, look) {
+    let s = "";
+    if (supreme) return crossOf("latin", cx, y + 6, 26) + L(`M${cx - 30} ${y - 26} C${cx - 18} ${y - 8} ${cx - 14} ${y + 20} ${cx - 16} ${y + 50} M${cx + 30} ${y - 26} C${cx + 18} ${y - 8} ${cx + 14} ${y + 20} ${cx + 16} ${y + 50}`, "tp-thin");
+    if (look.cross) s += crossOf(look.cross, cx, y + 6, 30);
+    if (!icon) return s || crossOf("latin", cx, y + 2, 16);
+    return s + `<circle class="tp-medal" cx="${cx}" cy="${y + 6}" r="17"/>` + `<circle class="tp-l tp-thin" pathLength="1" cx="${cx}" cy="${y + 6}" r="17"/>` +
       `<svg class="tp-ic" x="${cx - 11}" y="${y - 5}" width="22" height="22" viewBox="0 0 24 24"><use href="#i-${icon}"/></svg>`;
   }
+  const CAPES = { gold: "rgba(205,163,73,.07)", ember: "rgba(196,88,58,.14)", steel: "rgba(120,150,190,.12)", bone: "rgba(232,224,206,.09)", wine: "rgba(140,40,64,.17)", night: "rgba(70,80,140,.14)", moss: "rgba(110,140,90,.12)" };
+  /* figure({ kind: "bust" | "full", head: "helm" | "hood" | "plume", icon, supreme, look }) —
+     look: { helm: great|sugar|kettle|bascinet|barbute|pot, crest: plume|lily|fan|cross|horns, closed, scar, bands,
+             cross: latin|patee|maltese|jerusalem|lorraine, cape: gold|ember|steel|bone|wine|night|moss, pauldron: lames|rivets } */
   function figure(o) {
     o = o || {};
-    const head = o.head || "helm";
+    const look = Object.assign({}, o.look || {});
+    if (o.head === "plume" && !look.crest) look.crest = "plume";
+    if (o.supreme) look.crown = true;
+    const hooded = o.head === "hood" || look.helm === "hood";
+    const style = look.cape && CAPES[look.cape] ? ` style="--tp-cape:${CAPES[look.cape]}"` : "";
     if (o.kind === "full") {
       /* на весь зріст: на варті, меч вістрям донизу, руки на руківʼї, щит за плечем */
       const cape = "M60 104 C44 180 36 270 30 352 L170 352 C164 270 156 180 140 104 Z";
@@ -74,7 +159,7 @@
       s += F(sh, "tp-shield") + L(sh) + L("M148 114 V192 M128 144 H168", "tp-thin");
       const coat = "M64 104 C72 96 128 96 136 104 L140 170 L148 256 L52 256 L60 170 Z";
       s += F(coat) + L(coat);
-      s += L("M100 112 V160 M84 128 H116", "tp-cross");
+      s += look.cross && look.cross !== "latin" ? crossOf(look.cross, 100, 134, 20) : L("M100 112 V160 M84 128 H116", "tp-cross");
       s += L("M60 168 C80 174 120 174 140 168", "tp-thin");                                   // пояс
       s += L("M100 196 V256 M76 210 L72 256 M124 210 L128 256", "tp-thin");                    // складки
       s += F("M70 256 L74 336 L64 346 H94 L96 256 Z M130 256 L126 336 L136 346 H106 L104 256 Z") + L("M70 256 L74 336 L64 346 H94 L96 256 M130 256 L126 336 L136 346 H106 L104 256");
@@ -85,8 +170,8 @@
       s += F("M88 172 C88 168 112 168 112 172 V184 C112 188 88 188 88 184 Z", "tp-pauldron") + L("M88 172 C88 168 112 168 112 172 V184 C112 188 88 188 88 184 Z", "tp-thin");
       s += `<circle class="tp-gem" cx="100" cy="166" r="3.4"/>`;
       s += F("M84 88 C90 84 110 84 116 88 L118 100 C108 104 92 104 82 100 Z") + L("M84 88 C90 84 110 84 116 88 L118 100 C108 104 92 104 82 100 Z", "tp-thin");
-      s += helm(100, 16, 56, o.supreme, false);
-      return `<svg class="tp tp--full" viewBox="0 0 200 360" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${s}</svg>`;
+      s += hooded ? hood(100, 24, 50) : helm(100, 16, 56, look);
+      return `<svg class="tp tp--full" viewBox="0 0 200 360" preserveAspectRatio="xMidYMax meet" aria-hidden="true"${style}>${s}</svg>`;
     }
     /* погруддя */
     let s = F("M24 236 C30 168 58 132 100 126 C142 132 170 168 176 236 Z", "tp-cape") + L("M24 236 C30 168 58 132 100 126 C142 132 170 168 176 236", "tp-thin");
@@ -94,11 +179,13 @@
     s += F("M34 186 C34 160 54 140 82 138 L86 160 C66 162 52 172 46 190 Z", "tp-pauldron") + L("M34 186 C34 160 54 140 82 138 L86 160 C66 162 52 172 46 190 Z");
     s += F("M166 186 C166 160 146 140 118 138 L114 160 C134 162 148 172 154 190 Z", "tp-pauldron") + L("M166 186 C166 160 146 140 118 138 L114 160 C134 162 148 172 154 190 Z");
     s += L("M40 172 C52 160 68 154 84 152 M160 172 C148 160 132 154 116 152", "tp-thin");
+    if (look.pauldron === "lames") s += L("M37 182 C46 168 62 162 80 160 M163 182 C154 168 138 162 120 160 M44 162 C56 152 68 148 82 146 M156 162 C144 152 132 148 118 146", "tp-thin");
+    if (look.pauldron === "rivets") s += dots([[46, 168], [58, 158], [72, 152], [154, 168], [142, 158], [128, 152]], "tp-dot", 1.4);
     s += F("M82 132 C88 126 112 126 118 132 L120 146 C108 151 92 151 80 146 Z") + L("M82 132 C88 126 112 126 118 132 L120 146 C108 151 92 151 80 146 Z", "tp-thin");
-    s += chest(100, 186, o.icon, o.supreme);
+    s += chest(100, 186, o.icon, o.supreme, look);
     if (o.supreme) s += `<circle class="tp-halo" cx="100" cy="86" r="72"/>`;
-    s += head === "hood" ? hood(100, 48, 64) : helm(100, 42, 74, o.supreme, head === "plume");
-    return `<svg class="tp tp--bust" viewBox="0 0 200 236" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${s}</svg>`;
+    s += hooded ? hood(100, 48, 64) : helm(100, 42, 74, look);
+    return `<svg class="tp tp--bust" viewBox="0 0 200 236" preserveAspectRatio="xMidYMax meet" aria-hidden="true"${style}>${s}</svg>`;
   }
 
   /* ============================================================ СЦЕНА ===== */
@@ -123,7 +210,7 @@
   function show(who) {
     build();
     const k = (D().KEEPERS || {})[who.id] || {};
-    const fig = figure({ kind: who.kind || "bust", icon: who.icon, supreme: who.id === "supreme", head: who.head });
+    const fig = figure({ kind: who.kind || "bust", icon: who.icon, supreme: who.id === "supreme", head: who.head, look: who.look || k.look });
     const f = $("hallFig");
     if (curFig !== fig) {
       f.innerHTML = fig; curFig = fig;

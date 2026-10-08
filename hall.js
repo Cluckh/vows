@@ -212,11 +212,14 @@
     for (;;) {
       if (!isOpen()) return;
       const T = P.tools;
-      const i = await ask(P.ask, [T.wait, T.breath, T.stake, T.done], "hall__acts--tools");
+      const tales = ((D().KEEPERS || {}).supreme || {}).tales || [];
+      const opts = [T.wait, T.breath, T.stake].concat(tales.length ? [T.tale || "Розкажи історію"] : []).concat([T.done]);
+      const i = await ask(P.ask, opts, "hall__acts--tools");
       if (i === "closed") return;
       if (i === 0) { if ((await watch(P)) === "closed") return; }
       else if (i === 1) { if ((await breathe(P)) === "closed") return; }
       else if (i === 2) { if ((await stake(P)) === "closed") return; }
+      else if (i === 3 && tales.length) { show(SUPREME); if (!(await runDialog(fresh("tale.supreme", tales, 4).v))) return; }
       else { show(SUPREME); await say(fresh("bye", P.bye, 2).v); close(); return; }
     }
   }
@@ -289,14 +292,47 @@
   }
 
   /* ========================================================= ХРАНИТЕЛІ ===== */
+  /* хранитель: слово → меню (що дає стрік · історія · розмова · ще слово) */
+  const MENU_Q = ["Щось іще, брате?", "Я поруч. Що далі?", "Слухаю тебе.", "Питай — маємо час."];
   async function callKeeper(vowId) {
     const v = (D().VOWS || []).find((x) => x.id === vowId), k = (D().KEEPERS || {})[vowId]; if (!v || !k) return;
     show({ id: vowId, icon: v.icon });
+    let lead = null;
+    if (k.talks && k.talks.length && Math.random() < 0.3) {                 // інколи хранитель сам заводить розмову
+      const t = fresh("talk." + vowId, k.talks, 3); if (!(await runDialog(t.v))) return;
+    } else lead = fresh("keeper." + vowId, k.lines, 6).v;
     for (;;) {
-      const line = fresh("keeper." + vowId, k.lines, 6); if (!line) return;
-      const i = await ask(line.v, ["Ще слово, брате", "Дякую"], "hall__acts--row");
-      if (i !== 0) { close(); return; }
+      const opts = [];
+      if (k.gains && k.gains.length) opts.push(["gain", "Що мені дає цей стрік?"]);
+      if (k.tales && k.tales.length) opts.push(["tale", "Розкажи історію"]);
+      if (k.talks && k.talks.length) opts.push(["talk", "Поговорімо"]);
+      opts.push(["line", "Ще слово, брате"], ["bye", "Дякую, брате"]);
+      const i = await ask(lead || pick(MENU_Q), opts.map((o) => o[1]), "hall__acts--list"); lead = null;
+      if (i === "closed") return;
+      const what = opts[i][0];
+      if (what === "bye") { close(); return; }
+      if (what === "line") { lead = fresh("keeper." + vowId, k.lines, 6).v; continue; }
+      let ok = true;
+      if (what === "gain") ok = await tellGain(v, k);
+      if (what === "tale") ok = await runDialog(fresh("tale." + vowId, k.tales, 3).v);
+      if (what === "talk") ok = await runDialog(fresh("talk." + vowId, k.talks, 3).v);
+      if (!ok) return;
     }
+  }
+  /* що дає стрік: де ти вже є і що попереду */
+  function gainAt(k, s) {
+    const g = (k.gains || []).slice().sort((a, b) => a.d - b.d);
+    let now = null, next = null; g.forEach((x) => { if (x.d <= s) now = x; else if (!next) next = x; });
+    return { now, next };
+  }
+  async function tellGain(v, k) {
+    const A = API(), s = A.streak ? A.streak(v) : 0, dw = A.daysWord || ((n) => "днів");
+    const { now, next } = gainAt(k, s);
+    if (now) { if ((await say(`Ти на ${s}-му дні. ${now.t}`)) === "closed") return false; }
+    else if ((await say(`Ти на старті — день ${s}. Найважче якраз зараз, і саме тому кожен день важить удвічі.`)) === "closed") return false;
+    if (next) { const n = next.d - s; if ((await say(`Ще ${n} ${dw(n)} — і ${next.d}-й день: ${next.t.charAt(0).toLowerCase() + next.t.slice(1)}`)) === "closed") return false; }
+    else if ((await say("Далі вже не про тіло. Далі — про те, ким ти став. Тримай.")) === "closed") return false;
+    return true;
   }
   /* після зриву — хранитель проти каскаду */
   async function fall(vowId) {
@@ -318,5 +354,5 @@
     if (isOpen()) close();
   }
 
-  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, isOpen, close, fresh };
+  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, isOpen, close, fresh, gainAt };
 })();

@@ -191,6 +191,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .oath__sub{display:block;font-family:var(--f-ui);font-size:11.5px;letter-spacing:.04em;color:var(--ash-2);margin-top:4px}
 .oath__sub b{color:var(--steel);font-weight:600}
 .oath__count{text-align:right;line-height:1}
+.oath:has(.oath__kp){grid-template-columns:auto 1fr auto auto;gap:12px;padding-right:0;padding-left:2px}
+/* шолом хранителя праворуч від лічильника: тихий, поки не потрібен */
+.oath__kp{align-self:stretch;display:flex;align-items:center;justify-content:center;width:30px;margin:-15px 0 -15px -2px;
+  color:var(--gold);opacity:.42;border-left:1px solid var(--edge-soft);transition:opacity .2s ease,color .2s ease}
+.oath__kp svg{width:19px;height:19px;filter:drop-shadow(0 0 5px rgba(205,163,73,.25))}
+.oath__kp:active{opacity:1;color:var(--halo)}
 .oath__num{font-family:var(--f-display);font-weight:700;font-size:clamp(26px,7.4vw,34px);
   background:linear-gradient(180deg,var(--gold-2),var(--gold) 60%,var(--gold-dim));
   -webkit-background-clip:text;background-clip:text;color:transparent}
@@ -1028,13 +1034,18 @@ button:disabled>.hx-ovl,[aria-disabled="true"]>.hx-ovl{pointer-events:none}
 .tp .tp-ic{color:var(--gold-2);opacity:0}
 .tp .tp-shade{fill:#05060a}
 .tp .tp-halo{fill:none;stroke:rgba(240,214,138,.25);stroke-width:1;stroke-dasharray:2 5;opacity:0}
-.drawn .tp .tp-l{transition:stroke-dashoffset 2.4s var(--ease);stroke-dashoffset:0}
-.drawn .tp .tp-l.tp-thin{transition-delay:.4s}
-.drawn .tp .tp-l.tp-cross{transition-delay:.9s}
-.drawn .tp .tp-eye{animation:eyeOn 1.2s ease 1.6s forwards,eyeBreath 4.6s ease-in-out 2.8s infinite}
-.drawn .tp .tp-eyes{animation:eyeOn 1.2s ease 1.6s forwards}
-.drawn .tp .tp-dot,.drawn .tp .tp-ic,.drawn .tp .tp-gem{transition:opacity 1s ease 1.4s;opacity:1}
-.drawn .tp .tp-halo{transition:opacity 2s ease 1s;opacity:1;animation:haloSpin 60s linear infinite;transform-origin:100px 76px}
+/* промальовка гравюри: контур (≈4 с) → тонкі лінії → хрест → заливка → світло з-під шолома */
+.tp .tp-f{opacity:0}
+.drawn .tp .tp-f{transition:opacity 2s ease 2.8s;opacity:1}
+.drawn .tp .tp-f.tp-cape,.drawn .tp .tp-f.tp-shield{transition-delay:3.4s}
+.drawn .tp .tp-l{transition:stroke-dashoffset 4.2s var(--ease);stroke-dashoffset:0}
+.drawn .tp .tp-l.tp-thin{transition:stroke-dashoffset 3.6s var(--ease) 1s}
+.drawn .tp .tp-l.tp-cross{transition:stroke-dashoffset 2.4s var(--ease) 2.4s}
+.drawn .tp .tp-l.tp-blade{transition:stroke-dashoffset 3s var(--ease) 2s}
+.drawn .tp .tp-eye{animation:eyeOn 1.6s ease 4.2s forwards,eyeBreath 4.6s ease-in-out 5.8s infinite}
+.drawn .tp .tp-eyes{animation:eyeOn 1.6s ease 4.2s forwards}
+.drawn .tp .tp-dot,.drawn .tp .tp-ic,.drawn .tp .tp-gem{transition:opacity 1.4s ease 3.6s;opacity:1}
+.drawn .tp .tp-halo{transition:opacity 2.4s ease 3s;opacity:1;animation:haloSpin 60s linear infinite;transform-origin:100px 76px}
 @keyframes eyeOn{to{opacity:.95}}
 @keyframes eyeBreath{0%,100%{opacity:.95}50%{opacity:.55}}
 @keyframes haloSpin{to{transform:rotate(360deg)}}
@@ -1122,6 +1133,7 @@ body.in-hall{overflow:hidden}
 .md__fig{width:52px;height:52px;flex:none;border-radius:50%;overflow:hidden;border:1px solid rgba(205,163,73,.4);background:radial-gradient(circle at 50% 30%,rgba(205,163,73,.12),transparent 70%)}
 .md__fig .tp{width:150%;height:auto;margin:-8% 0 0 -25%}
 .md__fig .tp .tp-l{stroke-dashoffset:0}
+.md__fig .tp .tp-f{opacity:1}
 .md__fig .tp .tp-eye,.md__fig .tp .tp-eyes{opacity:.9}
 .md__fig .tp .tp-dot,.md__fig .tp .tp-ic,.md__fig .tp .tp-gem{opacity:1}
 .md__txt{min-width:0}

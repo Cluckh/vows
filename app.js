@@ -475,10 +475,12 @@ window.ORDO_START = function () {
         `<span class="oath__icon"><svg><use href="#i-${v.icon}"></use></svg></span>` +
         `<span class="oath__body"><span class="oath__name">${v.name}</span><span class="oath__sub">${sub}</span></span>` +
         `<span class="oath__count"><span class="oath__num" data-n="${s}">${s}</span><span class="oath__unit">${daysWord(s)}</span></span>` +
+        (D.KEEPERS && D.KEEPERS[v.id] ? `<span class="oath__kp" data-kp="${v.id}" role="button" aria-label="Покликати хранителя: ${D.KEEPERS[v.id].name}"><svg><use href="#i-helm"></use></svg></span>` : "") +
         `<span class="oath__ring" style="width:${prog}%"></span>`;
       btn.addEventListener("click", (e) => {
         const pill = e.target.closest && e.target.closest("[data-mark]");
         if (pill) { e.stopPropagation(); openMark(v.id); return; }
+        if (e.target.closest && e.target.closest("[data-kp]")) { e.stopPropagation(); FX.buzz("light"); window.ORDO_HALL.callKeeper(v.id); return; }
         openSheet(v.id);
       });
       btn.addEventListener("keydown", (e) => { if (e.key === "Enter") openSheet(v.id); });
@@ -1632,7 +1634,9 @@ window.ORDO_START = function () {
       const f = $("kpFig"); if (f) { f.innerHTML = window.ORDO_HALL.figure({ icon: voice.v.icon }); f.classList.remove("drawn"); }
       const kn = $("kpName"); if (kn) kn.textContent = K.name;
       const kt = $("kpTitle"); if (kt) kt.textContent = K.title;
-      const kl = $("kpLine"); if (kl) kl.textContent = window.ORDO_HALL.fresh("keeper." + voice.v.id, K.lines, 6).v;
+      /* інколи замість репліки — що саме дає стрік на цьому дні */
+      const gn = K.gains && Math.random() < 0.35 ? window.ORDO_HALL.gainAt(K, streak(voice.v)).now : null;
+      const kl = $("kpLine"); if (kl) kl.textContent = gn ? `День ${streak(voice.v)}. ${gn.t}` : window.ORDO_HALL.fresh("keeper." + voice.v.id, K.lines, 6).v;
     }
     const first = voice.mode === "keeper" ? "stKeeper" : voice.mode === "candle" ? "stQuote" : null;
 
@@ -1697,7 +1701,7 @@ window.ORDO_START = function () {
       if (first === "stKeeper") { const f = $("kpFig"); if (f) requestAnimationFrame(() => f.classList.add("drawn")); FX.play("sign"); }
       else FX.play("quote");
     }, t + 400));
-    t += P.quote + 900 + (legendary ? 1200 : 0) + (first === "stKeeper" ? 2200 : 0);
+    t += P.quote + 900 + (legendary ? 1200 : 0) + (first === "stKeeper" ? 3400 : 0);
     rest(t, first);
   }
   const onSkip = () => {
@@ -1780,5 +1784,5 @@ window.ORDO_START = function () {
   }
 
   /* ---- для Зали храмовників (hall.js) ---- */
-  window.ORDO_API = { D, FX, streak, nextMilestone, todayKey, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
+  window.ORDO_API = { D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
 };

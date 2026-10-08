@@ -355,6 +355,14 @@ window.ORDO_START = function () {
     const done = LS.get("ordo.patches", []); let changed = false;
     (D.PATCHES || []).forEach((p) => {
       if (done.includes(p.id)) return;
+      /* drop: прибрати записи (обітниця + дата, за потреби — вид) */
+      (p.drop || []).forEach((q) => {
+        const n = LOG.length; LOG = LOG.filter((x) => !(x.v === q.v && x.d === q.d && (!q.k || x.k === q.k))); if (LOG.length !== n) changed = true;
+      });
+      /* starts: перенести старт обітниці */
+      if (p.starts) { Object.keys(p.starts).forEach((id) => { STARTS[id] = p.starts[id]; }); LS.set("ordo.starts", STARTS); }
+      /* spent: вікна місяця вичерпано */
+      if (p.spent) { const sp = LS.get("ordo.spent", {}); p.spent.forEach((x) => { sp[`${x.v}|${x.m}`] = true; }); LS.set("ordo.spent", sp); }
       (p.log || []).forEach((e) => {
         if (LOG.some((x) => x.k === e.k && x.v === e.v && x.d === e.d)) return;
         LOG.push(Object.assign({ ts: new Date(e.d + "T12:00:00").getTime() }, e)); changed = true;
@@ -382,7 +390,8 @@ window.ORDO_START = function () {
     return b;
   }
   const monthEvents = (v, mk, k) => LOG.filter((e) => e.v === v.id && e.k === k && e.d.slice(0, 7) === mk);
-  const windowsUsed = (v, mk) => monthEvents(v, mk || monthKey(), "mark").length;
+  /* вікна місяця: відмітки; якщо місяць позначено «вичерпано» — усі використані */
+  const windowsUsed = (v, mk) => { mk = mk || monthKey(); if ((LS.get("ordo.spent", {}))[`${v.id}|${mk}`]) return v.window ? v.window.limit : 0; return monthEvents(v, mk, "mark").length; };
   const oversIn = (v, mk) => monthEvents(v, mk || monthKey(), "breach").filter((e) => e.why !== "manual").length;
   const todayMark = (v) => LOG.find((e) => e.k === "mark" && e.v === v.id && e.d === todayKey());
 
@@ -506,6 +515,7 @@ window.ORDO_START = function () {
     const di = $("shDate"); if (di) { di.value = STARTS[v.id]; di.max = todayKey(); }
   }
   function openSheet(id) {
+    { const kb = $("shKeeper"), K = D.KEEPERS && D.KEEPERS[id]; if (kb) { kb.hidden = !K; if (K) kb.textContent = `Покликати: ${K.name}`; } }
     sheetVow = id; fillSheet();
     const has = !!(D.CODEX && D.CODEX[id]);
     const cx = $("shCodex"); if (cx) { cx.textContent = has ? D.CODEX[id] : ""; cx.scrollTop = 0; }
@@ -541,7 +551,12 @@ window.ORDO_START = function () {
     breach(v, "manual");
     closeConfirm(); closeSheet(); renderBoard();
     FX.play("reset", true); FX.buzz("heavy"); flashRow(v.id, "oath--fall");
+    if (window.ORDO_HALL) setTimeout(() => window.ORDO_HALL.fall(v.id), 1500);
   });
+  /* хранитель обітниці — з шторки */
+  on("shKeeper", "click", () => { const id = sheetVow; closeSheet(); if (window.ORDO_HALL) setTimeout(() => window.ORDO_HALL.callKeeper(id), 320); });
+  /* щит на табло — поклик Верховного храмовника */
+  on("crestBtn", "click", () => { if (window.ORDO_HALL) window.ORDO_HALL.panic(); });
 
   /* ======================================================= ВІДМІТКА ВІКНА === */
   let markVow = null, markN = 1;
@@ -600,6 +615,7 @@ window.ORDO_START = function () {
     const bad = plan.startsWith("breach");
     FX.play(bad ? "over" : "mark", true); FX.buzz(bad ? "heavy" : "medium");
     flashRow(v.id, bad ? "oath--fall" : "oath--frost");
+    if (bad && window.ORDO_HALL) setTimeout(() => window.ORDO_HALL.fall(v.id), 1500);
     if (!reduce) {
       const row = document.querySelector(`.oath[data-id="${v.id}"] .win`);
       if (row) { const kids = row.children, el = bad ? kids[kids.length - 1] : kids[v.window.limit - windowsUsed(v)]; if (el) el.classList.add(bad ? "wd--new" : "wd--spent"); }
@@ -662,7 +678,9 @@ window.ORDO_START = function () {
     if (!ev.length) return h + `<p class="st-empty">Поки що чисто. Кожна відмітка, зрив і виконана ціль зʼявляться тут.</p>`;
     return h + `<ul class="st-log">` + ev.map((e) => {
       let nm = "", what = "", cls = "";
-      if (e.k === "goal") { nm = e.kind === "y" ? "Ціль року" : "Ціль місяця"; what = esc(e.t.length > 34 ? e.t.slice(0, 33) + "…" : e.t); cls = "g"; }
+      if (e.k === "call") { nm = "Верховний храмовник"; const st = (D.PANIC && D.PANIC.states.find((x) => x.id === e.st)) || null;
+        what = e.st === "held" ? "хвиля минула — встояв" : `покликав${st ? " · " + st.t.toLowerCase() : ""}`; cls = "c"; }
+      else if (e.k === "goal") { nm = e.kind === "y" ? "Ціль року" : "Ціль місяця"; what = esc(e.t.length > 34 ? e.t.slice(0, 33) + "…" : e.t); cls = "g"; }
       else {
         const v = vowById(e.v); nm = v ? v.name : e.v;
         if (e.k === "mark") { what = `вікно ${e.w || ""}${e.n ? ` · ${e.n}` : ""}`; cls = "w"; }
@@ -673,13 +691,37 @@ window.ORDO_START = function () {
     }).join("") + `</ul>`;
   }
 
+  /* медальйон храмовника з реплікою (Літописець, Сенешаль) */
+  const medallion = (who, head, text) => window.ORDO_HALL && who ? `<div class="md"><div class="md__fig">${window.ORDO_HALL.figure({ head })}</div>
+    <div class="md__txt"><div class="md__who">${esc(who.name)} · ${esc(who.title)}</div><p class="md__say">${esc(text)}</p></div></div>` : "";
+  const fill = (tpl, o) => tpl.replace(/\{(\w+)\}/g, (_, k) => o[k] != null ? o[k] : "");
+  function chronicler() {
+    const C = D.CHRONICLER; if (!C) return "";
+    const mk = monthKey(), falls = LOG.filter((e) => e.k === "breach" && e.d.slice(0, 7) === mk).length;
+    const held = LOG.filter((e) => e.k === "call" && e.st === "held" && e.d.slice(0, 7) === mk).length;
+    const best = D.VOWS.slice().sort((a, b) => streak(b) - streak(a))[0];
+    let t = falls ? fill(C.falls, { n: falls }) : C.clean;
+    t += " " + (held ? fill(C.calls, { n: `${held} ${pluralUk(held, ["раз", "рази", "разів"])}` }) : fill(C.best, { vow: best.name, days: `${streak(best)} ${daysWord(streak(best))}` }));
+    return medallion(C, "hood", t);
+  }
+  function seneschal() {
+    const S = D.SENESCHAL; if (!S) return "";
+    const M = monthKey(), P = G.m[M], left = daysIn(M) - new Date().getDate();
+    let t;
+    if (!P || !P.items.length) t = S.none;
+    else if (P.items.every((it) => complete(it))) t = S.all;
+    else if (left === 0) t = S.review;
+    else t = fill(S.progress, { done: P.items.filter((it) => complete(it)).length, total: P.items.length, days: `${left} ${daysWord(left)}` });
+    return medallion(S, "plume", t);
+  }
+
   function renderStats() {
     const box = $("statsBody"); if (!box) return;
     const sub = $("stSub"); if (sub) sub.textContent = `усе записується з ${fmtKey(SINCE)}`;
     const seg = `<div class="st-seg" role="tablist">
       <button type="button" data-mode="month" class="${statsMode === "month" ? "is-on" : ""}">Місяць</button>
       <button type="button" data-mode="year" class="${statsMode === "year" ? "is-on" : ""}">Рік</button></div>`;
-    box.innerHTML = seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
+    box.innerHTML = chronicler() + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
     on("stPrev", "click", () => { if (statsMode === "year") statsYearOff--; else statsOffset--; renderStats(); FX.buzz("light"); });
     on("stNext", "click", () => {
       if (statsMode === "year") { if (statsYearOff < 0) statsYearOff++; } else if (statsOffset < 0) statsOffset++;
@@ -1103,7 +1145,7 @@ window.ORDO_START = function () {
       }
       return h + `</section>`;
     };
-    let h = section("m", M) + section("y", Y);
+    let h = seneschal() + section("m", M) + section("y", Y);
     pend.filter((t) => t.t === "review" && !(t.kind === "m" && t.key === M) && !(t.kind === "y" && t.key === Y)).forEach((t) => { h += section(t.kind, t.key); });
 
     const earned = Object.keys(G.m).sort().filter((k) => G.m[k].res && G.m[k].items.length);
@@ -1493,7 +1535,7 @@ window.ORDO_START = function () {
   /* ================================================================ РИТУАЛ == */
   let timers = [], introDone = false, sealWait = null, guardUntil = 0, afterRitual = false;
   const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
-  const STAGES = ["stDate", "stQuote", "stMs", "stSign", "stSeal", "stYear"];
+  const STAGES = ["stDate", "stQuote", "stKeeper", "stMs", "stSign", "stSeal", "stYear"];
   function reveal() {
     introDone = true; sealWait = null; clearTimers();
     const intro = $("intro"); if (intro) { intro.setAttribute("hidden", ""); intro.classList.remove("sealed"); }
@@ -1541,6 +1583,25 @@ window.ORDO_START = function () {
     }
     playMain(0, null);
   }
+  /* хто говорить зранку: ~30% — свічка з цитатою; решта — хранителі обітниць
+     (ближчі до віхи чи щойно після зриву — частіше); рідко — легендарна поява Верховного з діалогом */
+  function morningVoice(legendary) {
+    const H = window.ORDO_HALL;
+    if (legendary || !H || !D.KEEPERS) return { mode: "candle" };
+    const r = Math.random();
+    if (r < 0.30) return { mode: "candle" };
+    if (r < 0.36 && D.SUPREME_MORNING) return { mode: "supreme" };
+    const since2 = keyOf(new Date(Date.now() - 2 * 86400000));
+    const pool = D.VOWS.filter((v) => D.KEEPERS[v.id]).map((v) => {
+      const s = streak(v), nm = nextMilestone(s); let w = 1;
+      if (nm && nm - s <= 7) w *= 4;
+      if (LOG.some((e) => e.k === "breach" && e.v === v.id && e.d >= since2)) w *= 3;
+      return { v, w };
+    });
+    let x = Math.random() * pool.reduce((a, q) => a + q.w, 0);
+    for (const q of pool) { x -= q.w; if (x <= 0) return { mode: "keeper", v: q.v }; }
+    return { mode: "candle" };
+  }
   function playMain(t0, skipYear) {
     const intro = $("intro"); if (!intro) return;
     const d = new Date();
@@ -1555,9 +1616,18 @@ window.ORDO_START = function () {
     }
     const LQ = D.LEGENDARY_QUOTES || [], h = hashDay(todayKey());
     const legendary = LQ.length > 0 && (h % 100) < 8;
+    const voice = morningVoice(legendary);
     const ql = $("qLegend"); if (ql) ql.hidden = !legendary;
     const sq0 = $("stQuote"); if (sq0) sq0.classList.toggle("legendary", legendary);
-    const qt = $("qText"); if (qt) qt.textContent = legendary ? LQ[h % LQ.length] : nextQuote();
+    if (voice.mode === "candle") { const qt = $("qText"); if (qt) qt.textContent = legendary ? LQ[h % LQ.length] : nextQuote(); }
+    if (voice.mode === "keeper") {
+      const K = D.KEEPERS[voice.v.id];
+      const f = $("kpFig"); if (f) { f.innerHTML = window.ORDO_HALL.figure({ icon: voice.v.icon }); f.classList.remove("drawn"); }
+      const kn = $("kpName"); if (kn) kn.textContent = K.name;
+      const kt = $("kpTitle"); if (kt) kt.textContent = K.title;
+      const kl = $("kpLine"); if (kl) kl.textContent = window.ORDO_HALL.fresh("keeper." + voice.v.id, K.lines, 6).v;
+    }
+    const first = voice.mode === "keeper" ? "stKeeper" : voice.mode === "candle" ? "stQuote" : null;
 
     const ms = [];
     D.VOWS.forEach((v) => {
@@ -1575,35 +1645,53 @@ window.ORDO_START = function () {
     }, t + 200));
     t += P.date + 600;
     timers.push(setTimeout(() => { const sd = $("stDate"); if (sd) sd.classList.add("gone"); }, t - 500));
-    timers.push(setTimeout(() => { const sq = $("stQuote"); if (sq) sq.classList.add("show"); FX.play("quote"); }, t + 400));
-    t += P.quote + 900 + (legendary ? 1200 : 0);
-    ms.forEach((m, i) => {
-      timers.push(setTimeout(() => {
-        if (i === 0) { const sq = $("stQuote"); if (sq) sq.classList.add("gone"); }
-        const st = $("stMs"); if (!st) return;
-        st.classList.remove("show"); void st.offsetWidth;
-        const mn = $("msNum"); if (mn) mn.textContent = m.num;
-        const mv = $("msVow"); if (mv) mv.textContent = m.name;
-        const mt = $("msText"); if (mt) mt.textContent = m.msg;
-        setTimeout(() => { st.classList.add("show"); sparks("msSparks", 16); FX.play("ms"); }, i === 0 ? 600 : 0);
-      }, t));
-      t += P.milestone + 900;
-    });
-    signs.forEach((g, i) => {
-      timers.push(setTimeout(() => {
-        if (i === 0) { const prev = $(ms.length ? "stMs" : "stQuote"); if (prev) prev.classList.add("gone"); }
-        const st = $("stSign"); if (!st) return;
-        st.classList.remove("show"); void st.offsetWidth;
-        const k = $("signKicker"); if (k) k.textContent = g.kicker;
-        const n = $("signNum"); if (n) n.textContent = g.num;
-        const u = $("signUnit"); if (u) u.textContent = g.unit;
-        const v = $("signVow"); if (v) v.textContent = g.vow;
-        const x = $("signText"); if (x) x.textContent = g.text;
-        setTimeout(() => { st.classList.add("show"); FX.play("sign"); }, i === 0 ? 600 : 0);
-      }, t));
-      t += P.milestone + 900;
-    });
-    timers.push(setTimeout(reveal, t));
+
+    /* решта ритуалу (віхи, знаки, табло) — від моменту t */
+    const rest = (t, prevId) => {
+      ms.forEach((m, i) => {
+        timers.push(setTimeout(() => {
+          if (i === 0 && prevId) { const sq = $(prevId); if (sq) sq.classList.add("gone"); }
+          const st = $("stMs"); if (!st) return;
+          st.classList.remove("show"); void st.offsetWidth;
+          const mn = $("msNum"); if (mn) mn.textContent = m.num;
+          const mv = $("msVow"); if (mv) mv.textContent = m.name;
+          const mt = $("msText"); if (mt) mt.textContent = m.msg;
+          setTimeout(() => { st.classList.add("show"); sparks("msSparks", 16); FX.play("ms"); }, i === 0 ? 600 : 0);
+        }, t));
+        t += P.milestone + 900;
+      });
+      signs.forEach((g, i) => {
+        timers.push(setTimeout(() => {
+          if (i === 0) { const prev = $(ms.length ? "stMs" : prevId); if (prev) prev.classList.add("gone"); }
+          const st = $("stSign"); if (!st) return;
+          st.classList.remove("show"); void st.offsetWidth;
+          const k = $("signKicker"); if (k) k.textContent = g.kicker;
+          const n = $("signNum"); if (n) n.textContent = g.num;
+          const u = $("signUnit"); if (u) u.textContent = g.unit;
+          const v = $("signVow"); if (v) v.textContent = g.vow;
+          const x = $("signText"); if (x) x.textContent = g.text;
+          setTimeout(() => { st.classList.add("show"); FX.play("sign"); }, i === 0 ? 600 : 0);
+        }, t));
+        t += P.milestone + 900;
+      });
+      timers.push(setTimeout(reveal, t));
+    };
+
+    if (voice.mode === "supreme") {
+      /* легендарна поява: ритуал чекає, поки триває розмова */
+      timers.push(setTimeout(async () => {
+        await window.ORDO_HALL.morningSupreme();
+        if (!introDone) rest(400, null);
+      }, t + 400));
+      return;
+    }
+    timers.push(setTimeout(() => {
+      const sq = $(first); if (sq) sq.classList.add("show");
+      if (first === "stKeeper") { const f = $("kpFig"); if (f) requestAnimationFrame(() => f.classList.add("drawn")); FX.play("sign"); }
+      else FX.play("quote");
+    }, t + 400));
+    t += P.quote + 900 + (legendary ? 1200 : 0) + (first === "stKeeper" ? 2200 : 0);
+    rest(t, first);
   }
   const onSkip = () => {
     if (sealWait) { sealWait(); return; }
@@ -1683,4 +1771,7 @@ window.ORDO_START = function () {
     });
     window.addEventListener("load", () => sw.register("sw.js", { updateViaCache: "none" }).catch(() => {}));
   }
+
+  /* ---- для Зали храмовників (hall.js) ---- */
+  window.ORDO_API = { D, FX, streak, nextMilestone, todayKey, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
 };

@@ -17,7 +17,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="fonts/CormorantSC-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/EBGaramond-500i-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="styles.css?v=16">
+<link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
 
@@ -223,6 +223,13 @@
     <div class="quote-rule"></div>
   </section>
 
+  <section class="stage" id="stKeeper">
+    <div class="kp-fig" id="kpFig"></div>
+    <div class="kp-name" id="kpName"></div>
+    <div class="kp-title" id="kpTitle"></div>
+    <p class="kp-line" id="kpLine"></p>
+  </section>
+
   <section class="stage" id="stMs">
     <div class="rays" aria-hidden="true"></div>
     <div class="sparks" id="msSparks" aria-hidden="true"></div>
@@ -314,7 +321,7 @@
   <div class="view is-on" id="vBoard" data-view="board">
     <div class="board" id="board">
       <header class="crest">
-        <svg class="crest__sigil"><use href="#sigil"/></svg>
+        <button class="crest__btn" id="crestBtn" type="button" aria-label="Покликати Верховного храмовника"><svg class="crest__sigil"><use href="#sigil"/></svg></button>
         <div class="crest__title" id="crestTitle">ОРДЕН</div>
         <div class="crest__sub" id="crestSub">обітниць</div>
         <svg class="crest__rule" viewBox="0 0 220 18" aria-hidden="true">
@@ -323,6 +330,7 @@
           <path pathLength="1" d="M110 2 L117 9 L110 16 L103 9 Z"/>
           <circle cx="110" cy="9" r="1.6" class="crest__dot"/>
         </svg>
+        <span class="crest__hint">у скрутну мить — торкнись щита</span>
       </header>
       <ul class="oaths" id="oaths"></ul>
       <footer class="board__foot">
@@ -381,6 +389,7 @@
   <div class="sheet__row"><label for="shDate">Початок стріку</label><input type="date" id="shDate"></div>
   <button class="btn btn--line" id="shMark" type="button">Використати вікно</button>
   <button class="btn btn--reset" id="shReset" type="button">Зрив — обнулити стрік</button>
+  <button class="btn btn--line" id="shKeeper" type="button" hidden>Покликати хранителя</button>
   <button class="btn btn--ghost" id="shClose" type="button">Закрити</button>
 </div>
 
@@ -431,7 +440,8 @@
   </div>
 </div>
 
-<script src="app.js?v=23"></script>
+<script src="app.js?v=25"></script>
+<script src="hall.js?v=2"></script>
 <script src="boot.js?v=3"></script>
 </body>
 </html>

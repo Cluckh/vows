@@ -3,9 +3,9 @@
    тож нова версія приходить одразу після деплою; кеш — запасний для офлайну.
    Версію бампати при кожній зміні (+1 до номера нижче): так телефон дізнається
    про оновлення й тихо перезавантажить додаток. */
-const CACHE = "ordo-v28";
+const CACHE = "ordo-v30";
 const ASSETS = [
-  "./", "./index.html", "./styles.css", "./app.js", "./boot.js", "./vault.json",
+  "./", "./index.html", "./styles.css", "./app.js", "./hall.js", "./boot.js", "./vault.json",
   "./manifest.webmanifest",
   "./icon-180.png", "./icon-192.png", "./icon-512.png",
   "./fonts/CormorantSC-500-cyrillic.woff2",

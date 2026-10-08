@@ -17,7 +17,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="fonts/CormorantSC-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/EBGaramond-500i-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 
@@ -279,6 +279,7 @@
     <svg class="rite__ic"><use href="#i-banner"/></svg>
     <div class="rite__title" id="enTitle"></div>
     <p class="rite__lead" id="enLead"></p>
+    <div class="rite__voice" id="enVoice" hidden aria-live="polite"></div>
     <div class="entry">
       <div class="cmp" id="enComposer"></div>
       <button class="btn btn--gold" id="enAdd" type="button">Прийняти ціль</button>
@@ -301,6 +302,7 @@
       <button class="btn btn--gold" id="rvYes" type="button">Виконав</button>
       <button class="btn btn--ghost" id="rvNo" type="button">Не виконав</button>
     </div>
+    <div class="rite__voice rite__voice--rv" id="rvVoice" hidden aria-live="polite"></div>
   </section>
 
   <section class="rite__stage rite__stage--center" id="riteResult">
@@ -445,8 +447,8 @@
   </div>
 </div>
 
-<script src="app.js?v=27"></script>
-<script src="hall.js?v=3"></script>
+<script src="app.js?v=28"></script>
+<script src="hall.js?v=4"></script>
 <script src="boot.js?v=3"></script>
 </body>
 </html>

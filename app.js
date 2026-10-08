@@ -701,7 +701,7 @@ window.ORDO_START = function () {
   }
 
   /* медальйон храмовника з реплікою (Літописець, Сенешаль) */
-  const medallion = (who, head, text) => window.ORDO_HALL && who ? `<div class="md"><div class="md__fig">${window.ORDO_HALL.figure({ head })}</div>
+  const medallion = (who, fig, text, cls) => window.ORDO_HALL && who ? `<div class="md${cls ? " " + cls : ""}"><div class="md__fig">${window.ORDO_HALL.figure(typeof fig === "string" ? { head: fig } : fig)}</div>
     <div class="md__txt"><div class="md__who">${esc(who.name)} · ${esc(who.title)}</div><p class="md__say">${esc(text)}</p></div></div>` : "";
   const fill = (tpl, o) => tpl.replace(/\{(\w+)\}/g, (_, k) => o[k] != null ? o[k] : "");
   function chronicler() {
@@ -713,8 +713,35 @@ window.ORDO_START = function () {
     t += " " + (held ? fill(C.calls, { n: `${held} ${pluralUk(held, ["раз", "рази", "разів"])}` }) : fill(C.best, { vow: best.name, days: `${streak(best)} ${daysWord(streak(best))}` }));
     return medallion(C, "hood", t);
   }
+  /* Капітул: хто з храмовників говорить про ціль — хранитель обітниці, сенешаль (місяць) чи Верховний (рік) */
+  const pickR = (a) => a && a.length ? a[Math.floor(Math.random() * a.length)] : "";
+  let senSay = null;                                   // свіжа похвала сенешаля після виконаної цілі
+  function cheer(it) { const C = D.COUNCIL; if (C && C.cheer) senSay = { t: fill(pickR(C.cheer), { goal: it.t }), at: Date.now() }; }
+  function witness(kind, it) {
+    if (it && tyOf(it) === "vows") {
+      const vs = vowsOf(it).filter((v) => D.KEEPERS && D.KEEPERS[v.id]);
+      if (vs.length && vs.length < D.VOWS.length) { const v = pickR(vs); return { who: D.KEEPERS[v.id], fig: { icon: v.icon }, keeper: true }; }
+    }
+    if (kind === "y" && D.KEEPERS && D.KEEPERS.supreme) return { who: D.KEEPERS.supreme, fig: { supreme: true } };
+    return { who: D.SENESCHAL, fig: { head: "plume" } };
+  }
+  function voice(id, w, text) {
+    const el = $(id); if (!el || !w || !w.who || !text) return;
+    el.hidden = false; el.innerHTML = medallion(w.who, w.fig, text, "md--voice");
+  }
+  function recapText(kind, key) {
+    const C = D.COUNCIL; if (!C || !C.recap) return "";
+    let pk;
+    if (kind === "y") pk = String(+key - 1);
+    else { const [y, m] = key.split("-").map(Number); pk = m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}`; }
+    const P = peek(kind, pk);
+    if (!P || !P.res || !P.items.length) return C.recap.none;
+    const pct = pctOf(P), aw = tierFor(kind === "y" ? D.TITLES : D.MEDALS, pct);
+    return fill(C.recap[aw.tier] || C.recap.none, { medal: aw.name, pct: `${pct}%` });
+  }
   function seneschal() {
     const S = D.SENESCHAL; if (!S) return "";
+    if (senSay && Date.now() - senSay.at < 10 * 60000) return medallion(S, "plume", senSay.t, "md--voice");
     const M = monthKey(), P = G.m[M], left = daysIn(M) - new Date().getDate();
     let t;
     if (!P || !P.items.length) t = S.none;
@@ -1181,7 +1208,7 @@ window.ORDO_START = function () {
       const [kind, key, id] = dn.dataset.done.split("|"), P = peek(kind, key), it = P && P.items.find((i) => i.id === id);
       if (!it || P.res) return;
       if (it.done) { it.done = null; LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === id)); saveLog(); FX.buzz("light"); }
-      else { it.done = todayKey(); logPush({ k: "goal", gid: id, kind, key, t: it.t, d: it.done }); FX.play("yes", true); FX.buzz("medium"); }
+      else { it.done = todayKey(); logPush({ k: "goal", gid: id, kind, key, t: it.t, d: it.done }); FX.play("yes", true); FX.buzz("medium"); cheer(it); }
       saveG(); renderGoals(); popGoal(id);
       return;
     }
@@ -1204,7 +1231,7 @@ window.ORDO_START = function () {
     const p = (it.parts || []).find((x) => x.id === pid); if (!p || p.target) return;
     p.done = p.done ? null : todayKey();
     const closed = settle(it, kind, key); saveG();
-    if (closed) FX.play("yes", true); FX.buzz(p.done ? "medium" : "light");
+    if (closed) { FX.play("yes", true); cheer(it); } FX.buzz(p.done ? "medium" : "light");
     renderGoals(); if (closed) popGoal(id);
     if (gsOpen) renderGoalSheet();
   }
@@ -1282,7 +1309,7 @@ window.ORDO_START = function () {
     const box = document.querySelector(`#gSheet [data-stepbox="${key}"]`); if (box && !reduce) box.classList.add("pop");
   }
   function gsAfter(it, msg) {
-    const closed = settle(it, gs.kind, gs.key); saveG();
+    const closed = settle(it, gs.kind, gs.key); saveG(); if (closed) cheer(it);
     FX.play(closed ? "yes" : "add", true); FX.buzz(closed ? "heavy" : "medium");
     renderGoalSheet(); renderGoals(); if (closed) popGoal(it.id);
   }
@@ -1368,8 +1395,12 @@ window.ORDO_START = function () {
     const el = $(id); if (el) { void el.offsetWidth; el.classList.add("show"); }
   }
   function entryTask(kind, key) {
-    return new Promise((resolve) => {
-      const P = per(kind, key);
+    return new Promise(async (resolve) => {
+      const P = per(kind, key), C = D.COUNCIL;
+      /* Капітул відкриває сенешаль (місяць) або Верховний (рік) */
+      if (C && window.ORDO_HALL) await window.ORDO_HALL.council(kind, { period: periodLabel(kind, key), recap: recapText(kind, key) });
+      const ev = $("enVoice"); if (ev) { ev.hidden = true; ev.innerHTML = ""; }
+      if (C) voice("enVoice", witness(kind, null), pickR(C.ready));
       const ti = $("enTitle"); if (ti) ti.textContent = kind === "y" ? `Цілі на ${key} рік` : `Цілі на ${monthName(key)}`;
       const le = $("enLead"); if (le) le.textContent = kind === "y"
         ? (key === "2026" ? "До кінця 2026. По одній; тип підкажу з тексту. 31 грудня ти чесно відмітиш кожну, і рік отримає звання."
@@ -1386,11 +1417,19 @@ window.ORDO_START = function () {
         const it = cmp.read(); if (!it) { FX.buzz("light"); return; }
         P.items.push(it); settle(it, kind, key); saveG(); cmp.reset(); draw(true);
         FX.play("add", true); FX.buzz("medium"); cmp.focus();
+        if (C) { const w = witness(kind, it), many = P.items.length >= 6 && C.many;
+          voice("enVoice", many ? witness(kind, null) : w, fill(many ? pickR(C.many) : w.keeper ? pickR(C.keeperAdd) : pickR((C.add || {})[tyOf(it)] || C.add.once), { goal: it.t, n: `${P.items.length} ${pluralUk(P.items.length, ["ціль", "цілі", "цілей"])}` })); }
       };
-      const finish = (skip) => { if (skip && !P.items.length) P.skip = true; saveG(); cleanup(); resolve(); };
+      let closing = false;
+      const finish = async (skip, line) => {
+        if (closing) return; closing = true;
+        if (skip && !P.items.length) P.skip = true; saveG(); cleanup();
+        if (C && line) { voice("enVoice", witness(kind, null), line); await wait(1700); }
+        resolve();
+      };
       const onAdd = () => add();
-      const onDone = () => { FX.play("yes", true); FX.buzz("medium"); finish(false); };
-      const onLater = () => { FX.buzz("light"); finish(true); };
+      const onDone = () => { FX.play("yes", true); FX.buzz("medium"); finish(false, C && fill(pickR(C.done), { n: `${P.items.length} ${pluralUk(P.items.length, ["ціль", "цілі", "цілей"])}` })); };
+      const onLater = () => { FX.buzz("light"); finish(true, C && pickR(C.later)); };
       const cleanup = () => { $("enAdd").removeEventListener("click", onAdd); done.removeEventListener("click", onDone); $("enLater").removeEventListener("click", onLater); const a = document.activeElement; if (a && a.blur) a.blur(); };
       $("enAdd").addEventListener("click", onAdd); done.addEventListener("click", onDone); $("enLater").addEventListener("click", onLater);
       riteShow("riteEntry");
@@ -1403,6 +1442,11 @@ window.ORDO_START = function () {
       const k = $("rvKicker"); if (k) k.textContent = kind === "y" ? `Ревю року · ${key}` : `Ревю · ${monthName(key)}`;
       const card = $("rvCard"), txt = $("rvText"), stamp = $("rvStamp"), cnt = $("rvCount"), yes = $("rvYes"), no = $("rvNo"), ex = $("rvExtra");
       const lastDay = kind === "y" ? `${key}-12-31` : `${key}-${pad(daysIn(key))}`;
+      const C = D.COUNCIL, rv = $("rvVoice"); if (rv) { rv.hidden = true; rv.innerHTML = ""; }
+      if (C) voice("rvVoice", witness(kind, null), fill(pickR(C.reviewOpen), { period: periodLabel(kind, key) }));
+      const testify = (it, how) => { if (!C) return; const w = witness(kind, it);
+        const pool = w.keeper ? (how === "no" ? C.keeperNo : C.keeperYes) : how === "early" ? C.early : how === "yes" ? C.yes : C.no;
+        voice("rvVoice", w, fill(pickR(pool), { goal: it.t })); };
       await riteShow("riteReview");
       for (let i = 0; i < P.items.length; i++) {
         const it = P.items[i], t = tyOf(it);
@@ -1418,6 +1462,7 @@ window.ORDO_START = function () {
           res[it.id] = true;
           await wait(900);
           if (stamp) { stamp.textContent = it.done < lastDay ? `Достроково · ${fmtKey(it.done)}` : "Виконано"; stamp.className = "rv__stamp is-yes is-early"; }
+          testify(it, it.done < lastDay ? "early" : "yes");
           FX.play("yes", true); FX.buzz("light");
           await wait(2400);
           if (card) { card.classList.remove("in"); card.classList.add("out"); }
@@ -1447,6 +1492,7 @@ window.ORDO_START = function () {
         res[it.id] = ok;
         if (ok && !it.done) { it.done = todayKey(); logPush({ k: "goal", gid: it.id, kind, key, t: it.t, d: it.done }); }
         if (stamp) { stamp.textContent = ok ? "Виконано" : "Ні"; stamp.className = "rv__stamp " + (ok ? "is-yes" : "is-no"); }
+        testify(it, ok ? "yes" : "no");
         FX.play(ok ? "yes" : "no", true); FX.buzz(ok ? "medium" : "light");
         await wait(1600);
         if (card) { card.classList.remove("in"); card.classList.add("out"); }
@@ -1485,7 +1531,10 @@ window.ORDO_START = function () {
       await wait(1800);
       if (R) R.classList.add("s4");            /* кнопка */
       if (okb) okb.disabled = false;
-      const done = () => { okb.removeEventListener("click", done); FX.buzz("light"); resolve(); };
+      const done = async () => { okb.removeEventListener("click", done); FX.buzz("light");
+        /* вердикт Капітулу: сенешаль (місяць) або Верховний (рік), розмова з варіантами */
+        if (D.COUNCIL && window.ORDO_HALL) await window.ORDO_HALL.verdict(kind, aw.tier, { pct: `${pct}%`, medal: aw.name, period: periodLabel(kind, key) });
+        resolve(); };
       okb.addEventListener("click", done);
     });
   }

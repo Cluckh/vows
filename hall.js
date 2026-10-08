@@ -345,6 +345,20 @@
       if (dlg && await runDialog(dlg.v)) await toolsLoop(P); return; }
     close();
   }
+  /* Капітул: відкриття цілей і вердикт після ревю. Місяць веде сенешаль, рік — Верховний */
+  const fillDeep = (x, o) => typeof x === "string" ? x.replace(/\{(\w+)\}/g, (_, k) => o[k] != null ? o[k] : "")
+    : Array.isArray(x) ? x.map((y) => fillDeep(y, o)) : x && typeof x === "object" ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, fillDeep(v, o)])) : x;
+  const chair = (kind) => kind === "y" ? SUPREME : Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {});
+  async function scene(who, key, list, o) {
+    if (!list || !list.length) return;
+    show(who);
+    const dlg = fresh(key, list, Math.min(3, list.length - 1));
+    if (dlg) await runDialog(fillDeep(dlg.v, o || {}));
+    if (isOpen()) close();
+  }
+  function council(kind, o) { const C = D().COUNCIL || {}; return scene(chair(kind), "council." + kind, (C.open || {})[kind], o); }
+  function verdict(kind, tier, o) { const C = D().COUNCIL || {}; return scene(chair(kind), "verdict." + kind + "." + tier, ((C.verdict || {})[kind] || {})[tier], o); }
+
   /* ранок: легендарна поява Верховного (діалог з варіантами) */
   async function morningSupreme() {
     const M = D().SUPREME_MORNING; if (!M) return;
@@ -354,5 +368,5 @@
     if (isOpen()) close();
   }
 
-  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, isOpen, close, fresh, gainAt };
+  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, isOpen, close, fresh, gainAt };
 })();

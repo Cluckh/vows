@@ -3,7 +3,7 @@
    тож нова версія приходить одразу після деплою; кеш — запасний для офлайну.
    Версію бампати при кожній зміні (+1 до номера нижче): так телефон дізнається
    про оновлення й тихо перезавантажить додаток. */
-const CACHE = "ordo-v35";
+const CACHE = "ordo-v36";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./hall.js", "./boot.js", "./vault.json",
   "./manifest.webmanifest",
@@ -32,7 +32,7 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== "ordo-call").map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -64,8 +64,11 @@ self.addEventListener("push", (e) => {
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const url = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
-  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
-    for (const c of cs) if ("focus" in c) { c.postMessage({ type: "ordo-open", url }); return c.focus(); }
+  /* iOS інколи відкриває додаток без адреси зі сповіщення — тож виклик кладемо
+     в локальний кеш, а Орден забирає його при старті й при поверненні у вікно */
+  const keep = caches.open("ordo-call").then((c) => c.put("./__call", new Response(JSON.stringify({ url, at: Date.now() }))));
+  e.waitUntil(keep.then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true })).then((cs) => {
+    for (const c of cs) if ("focus" in c) { c.postMessage({ type: "ordo-call" }); return c.focus(); }
     return self.clients.openWindow(url);
   }));
 });

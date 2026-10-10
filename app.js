@@ -1843,7 +1843,17 @@ window.ORDO_START = function () {
       window.ORDO_HALL.summon(id, t); };
     setTimeout(go, reduce ? 50 : 1500);
   }
-  if (location.search.includes("call=")) { openCall(location.href); try { history.replaceState(null, "", location.pathname); } catch (e) {} }
-  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "ordo-open") openCall(e.data.url); });
+  /* виклик зі сповіщення: service worker кладе його в кеш «ordo-call» — забрати один раз (свіжий, до 2 год) */
+  let callBusy = false;
+  async function pendingCall() {
+    if (callBusy || !window.caches) return; callBusy = true;
+    try { const c = await caches.open("ordo-call"), r = await c.match("./__call");
+      if (r) { const j = await r.json(); await c.delete("./__call"); if (Date.now() - j.at < 2 * 3600e3) openCall(j.url); } } catch (e) {}
+    callBusy = false;
+  }
+  if (location.search.includes("call=")) { try { history.replaceState(null, "", location.pathname); } catch (e) {} }
+  pendingCall();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pendingCall(); });
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "ordo-call") pendingCall(); });
   window.ORDO_API = { D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
 };

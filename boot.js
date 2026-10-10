@@ -273,6 +273,39 @@
   function status(s) { if (statusEl) renderVault(); const ic = $("vaultBtn"); if (ic) ic.classList.toggle("is-err", s === "err" || !!LS.get("ordo.bk.err", null)); }
   const when = (ms) => { const d = new Date(ms), now = new Date(); const t = d.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" });
     return day(d) === day(now) ? `сьогодні о ${t}` : `${d.toLocaleDateString("uk-UA", { day: "numeric", month: "long" })} о ${t}`; };
+  /* ------------------------------------------- вісті від храмовників (Web Push) --
+     Телефон дає адресу для пушів; вона лягає в приватне сховище (push/<пристрій>.json),
+     звідки храмовники за розкладом надсилають вісті. Ключ VAPID — публічний. */
+  const VAPID = "BDgQcIZGuPq3BAL1TPuHIn1D1qvNMQqS1aID5slOlJ9pXEwg7-nJoTuCe-Ig8F6M7_XQxm5ab4OLdBbpaI2XXXQ";
+  const unb64u = (s) => unb64(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  const pushCan = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const standalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  const pushFile = () => `push/${devId().replace(/[^a-z0-9]/gi, "")}.json`;
+  const pushOn = () => pushCan() && Notification.permission === "granted" && !!LS.get("ordo.k.push", null);
+  async function pushSave(sub) {
+    const j = sub.toJSON();
+    await putFile(pushFile(), JSON.stringify({ sub: j, ua: navigator.userAgent.slice(0, 160), at: new Date().toISOString() }, null, 1), "вісті: адреса пристрою");
+    LS.set("ordo.k.push", { ep: j.endpoint, at: Date.now() });
+  }
+  async function pushEnable() {
+    if (!pushCan()) { alert(standalone() ? "Цей пристрій не вміє приймати вісті." : "Вісті працюють лише в Ордені, відкритому з іконки на головному екрані."); return; }
+    const perm = await Notification.requestPermission();      // має бути першим кроком після тапу
+    if (perm !== "granted") { alert("Сповіщення не дозволені. Їх можна ввімкнути в Параметрах → Сповіщення → Vows."); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(VAPID) });
+    await pushSave(sub);
+  }
+  async function pushDisable() {
+    try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {}
+    try { await putFile(pushFile(), JSON.stringify({ off: true, at: new Date().toISOString() }) + "\n", "вісті: вимкнено"); } catch (e) {}
+    LS.del("ordo.k.push");
+  }
+  /* адреса пушів інколи змінюється — тихо оновлюємо її в сховищі */
+  async function pushRefresh() {
+    if (!pushOn() || !token()) return;
+    try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); const was = LS.get("ordo.k.push", {});
+      if (sub && sub.endpoint !== was.ep) await pushSave(sub); } catch (e) {}
+  }
   function renderVault() {
     const box = $("vaultBody"); if (!box) return;
     const last = LS.get("ordo.bk.last", {}), err = LS.get("ordo.bk.err", null);
@@ -286,6 +319,8 @@
       <div id="vtList"></div>
       <button class="btn btn--line" type="button" data-vt="file">Зберегти копію у файл</button>
       <label class="btn btn--ghost vt-file">Відновити з файлу<input type="file" accept=".json,application/json" id="vtImport" hidden></label>
+      <div class="vt-push"><span class="vt-st ${pushOn() ? "is-ok" : ""}">${pushOn() ? "вісті від храмовників увімкнено" : "вісті від храмовників вимкнено"}</span>
+        <button class="btn ${pushOn() ? "btn--ghost" : "btn--line"}" type="button" data-vt="${pushOn() ? "pushoff" : "push"}">${pushOn() ? "Вимкнути вісті" : "Увімкнути вісті від храмовників"}</button></div>
       <button class="btn btn--ghost" type="button" data-vt="token">Оновити токен</button>
       <button class="btn btn--ghost" type="button" data-vt="close">Закрити</button>`;
   }
@@ -309,6 +344,8 @@
       const a = e.target.closest("[data-vt]"), act = a && a.dataset.vt;
       if (act === "close") return closeVault();
       if (act === "now") { await syncNow("force"); return; }
+      if (act === "push") { a.disabled = true; try { await pushEnable(); } catch (err) { alert("Не вдалося ввімкнути вісті: " + (err && err.message || err)); } renderVault(); return; }
+      if (act === "pushoff") { a.disabled = true; await pushDisable(); renderVault(); return; }
       if (act === "token") {
         const t = prompt("Новий токен доступу GitHub:"); if (!t) return;
         try { await gh("vault.key", { raw: true, token: t.trim() }); LS.set(K.token, t.trim()); LS.del("ordo.bk.err"); await syncNow("force"); }
@@ -347,7 +384,7 @@
     window.ORDO_DATA = data;
     if (typeof window.ORDO_START === "function") window.ORDO_START();
     const vb = $("vaultBtn"); if (vb) vb.addEventListener("click", openVault);
-    wireVault(); status();
+    wireVault(); status(); setTimeout(pushRefresh, 4000);
     setInterval(() => { if (!document.hidden) syncNow("now"); }, SYNC_EVERY);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }

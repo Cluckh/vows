@@ -3,7 +3,7 @@
    тож нова версія приходить одразу після деплою; кеш — запасний для офлайну.
    Версію бампати при кожній зміні (+1 до номера нижче): так телефон дізнається
    про оновлення й тихо перезавантажить додаток. */
-const CACHE = "ordo-v34";
+const CACHE = "ordo-v35";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./hall.js", "./boot.js", "./vault.json",
   "./manifest.webmanifest",
@@ -51,4 +51,21 @@ self.addEventListener("fetch", (e) => {
         .then((hit) => hit || caches.match(req, { ignoreSearch: true }))
         .then((hit) => hit || caches.match("./index.html")))
   );
+});
+
+/* вісті від храмовників: показати сповіщення; тап — відкрити Орден на потрібній сцені */
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Орден", {
+    body: d.body || "", icon: "./icon-192.png", badge: "./icon-192.png", tag: d.tag || "ordo", data: { url: d.url || "./" }
+  }));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
+    for (const c of cs) if ("focus" in c) { c.postMessage({ type: "ordo-open", url }); return c.focus(); }
+    return self.clients.openWindow(url);
+  }));
 });

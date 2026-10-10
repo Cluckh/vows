@@ -1833,5 +1833,17 @@ window.ORDO_START = function () {
   }
 
   /* ---- для Зали храмовників (hall.js) ---- */
+  /* вість від храмовника: ./?call=<id>&t=<слово> — після ритуалу та обрядів відкрити сцену */
+  function openCall(url) {
+    let q; try { q = new URL(url, location.href).searchParams; } catch (e) { return; }
+    const id = q.get("call"); if (!id || !window.ORDO_HALL) return;
+    const t = q.get("t") || "";
+    const go = () => { const intro = $("intro");
+      if ((intro && !intro.hasAttribute("hidden")) || queueBusy || window.ORDO_HALL.isOpen()) { setTimeout(go, 700); return; }
+      window.ORDO_HALL.summon(id, t); };
+    setTimeout(go, reduce ? 50 : 1500);
+  }
+  if (location.search.includes("call=")) { openCall(location.href); try { history.replaceState(null, "", location.pathname); } catch (e) {} }
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "ordo-open") openCall(e.data.url); });
   window.ORDO_API = { D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
 };

@@ -1155,3 +1155,5 @@ body.in-hall{overflow:hidden}
 .md--voice{margin:0;animation:mdIn .9s var(--ease)}
 .md--voice .md__say{font-size:15.5px}
 @keyframes mdIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.vt-push{margin:16px 0 4px;padding-top:14px;border-top:1px solid var(--edge-soft);text-align:center}
+.vt-push .btn{margin-top:10px}

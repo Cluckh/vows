@@ -446,6 +446,22 @@
   function council(kind, o) { const C = D().COUNCIL || {}; return scene(chair(kind), "council." + kind, (C.open || {})[kind], o); }
   function verdict(kind, tier, o) { const C = D().COUNCIL || {}; return scene(chair(kind), "verdict." + kind + "." + tier, ((C.verdict || {})[kind] || {})[tier], o); }
 
+  /* вість: храмовник, що прийшов на сповіщення, — його слово, далі звичайна розмова */
+  async function summon(id, text) {
+    const K = D().KEEPERS || {}; if (!K[id]) return;
+    const v = (D().VOWS || []).find((x) => x.id === id);
+    show(v ? { id, icon: v.icon } : SUPREME);
+    if (text && (await say(text)) === "closed") return;
+    if (v) return callKeeper(id);
+    const tales = K.supreme.tales || [];
+    for (;;) {
+      const i = await ask(pick(MENU_Q), tales.length ? ["Розкажи історію", "Дякую, Магістре"] : ["Дякую, Магістре"], "hall__acts--row");
+      if (i === "closed") return;
+      if (i === 0 && tales.length) { if (!(await runDialog(fresh("tale.supreme", tales, 4).v))) return; continue; }
+      close(); return;
+    }
+  }
+
   /* ранок: легендарна поява Верховного (діалог з варіантами) */
   async function morningSupreme() {
     const M = D().SUPREME_MORNING; if (!M) return;
@@ -455,5 +471,5 @@
     if (isOpen()) close();
   }
 
-  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, isOpen, close, fresh, gainAt };
+  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, summon, isOpen, close, fresh, gainAt };
 })();

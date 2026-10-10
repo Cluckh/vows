@@ -282,10 +282,15 @@
   const standalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
   const pushFile = () => `push/${devId().replace(/[^a-z0-9]/gi, "")}.json`;
   const pushOn = () => pushCan() && Notification.permission === "granted" && !!LS.get("ordo.k.push", null);
+  /* діагностика для відправника: версія service worker, додатка й останній виклик */
+  async function diag() {
+    let sw = ""; try { sw = (await caches.keys()).filter((k) => /^ordo-v\d+$/.test(k)).join(","); } catch (e) {}
+    return { sw, app: LS.get("ordo.ver", ""), call: LS.get("ordo.k.call", null) };
+  }
   async function pushSave(sub) {
-    const j = sub.toJSON();
-    await putFile(pushFile(), JSON.stringify({ sub: j, ua: navigator.userAgent.slice(0, 160), at: new Date().toISOString() }, null, 1), "вісті: адреса пристрою");
-    LS.set("ordo.k.push", { ep: j.endpoint, at: Date.now() });
+    const j = sub.toJSON(), dg = await diag();
+    await putFile(pushFile(), JSON.stringify({ sub: j, ua: navigator.userAgent.slice(0, 160), at: new Date().toISOString(), diag: dg }, null, 1), "вісті: адреса пристрою");
+    LS.set("ordo.k.push", { ep: j.endpoint, at: Date.now(), dg: JSON.stringify(dg) });
   }
   async function pushEnable() {
     if (!pushCan()) { alert(standalone() ? "Цей пристрій не вміє приймати вісті." : "Вісті працюють лише в Ордені, відкритому з іконки на головному екрані."); return; }
@@ -304,7 +309,7 @@
   async function pushRefresh() {
     if (!pushOn() || !token()) return;
     try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); const was = LS.get("ordo.k.push", {});
-      if (sub && sub.endpoint !== was.ep) await pushSave(sub); } catch (e) {}
+      if (sub && (sub.endpoint !== was.ep || JSON.stringify(await diag()) !== was.dg)) await pushSave(sub); } catch (e) {}
   }
   function renderVault() {
     const box = $("vaultBody"); if (!box) return;
@@ -392,7 +397,7 @@
       else syncNow("now");
     });
   }
-  window.ORDO_VAULT = { backupNow, syncNow, open: openVault };
+  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500) };
 
   async function boot() {
     let vault;

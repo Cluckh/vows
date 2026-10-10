@@ -3,7 +3,7 @@
    тож нова версія приходить одразу після деплою; кеш — запасний для офлайну.
    Версію бампати при кожній зміні (+1 до номера нижче): так телефон дізнається
    про оновлення й тихо перезавантажить додаток. */
-const CACHE = "ordo-v36";
+const CACHE = "ordo-v37";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./hall.js", "./boot.js", "./vault.json",
   "./manifest.webmanifest",
@@ -57,16 +57,20 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(d.title || "Орден", {
+  /* виклик запамʼятовуємо одразу, ще до тапу: Орден підхопить його, хоч би як його відкрили */
+  const keep = d.url && d.url.includes("call=")
+    ? caches.open("ordo-call").then((c) => c.put("./__call", new Response(JSON.stringify({ url: new URL(d.url, self.registration.scope).href, at: Date.now(), via: "push" })))).catch(() => {})
+    : Promise.resolve();
+  e.waitUntil(keep.then(() => self.registration.showNotification(d.title || "Орден", {
     body: d.body || "", icon: "./icon-192.png", badge: "./icon-192.png", tag: d.tag || "ordo", data: { url: d.url || "./" }
-  }));
+  })));
 });
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const url = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
   /* iOS інколи відкриває додаток без адреси зі сповіщення — тож виклик кладемо
      в локальний кеш, а Орден забирає його при старті й при поверненні у вікно */
-  const keep = caches.open("ordo-call").then((c) => c.put("./__call", new Response(JSON.stringify({ url, at: Date.now() }))));
+  const keep = caches.open("ordo-call").then((c) => c.put("./__call", new Response(JSON.stringify({ url, at: Date.now(), via: "tap" })))).catch(() => {});
   e.waitUntil(keep.then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true })).then((cs) => {
     for (const c of cs) if ("focus" in c) { c.postMessage({ type: "ordo-call" }); return c.focus(); }
     return self.clients.openWindow(url);

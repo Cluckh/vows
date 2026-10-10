@@ -1817,7 +1817,7 @@ window.ORDO_START = function () {
     let hadCtl = !!sw.controller, reloadPending = false, reloading = false;
     const calm = () => {
       const intro = $("intro"), a = document.activeElement;
-      return !queueBusy && (!intro || intro.hasAttribute("hidden")) && !document.querySelector(".sheet.open, .confirm.open, .rite.open")
+      return !queueBusy && (!intro || intro.hasAttribute("hidden")) && !document.querySelector(".sheet.open, .confirm.open, .rite.open, .hall.open")
         && !(a && /^(INPUT|TEXTAREA)$/.test(a.tagName));
     };
     const reloadNow = () => { if (reloading) return; reloading = true; location.reload(); };
@@ -1834,26 +1834,37 @@ window.ORDO_START = function () {
 
   /* ---- для Зали храмовників (hall.js) ---- */
   /* вість від храмовника: ./?call=<id>&t=<слово> — після ритуалу та обрядів відкрити сцену */
-  function openCall(url) {
+  function openCall(url, done) {
     let q; try { q = new URL(url, location.href).searchParams; } catch (e) { return; }
     const id = q.get("call"); if (!id || !window.ORDO_HALL) return;
     const t = q.get("t") || "";
     const go = () => { const intro = $("intro");
       if ((intro && !intro.hasAttribute("hidden")) || queueBusy || window.ORDO_HALL.isOpen()) { setTimeout(go, 700); return; }
+      if (done) done();
       window.ORDO_HALL.summon(id, t); };
     setTimeout(go, reduce ? 50 : 1500);
   }
-  /* виклик зі сповіщення: service worker кладе його в кеш «ordo-call» — забрати один раз (свіжий, до 2 год) */
-  let callBusy = false;
+  /* виклик зі сповіщення: service worker кладе його в кеш «ordo-call» (ще при отриманні пуша).
+     Видаляємо лише тоді, коли сцена справді відкрилась — тож перезавантаження його не губить */
+  let callAt = 0;
   async function pendingCall() {
-    if (callBusy || !window.caches) return; callBusy = true;
-    try { const c = await caches.open("ordo-call"), r = await c.match("./__call");
-      if (r) { const j = await r.json(); await c.delete("./__call"); if (Date.now() - j.at < 2 * 3600e3) openCall(j.url); } } catch (e) {}
-    callBusy = false;
+    if (!window.caches) return;
+    try {
+      const c = await caches.open("ordo-call"), r = await c.match("./__call"); if (!r) return;
+      const j = await r.json();
+      if (Date.now() - j.at > 6 * 3600e3) { await c.delete("./__call"); return; }
+      if (callAt === j.at) return; callAt = j.at;
+      openCall(j.url, () => { c.delete("./__call").catch(() => {}); LS.set("ordo.k.call", { at: j.at, via: j.via || "", shown: Date.now() });
+        if (window.ORDO_VAULT && window.ORDO_VAULT.pushDiag) window.ORDO_VAULT.pushDiag(); });
+    } catch (e) {}
   }
   if (location.search.includes("call=")) { try { history.replaceState(null, "", location.pathname); } catch (e) {} }
   pendingCall();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pendingCall(); });
-  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "ordo-call") pendingCall(); });
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => {
+    if (!e.data) return;
+    if (e.data.type === "ordo-call") pendingCall();
+    if (e.data.type === "ordo-open" && e.data.url) openCall(e.data.url);            // старий service worker
+  });
   window.ORDO_API = { D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
 };

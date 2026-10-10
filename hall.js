@@ -447,7 +447,18 @@
   function verdict(kind, tier, o) { const C = D().COUNCIL || {}; return scene(chair(kind), "verdict." + kind + "." + tier, ((C.verdict || {})[kind] || {})[tier], o); }
 
   /* вість: храмовник, що прийшов на сповіщення, — його слово, далі звичайна розмова */
-  async function summon(id, text) {
+  /* лист голубиною поштою: сургуч, від кого, діалог */
+  async function letter(lid) {
+    const L = (D().LETTERS || []).find((x) => x.id === lid), K = D().KEEPERS || {}; if (!L) return;
+    const v = (D().VOWS || []).find((x) => x.id === L.from);
+    show(v ? { id: L.from, icon: v.icon } : L.from === "supreme" ? SUPREME : Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {}));
+    if ((await say(`✉ Лист із печаткою Ордену. ${L.title ? "«" + L.title + "»" : ""}`)) === "closed") return;
+    await runDialog(L);
+    if (isOpen()) close();
+  }
+  async function summon(id, text, mode) {
+    if (id === "letter") return letter(text);
+    if (id === "supreme" && mode === "legend") return morningSupreme();
     const K = D().KEEPERS || {}; if (!K[id]) return;
     const v = (D().VOWS || []).find((x) => x.id === id);
     show(v ? { id, icon: v.icon } : SUPREME);
@@ -471,5 +482,5 @@
     if (isOpen()) close();
   }
 
-  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, summon, isOpen, close, fresh, gainAt };
+  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, summon, letter, isOpen, close, fresh, gainAt };
 })();

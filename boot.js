@@ -285,7 +285,12 @@
   /* діагностика для відправника: версія service worker, додатка й останній виклик */
   async function diag() {
     let sw = ""; try { sw = (await caches.keys()).filter((k) => /^ordo-v\d+$/.test(k)).join(","); } catch (e) {}
-    return { sw, app: LS.get("ordo.ver", ""), call: LS.get("ordo.k.call", null) };
+    /* для глашатая: дати найближчих віх (сьогоднішня теж) і чи є цілі місяця — без літопису */
+    const A = window.ORDO_API, next = [], ky = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    try { const t = new Date();
+      A.D.VOWS.forEach((v) => { const st = A.streak(v), m = (A.D.MILESTONES || []).find((x) => x >= st); if (m) next.push({ v: v.id, n: m, d: ky(new Date(t.getFullYear(), t.getMonth(), t.getDate() + m - st)) }); }); } catch (e) {}
+    const G = LS.get("ordo.goals", {}), P = G.m && G.m[ky(new Date()).slice(0, 7)];
+    return { sw, app: LS.get("ordo.ver", ""), call: LS.get("ordo.k.call", null), next, gm: P ? { n: P.items.length, done: !!P.res } : null };
   }
   async function pushSave(sub) {
     const j = sub.toJSON(), dg = await diag();

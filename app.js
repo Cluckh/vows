@@ -1837,11 +1837,11 @@ window.ORDO_START = function () {
   function openCall(url, done) {
     let q; try { q = new URL(url, location.href).searchParams; } catch (e) { return; }
     const id = q.get("call"); if (!id || !window.ORDO_HALL) return;
-    const t = q.get("t") || "";
+    const t = q.get("t") || q.get("id") || "", mode = q.get("m") || "";
     const go = () => { const intro = $("intro");
       if ((intro && !intro.hasAttribute("hidden")) || queueBusy || window.ORDO_HALL.isOpen()) { setTimeout(go, 700); return; }
       if (done) done();
-      window.ORDO_HALL.summon(id, t); };
+      window.ORDO_HALL.summon(id, t, mode); };
     setTimeout(go, reduce ? 50 : 1500);
   }
   /* виклик зі сповіщення: service worker кладе його в кеш «ordo-call» (ще при отриманні пуша).

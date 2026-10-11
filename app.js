@@ -16,7 +16,8 @@ window.ORDO_START = function () {
   /* ---- сховище ---- */
   const LS = {
     get(k, f) { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} }
   };
 
   /* ---- версія збірки: з ?v= у тезі скрипта ---- */
@@ -1851,27 +1852,36 @@ window.ORDO_START = function () {
       if (window.ORDO_VAULT && window.ORDO_VAULT.pushDiag) window.ORDO_VAULT.pushDiag(); };
     setTimeout(go, reduce ? 50 : 1500);
   }
-  /* виклик зі сповіщення: service worker кладе його в кеш «ordo-call» (ще при отриманні пуша).
-     Видаляємо лише тоді, коли сцена справді відкрилась — тож перезавантаження його не губить */
+  /* виклик зі сповіщення приходить або адресою (iOS відкрив додаток з неї), або через кеш «ordo-call»
+     від service worker. Його одразу переносимо в localStorage («ordo.k.pending») і стираємо лише тоді,
+     коли сцена справді відкрилась — тож ні перезавантаження після оновлення, ні закриття його не губить */
   let callAt = 0;
+  const PEND = "ordo.k.pending", FRESH = 6 * 3600e3;
+  function runPending() {
+    const p = LS.get(PEND, null); if (!p) return false;
+    if (Date.now() - p.at > FRESH) { LS.del(PEND); trace("pend old"); return false; }
+    if (callAt === p.at) return true; callAt = p.at;
+    trace("pend " + (p.via || "?"));
+    openCall(p.url, () => { LS.del(PEND); LS.set("ordo.k.call", { at: p.at, via: p.via || "", shown: Date.now() }); });
+    return true;
+  }
   async function pendingCall() {
+    if (runPending()) return;
     if (!window.caches) return;
     try {
       const c = await caches.open("ordo-call"), r = await c.match("./__call"); if (!r) { trace("pc none"); return; }
-      const j = await r.json(); trace("pc " + (j.via || "?"));
-      if (Date.now() - j.at > 6 * 3600e3) { await c.delete("./__call"); return; }
-      if (callAt === j.at) return; callAt = j.at;
-      openCall(j.url, () => { c.delete("./__call").catch(() => {}); LS.set("ordo.k.call", { at: j.at, via: j.via || "", shown: Date.now() }); });
+      const j = await r.json(); await c.delete("./__call");
+      if (Date.now() - j.at > FRESH) { trace("pc old"); return; }
+      LS.set(PEND, { url: j.url, at: j.at, via: j.via || "cache" }); runPending();
     } catch (e) { trace("pc err " + (e && e.message || e)); }
   }
-  /* запасний шлях: iOS відкрив додаток з адресою зі сповіщення */
   if (location.search.includes("call=")) {
-    const u = location.href; trace("url");
+    trace("url");
+    LS.set(PEND, { url: location.href, at: Date.now(), via: "url" });
     try { history.replaceState(null, "", location.pathname); } catch (e) {}
-    /* той самий виклик лежить і в кеші — позначити його як уже взятий, щоб не відкрити двічі */
-    if (window.caches) caches.open("ordo-call").then(async (c) => { const r = await c.match("./__call"); if (r) { callAt = (await r.json()).at; await c.delete("./__call"); } }).catch(() => {});
-    openCall(u, () => { LS.set("ordo.k.call", { at: Date.now(), via: "url", shown: Date.now() }); });
-  } else pendingCall();
+    if (window.caches) caches.open("ordo-call").then((c) => c.delete("./__call")).catch(() => {});   // той самий виклик — уже взятий адресою
+  }
+  pendingCall();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pendingCall(); });
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => {
     if (!e.data) return;

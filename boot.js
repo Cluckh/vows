@@ -316,6 +316,21 @@
     try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); const was = LS.get("ordo.k.push", {});
       if (sub && (sub.endpoint !== was.ep || JSON.stringify(await diag()) !== was.dg)) await pushSave(sub); } catch (e) {}
   }
+  /* скринька вістей: глашатай кладе кожну вість у push/inbox.json — Орден сам її забирає при відкритті.
+     Не залежить від того, чи iOS передав виклик зі сповіщення */
+  let inboxAt = 0;
+  async function checkInbox() {
+    if (!token() || Date.now() - inboxAt < 15000) return; inboxAt = Date.now();
+    try {
+      const box = JSON.parse((await gh("push/inbox.json", { raw: true })) || "{}"), seen = LS.get("ordo.k.inbox", 0);
+      const it = (box.items || []).filter((x) => x.url && x.url.includes("call=") && x.at > seen && Date.now() - x.at < 12 * 3600e3).sort((a, b) => b.at - a.at)[0];
+      if (!it) return;
+      LS.set("ordo.k.inbox", it.at);
+      const url = new URL(it.url, location.href).href;
+      LS.set("ordo.k.pending", { url, at: it.at, via: "inbox" });
+      if (window.ORDO_API && window.ORDO_API.pendingCall) window.ORDO_API.pendingCall();
+    } catch (e) {}
+  }
   function renderVault() {
     const box = $("vaultBody"); if (!box) return;
     const last = LS.get("ordo.bk.last", {}), err = LS.get("ordo.bk.err", null);
@@ -394,9 +409,10 @@
     window.ORDO_DATA = data;
     if (typeof window.ORDO_START === "function") window.ORDO_START();
     const vb = $("vaultBtn"); if (vb) vb.addEventListener("click", openVault);
-    wireVault(); status(); setTimeout(pushRefresh, 4000);
+    wireVault(); status(); setTimeout(pushRefresh, 4000); setTimeout(checkInbox, 1200);
     setInterval(() => { if (!document.hidden) syncNow("now"); }, SYNC_EVERY);
     document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) setTimeout(checkInbox, 600);
       if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }
       else if (reloadPending && calm()) location.reload();
       else syncNow("now");

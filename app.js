@@ -1860,9 +1860,11 @@ window.ORDO_START = function () {
   function runPending() {
     const p = LS.get(PEND, null); if (!p) return false;
     if (Date.now() - p.at > FRESH) { LS.del(PEND); trace("pend old"); return false; }
+    const last = LS.get("ordo.k.call", null);                    // той самий виклик уже показано іншим шляхом
+    if (last && last.url === p.url && Date.now() - last.shown < FRESH) { LS.del(PEND); trace("pend dup"); return false; }
     if (callAt === p.at) return true; callAt = p.at;
     trace("pend " + (p.via || "?"));
-    openCall(p.url, () => { LS.del(PEND); LS.set("ordo.k.call", { at: p.at, via: p.via || "", shown: Date.now() }); });
+    openCall(p.url, () => { LS.del(PEND); LS.set("ordo.k.call", { at: p.at, via: p.via || "", shown: Date.now(), url: p.url }); });
     return true;
   }
   async function pendingCall() {
@@ -1888,5 +1890,5 @@ window.ORDO_START = function () {
     if (e.data.type === "ordo-call") pendingCall();
     if (e.data.type === "ordo-open" && e.data.url) openCall(e.data.url);            // старий service worker
   });
-  window.ORDO_API = { D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
+  window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
 };

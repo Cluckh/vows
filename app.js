@@ -1834,14 +1834,21 @@ window.ORDO_START = function () {
 
   /* ---- для Зали храмовників (hall.js) ---- */
   /* вість від храмовника: ./?call=<id>&t=<слово> — після ритуалу та обрядів відкрити сцену */
+  /* слід для діагностики вістей: останні кроки (лягає в push/<пристрій>.json) */
+  const trace = (e) => { const t = LS.get("ordo.k.trace", []); t.push(`${new Date().toISOString().slice(5, 19)} ${e}`); LS.set("ordo.k.trace", t.slice(-14)); };
   function openCall(url, done) {
-    let q; try { q = new URL(url, location.href).searchParams; } catch (e) { return; }
-    const id = q.get("call"); if (!id || !window.ORDO_HALL) return;
+    let q; try { q = new URL(url, location.href).searchParams; } catch (e) { trace("bad-url"); return; }
+    const id = q.get("call"); if (!id || !window.ORDO_HALL) { trace("no-id/hall"); return; }
+    trace("open " + id);
     const t = q.get("t") || q.get("id") || "", mode = q.get("m") || "";
+    let waits = 0;
     const go = () => { const intro = $("intro");
-      if ((intro && !intro.hasAttribute("hidden")) || queueBusy || window.ORDO_HALL.isOpen()) { setTimeout(go, 700); return; }
+      const why = intro && !intro.hasAttribute("hidden") ? "intro" : queueBusy ? "queue" : window.ORDO_HALL.isOpen() ? "hall" : "";
+      if (why) { if (waits++ % 20 === 0) trace("wait " + why); setTimeout(go, 700); return; }
       if (done) done();
-      window.ORDO_HALL.summon(id, t, mode); };
+      trace("summon " + id);
+      Promise.resolve(window.ORDO_HALL.summon(id, t, mode)).catch((e) => trace("err " + (e && e.message || e)));
+      if (window.ORDO_VAULT && window.ORDO_VAULT.pushDiag) window.ORDO_VAULT.pushDiag(); };
     setTimeout(go, reduce ? 50 : 1500);
   }
   /* виклик зі сповіщення: service worker кладе його в кеш «ordo-call» (ще при отриманні пуша).
@@ -1850,16 +1857,21 @@ window.ORDO_START = function () {
   async function pendingCall() {
     if (!window.caches) return;
     try {
-      const c = await caches.open("ordo-call"), r = await c.match("./__call"); if (!r) return;
-      const j = await r.json();
+      const c = await caches.open("ordo-call"), r = await c.match("./__call"); if (!r) { trace("pc none"); return; }
+      const j = await r.json(); trace("pc " + (j.via || "?"));
       if (Date.now() - j.at > 6 * 3600e3) { await c.delete("./__call"); return; }
       if (callAt === j.at) return; callAt = j.at;
-      openCall(j.url, () => { c.delete("./__call").catch(() => {}); LS.set("ordo.k.call", { at: j.at, via: j.via || "", shown: Date.now() });
-        if (window.ORDO_VAULT && window.ORDO_VAULT.pushDiag) window.ORDO_VAULT.pushDiag(); });
-    } catch (e) {}
+      openCall(j.url, () => { c.delete("./__call").catch(() => {}); LS.set("ordo.k.call", { at: j.at, via: j.via || "", shown: Date.now() }); });
+    } catch (e) { trace("pc err " + (e && e.message || e)); }
   }
-  if (location.search.includes("call=")) { try { history.replaceState(null, "", location.pathname); } catch (e) {} }
-  pendingCall();
+  /* запасний шлях: iOS відкрив додаток з адресою зі сповіщення */
+  if (location.search.includes("call=")) {
+    const u = location.href; trace("url");
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+    /* той самий виклик лежить і в кеші — позначити його як уже взятий, щоб не відкрити двічі */
+    if (window.caches) caches.open("ordo-call").then(async (c) => { const r = await c.match("./__call"); if (r) { callAt = (await r.json()).at; await c.delete("./__call"); } }).catch(() => {});
+    openCall(u, () => { LS.set("ordo.k.call", { at: Date.now(), via: "url", shown: Date.now() }); });
+  } else pendingCall();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pendingCall(); });
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => {
     if (!e.data) return;

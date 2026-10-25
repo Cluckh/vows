@@ -1090,7 +1090,8 @@ body.in-hall{overflow:hidden}
   box-shadow:0 0 0 1px rgba(205,163,73,.06) inset,0 20px 50px rgba(0,0,0,.5)}
 .hall__box::before{content:"";position:absolute;left:18px;right:18px;top:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--gold-2),transparent)}
 .hall__say{font-family:var(--f-serif);font-size:clamp(18px,4.8vw,21px);line-height:1.5;color:var(--bone);min-height:3em}
-.hall__tap{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--ash-2);text-align:right;margin-top:8px;opacity:0;transition:opacity .4s ease}
+.hall__tap{position:absolute;right:18px;bottom:12px;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--ash-2);text-align:right;opacity:0;transition:opacity .4s ease;pointer-events:none}
+.hall__box.has-tap{padding-bottom:36px}
 .hall__box.has-tap .hall__tap{opacity:.8;animation:tapPulse 2s ease-in-out infinite}
 @keyframes tapPulse{50%{opacity:.35}}
 .hall__acts{display:flex;flex-direction:column;gap:8px;margin-top:12px;min-height:0;overflow-y:auto;flex:0 1 auto}
@@ -1098,6 +1099,7 @@ body.in-hall{overflow:hidden}
 .hall__acts--many{display:grid;grid-template-columns:1fr 1fr}
 .hall__acts.hall__acts--many button{text-align:center;padding:10px 10px;line-height:1.25}
 .hall__acts.hall__acts--many button::before{content:none}
+.hall__acts.hall__acts--many button:last-child:nth-child(odd){grid-column:1 / -1}
 .hall__acts:empty{display:none}
 .hall__acts button{text-align:left;padding:12px 14px;border-radius:12px;border:1px solid rgba(205,163,73,.35);background:rgba(205,163,73,.06);
   font-family:var(--f-serif);font-size:17px;line-height:1.3;color:var(--gold-2);opacity:0;transform:translateY(6px);animation:actIn .45s var(--ease) var(--d,0ms) forwards}
@@ -1228,3 +1230,11 @@ body.is-night .hall__bg .hb-night{opacity:1}
 .kc__scroll{overscroll-behavior:contain;touch-action:pan-y}
 .kc__back{display:block;width:min(100%,440px);margin:26px auto 0}
 .sheet,.confirm,.hall{overscroll-behavior:contain}
+/* — жести — */
+html:has(body.in-hall){background:#06070b}
+.frame{touch-action:pan-y}
+body[data-slide="next"] .view.is-on{animation:slideNext .42s var(--ease)}
+body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
+@keyframes slideNext{from{opacity:0;transform:translate3d(48px,0,0)}to{opacity:1;transform:none}}
+@keyframes slidePrev{from{opacity:0;transform:translate3d(-48px,0,0)}to{opacity:1;transform:none}}
+.sheet,.confirm__card{will-change:transform}

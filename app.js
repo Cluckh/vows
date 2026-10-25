@@ -1763,18 +1763,120 @@ window.ORDO_START = function () {
   on("intro", "pointerdown", onSkip);
   on("intro", "keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSkip(); } });
   on("replay", "click", () => { FX.unlock(); FX.buzz("light"); $("board") && $("board").classList.remove("reveal"); runIntro(); });
-  /* поки відкрита шторка, вікно чи зала — фон стоїть (iOS ігнорує overflow:hidden на body, тож фіксуємо body) */
+  /* ============================================================ ЖЕСТИ ====== */
+  const OVER = ".scrim.open, .confirm.open, .hall.open, .kc, .rite.open";
+  const overlayOpen = () => !!document.querySelector(OVER);
+  /* поки відкрита шторка, вікно чи зала — фон стоїть. iOS не зважає на overflow:hidden,
+     тож гасимо сам дотик: гортатись може лише те, що всередині відкритого вікна. */
   {
-    const OVER = ".scrim.open, .confirm.open, .hall.open, .kc, .rite.open, #vaultModal.open";
-    let lockY = null, queued = false;
-    const sync = () => {
-      queued = false;
-      const on = !!document.querySelector(OVER), bs = document.body.style;
-      if (on && lockY === null) { lockY = window.scrollY; bs.position = "fixed"; bs.top = -lockY + "px"; bs.left = bs.right = "0"; }
-      else if (!on && lockY !== null) { bs.position = bs.top = bs.left = bs.right = ""; window.scrollTo(0, lockY); lockY = null; }
-    };
+    let queued = false;
+    const sync = () => { queued = false; document.documentElement.classList.toggle("is-locked", overlayOpen()); };
     new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(sync); } })
       .observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+    const scroller = (el) => {
+      for (let a = el; a && a !== document.body; a = a.parentElement) {
+        if (a.scrollHeight > a.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(a).overflowY)) return a;
+      }
+      return null;
+    };
+    document.addEventListener("touchmove", (e) => {
+      if (!document.documentElement.classList.contains("is-locked") || e.touches.length > 1) return;
+      const sc = e.target.closest && scroller(e.target);
+      if (!sc || !sc.closest(OVER + ", .sheet, .confirm")) e.preventDefault();
+    }, { passive: false });
+  }
+
+  /* перетягування з відпусканням: тягнеться за пальцем, далеко чи швидко — закрити, інакше назад */
+  function dragDismiss(el, o) {
+    let t = null;
+    el.addEventListener("touchstart", (e) => {
+      if (e.touches.length > 1 || (o.can && !o.can(e))) { t = null; return; }
+      const p = e.touches[0], sc = o.scroller ? o.scroller(e) : null;
+      t = { x: p.clientX, y: p.clientY, t: performance.now(), top: !sc || sc.scrollTop <= 0, mode: null, d: 0, v: 0 };
+    }, { passive: true });
+    el.addEventListener("touchmove", (e) => {
+      if (!t || e.touches.length > 1) return;
+      const p = e.touches[0], dx = p.clientX - t.x, dy = p.clientY - t.y;
+      if (!t.mode) {
+        if (dy > 8 && t.top && dy > Math.abs(dx) * 1.2) { t.mode = "drag"; t.y = p.clientY; t.t = performance.now(); o.target().style.transition = "none"; }
+        else if (Math.abs(dx) > 8 || Math.abs(dy) > 8) { t = null; return; }
+        else return;
+      }
+      e.preventDefault();
+      const now = performance.now(), d = Math.max(0, p.clientY - t.y);
+      t.v = (d - t.d) / Math.max(1, now - t.t); t.t = now; t.d = d;
+      o.target().style.transform = `translate3d(0,${d}px,0)` + (o.extra || "");
+      if (o.follow) o.follow(d);
+    }, { passive: false });
+    const end = () => {
+      if (!t || t.mode !== "drag") { t = null; return; }
+      const tg = o.target(), d0 = t.d, go = t.d > (o.dist || 110) || (t.v > 0.55 && t.d > 30);
+      t = null;
+      tg.style.transition = ""; tg.style.transform = "";
+      if (o.follow) o.follow(null);
+      if (go && o.out) { tg.style.transition = "transform .25s ease"; tg.style.transform = o.out(d0); setTimeout(() => { tg.style.transition = ""; tg.style.transform = ""; }, 320); }
+      if (go) { FX.buzz("light"); o.close(); }
+    };
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+  }
+  const scrimFollow = (d) => { const sc = $("scrim"); if (sc) { sc.style.transition = d == null ? "" : "none"; sc.style.opacity = d == null ? "" : String(Math.max(0.15, 1 - d / 420)); } };
+  [["sheet", closeSheet], ["gSheet", closeGoalSheet]].forEach(([id, close]) => {
+    const el = $(id); if (!el) return;
+    dragDismiss(el, { target: () => el, close, follow: scrimFollow,
+      scroller: (e) => { let a = e.target; for (; a && a !== el; a = a.parentElement) if (a.scrollHeight > a.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(a).overflowY)) return a; return el; },
+      can: (e) => !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) });
+  });
+  [["confirm", closeConfirm], ["markModal", closeMark], ["protoModal", closeProto],
+   ["vaultModal", () => { const m = $("vaultModal"); if (m) m.dispatchEvent(new MouseEvent("click", { bubbles: true })); }]].forEach(([id, close]) => {
+    const el = $(id); if (!el) return;
+    const card = () => el.querySelector(".confirm__card") || el.firstElementChild || el;
+    dragDismiss(el, { target: card, close, dist: 90, out: (d) => `translate3d(0,${d + 140}px,0)`,
+      follow: (d) => { el.style.transition = d == null ? "" : "none"; el.style.opacity = d == null ? "" : String(Math.max(0.3, 1 - d / 360)); },
+      scroller: (e) => { let a = e.target; for (; a && a !== el; a = a.parentElement) if (a.scrollHeight > a.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(a).overflowY)) return a; return null; },
+      can: (e) => el.classList.contains("open") && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) });
+  });
+
+  /* вкладки свайпом: справа наліво — наступна, зліва направо — попередня */
+  {
+    const ORDER = ["board", "stats", "goals"], frame = document.querySelector(".frame");
+    let t = null;
+    const viewEl = () => document.querySelector(".view.is-on");
+    const blocked = (el) => !!el.closest('input, textarea, select, [data-noswipe], .hall, .kc, .rite, .sheet, .confirm') ||
+      (() => { for (let a = el; a && a !== frame; a = a.parentElement) if (a.scrollWidth > a.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(a).overflowX)) return true; return false; })();
+    if (frame) {
+      frame.addEventListener("touchstart", (e) => {
+        if (e.touches.length > 1 || overlayOpen() || blocked(e.target)) { t = null; return; }
+        const p = e.touches[0]; t = { x: p.clientX, y: p.clientY, mode: null, dx: 0, at: performance.now() };
+      }, { passive: true });
+      frame.addEventListener("touchmove", (e) => {
+        if (!t) return;
+        const p = e.touches[0], dx = p.clientX - t.x, dy = p.clientY - t.y;
+        if (!t.mode) {
+          if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.6) t.mode = "x";
+          else if (Math.abs(dy) > 10) { t = null; return; }
+          else return;
+        }
+        e.preventDefault();
+        const i = ORDER.indexOf(TAB), edge = (dx > 0 && i === 0) || (dx < 0 && i === ORDER.length - 1);
+        t.dx = dx;
+        const v = viewEl(); if (v) { v.style.transition = "none"; v.style.transform = `translate3d(${dx * (edge ? 0.15 : 0.4)}px,0,0)`; v.style.opacity = String(1 - Math.min(Math.abs(dx) / 900, 0.3)); }
+      }, { passive: false });
+      const end = () => {
+        if (!t || t.mode !== "x") { t = null; return; }
+        const dx = t.dx, fast = Math.abs(dx) / Math.max(1, performance.now() - t.at) > 0.5; t = null;
+        const v = viewEl(), i = ORDER.indexOf(TAB), j = i + (dx < 0 ? 1 : -1);
+        const go = (Math.abs(dx) > 70 || (fast && Math.abs(dx) > 35)) && j >= 0 && j < ORDER.length;
+        if (v) { v.style.transition = go ? "" : "transform .3s var(--ease), opacity .3s ease"; v.style.transform = ""; v.style.opacity = ""; if (go) v.style.transition = ""; }
+        if (go) {
+          document.body.dataset.slide = dx < 0 ? "next" : "prev";
+          showTab(ORDER[j]);
+          setTimeout(() => { delete document.body.dataset.slide; }, 600);
+        }
+      };
+      frame.addEventListener("touchend", end);
+      frame.addEventListener("touchcancel", end);
+    }
   }
   /* медальйон чи храмовник ритуалу → картка храмовника (перехоплюємо раніше за тап-«далі») */
   document.addEventListener("click", (e) => {

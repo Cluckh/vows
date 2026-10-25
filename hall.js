@@ -199,6 +199,33 @@
       <div class="hall__box" id="hallBox"><p class="hall__say" id="hallSay"></p><div class="hall__acts" id="hallActs"></div><div class="hall__tap" id="hallTap">торкнись, щоб продовжити</div></div>
       <button class="hall__x" id="hallX" type="button" aria-label="Закрити"><svg><use href="#i-x"/></svg></button>`;
     document.body.appendChild(hall);
+    /* свайп униз — вийти із зали (як хрестик); варіанти, що гортаються, не чіпаємо */
+    let g = null;
+    hall.addEventListener("touchstart", (e) => {
+      const acts = $("hallActs"), inActs = acts.contains(e.target) && acts.scrollHeight > acts.clientHeight + 1 && acts.scrollTop > 0;
+      g = e.touches.length > 1 || inActs ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY, mode: null, d: 0, v: 0, t: performance.now() };
+    }, { passive: true });
+    hall.addEventListener("touchmove", (e) => {
+      if (!g) return;
+      const p = e.touches[0], dx = p.clientX - g.x, dy = p.clientY - g.y;
+      if (!g.mode) {
+        if (dy > 10 && dy > Math.abs(dx) * 1.3) { g.mode = "drag"; g.y = p.clientY; hall.style.transition = "none"; }
+        else if (Math.abs(dx) > 10 || Math.abs(dy) > 10) { g = null; return; }
+        else return;
+      }
+      e.preventDefault();
+      const now = performance.now(), d = Math.max(0, p.clientY - g.y);
+      g.v = (d - g.d) / Math.max(1, now - g.t); g.t = now; g.d = d;
+      hall.style.transform = `translate3d(0,${d * 0.6}px,0)`; hall.style.opacity = String(1 - Math.min(d / 600, 0.5));
+    }, { passive: false });
+    const gEnd = () => {
+      if (!g || g.mode !== "drag") { g = null; return; }
+      const go = g.d > 140 || (g.v > 0.6 && g.d > 40); g = null;
+      hall.style.transition = "transform .3s var(--ease), opacity .3s ease"; hall.style.transform = go ? "translate3d(0,40%,0)" : ""; hall.style.opacity = go ? "0" : "";
+      if (go) { const A = API(); if (A.FX) A.FX.buzz("light"); close(); }
+      setTimeout(() => { hall.style.transition = ""; hall.style.transform = ""; hall.style.opacity = ""; }, go ? 650 : 320);
+    };
+    hall.addEventListener("touchend", gEnd); hall.addEventListener("touchcancel", gEnd);
     hall.addEventListener("click", (e) => {
       if (e.target.closest("#hallX")) { close(); return; }
       if (e.target.closest("#hallFig, #hallPlate") && card(curWho)) return;   // портрет → картка храмовника
@@ -340,7 +367,7 @@
       await type(text);
       if (!isOpen()) return;
       const box = $("hallActs");
-      box.className = "hall__acts" + (cls ? " " + cls : "") + (options.length > 5 ? " hall__acts--many" : "");
+      box.className = "hall__acts" + (cls ? " " + cls : "") + (options.length >= 5 ? " hall__acts--many" : "");
       box.innerHTML = options.map((o, i) => `<button type="button" data-i="${i}" style="--d:${i * 70}ms">${esc(o)}</button>`).join("");
       const t0 = performance.now();                 // захист від випадкового «подвійного» тапу
       box.onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b || performance.now() - t0 < 450) return; box.onclick = null; closeResolve = null;

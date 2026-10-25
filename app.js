@@ -505,7 +505,13 @@ window.ORDO_START = function () {
     if (reduce) return;
     const els = document.querySelectorAll(".oath__num"), t0 = performance.now(), dur = 1400;
     const ease = (x) => 1 - Math.pow(1 - x, 3);
-    els.forEach((el) => { el.textContent = "0"; });
+    /* ширина — одразу як у кінцевого числа: інакше «0 → 358» щокадру міняє ширину й трясе весь рядок */
+    els.forEach((el) => {
+      el.style.display = "inline-block"; el.style.textAlign = "right"; el.style.whiteSpace = "nowrap";
+      const fin = el.textContent, n = fin.length; let w = el.getBoundingClientRect().width;            // цифри різної ширини: беремо найширше число такої довжини
+      ["0", "8", "4"].forEach((d) => { el.textContent = d.repeat(n); w = Math.max(w, el.getBoundingClientRect().width); });
+      el.style.width = `${Math.ceil(w)}px`; el.textContent = "0";
+    });
     (function frame(now) {
       const k = Math.min(1, (now - t0) / dur);
       els.forEach((el) => { el.textContent = Math.round(ease(k) * (+el.dataset.n || 0)); });

@@ -941,7 +941,7 @@
     const doneN = its.filter(({ t, r }) => isWin(stOf(t, r, k))).length;
     const live = Q.list.filter((q) => q.st === "active" || (q.st === "done" && q.end === k));
     const dayXP = Object.values(X.e).filter((e) => e.d === k).reduce((a, e) => a + e.xp, 0);
-    let h = rankStrip();
+    const segR = rankStrip(); let h = "";
     h += `<div class="dy-nav"><button type="button" data-dnav="-1" aria-label="Попередній день">‹</button>
       <div class="dy-nav__c"><b>${rel(k)}</b><span>${WDL[wd(k)]}, ${human(k)}</span></div>
       <button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>`;
@@ -971,14 +971,22 @@
     const adv = gymT && k >= today() ? gymAdvice(k) : null;
     if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
       h += `<div class="md md--voice dy-adv"><div class="md__fig"${K && K.art ? ` data-card="${adv.giver}"` : ""}>${K && K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K ? K.name : "")} · порада на зал</div><p class="md__say">${esc(adv.head)}</p>${adv.tips.length ? `<ul class="dy-tips">${adv.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div></div>`; }
-    if (live.length && k === today()) h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>`;
+    const segA = h; h = "";
+    const segQ = live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "";
     h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">${k === today() ? "Справи дня" : k < today() ? "Того дня" : "Заплановано"}</span><span class="gl-sec__meta">${its.length ? `${doneN}/${its.length}` : ""}</span></div>`;
     if (!its.length) h += `<p class="gl-empty">${k < today() ? "Того дня справ не було." : "Справ на цей день немає."}</p>`;
     h += `<ul class="dy-list">${open.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
     if (shut.length) h += `<ul class="dy-list dy-list--shut">${shut.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
     h += `<button class="gl-new" type="button" data-dnew="1"><svg><use href="#i-plus"/></svg>Нова ціль</button></section>`;
     if (dayXP) h += `<p class="dy-sum">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""}</p>`;
-    box.innerHTML = h;
+    patch(box, [segR, segA, segQ, h]);
+  }
+  /* екран дня — чотири шматки (звання, день, квести, справи); оновлюється лише те, що змінилось:
+     перемикання дня не перебудовує квести з портретами — на iPhone це найдорожче */
+  const segs = [];
+  function patch(box, parts) {
+    if (box.dataset.seg !== "4" || box.children.length !== parts.length) { box.innerHTML = parts.map(() => "<div></div>").join(""); box.dataset.seg = "4"; segs.length = 0; }
+    parts.forEach((html, i) => { if (segs[i] !== html) { box.children[i].innerHTML = html; segs[i] = html; } });
   }
 
   /* ============================================================ ДІЇ ======== */
@@ -1383,8 +1391,10 @@
   function goDay(nv) {
     if (nv.dataset.dday) view = nv.dataset.dday;
     else { const n = +nv.dataset.dnav; view = n === 0 ? today() : add(view || today(), n); }
-    buzz("light"); render();
+    buzz("light"); renderSoon();
   }
+  let rq = 0;
+  const renderSoon = () => { if (!rq) rq = requestAnimationFrame(() => { rq = 0; render(); }); };      // кілька швидких тапів — один показ
   function onBodyTouch(e) {
     const nv = e.target.closest && e.target.closest("[data-dnav], [data-dday]"); if (!nv || e.pointerType === "mouse") return;
     navTapAt = Date.now(); e.preventDefault(); goDay(nv);

@@ -40,7 +40,6 @@ body{
   color:var(--bone);
   background:var(--bg);
   -webkit-font-smoothing:antialiased;
-  text-shadow:0 1px 2px rgba(0,0,0,.35);              /* текст над фоном-артом — чіткіший */
   text-rendering:optimizeLegibility;
   min-height:100dvh;
   overflow-x:hidden;
@@ -1487,7 +1486,8 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .tr-jar__g{display:block;font-family:var(--f-serif);font-size:13.5px;color:var(--ash);margin:4px 0 6px}
 .tr-jar .tr-row{justify-content:flex-start;margin:4px 0 2px}
 
-.btn--gold,.btn--gold *{text-shadow:none}
+/* тінь лише для дрібного тексту поверх арту (глобальна тінь на iPhone дорого перемальовується) */
+.oath__sub,.dy-meta,.dy-note,.dy-num,.st-vow__meta,.confess__s,.dy-body-line,.dy-nav__c span{text-shadow:0 1px 2px rgba(0,0,0,.4)}
 
 /* — пульс Ордену в сховищі — */
 .vt-h{margin:14px 0 6px;font-family:var(--f-display);font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}

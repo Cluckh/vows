@@ -268,10 +268,24 @@
     if (scope === "year") return `${from.slice(0, 4)}-12-31`;
     return from;
   }
-  function qProg(q) { return q.type === "count" && q.target ? Math.min(1, (q.cur || 0) / q.target) : q.st === "done" ? 1 : 0; }
+  const T = () => window.ORDO_TREASURY;
+  /* бюджетний квест: скільки витрачено в його категоріях від згоди до сьогодні (за випискою) */
+  function qSpent(q) { const t = T(); return t && q.from ? t.spentIn(q.cats, q.from, q.until < today() ? q.until : today()) : null; }
+  function qProg(q) {
+    if (q.type === "budget") { const sp = qSpent(q); return q.st === "done" ? 1 : sp == null ? 0 : q.limit ? Math.max(0, 1 - sp / q.limit) : sp > 0 ? 0 : 1; }
+    return q.type === "count" && q.target ? Math.min(1, (q.cur || 0) / q.target) : q.st === "done" ? 1 : 0;
+  }
   function settleQuests() {
     const t0 = today();
     Q.list.forEach((q) => {
+      if (q.type === "budget" && q.st === "active" && T() && T().ready()) {          // бюджет: суддя — виписка банку
+        const sp = qSpent(q);
+        if (sp != null && sp > (q.limit || 0) && !q.limit) { q.st = "fail"; q.end = t0; }
+        else if (q.until < t0 && T().at() > q.until) { q.st = sp <= (q.limit || 0) ? "done" : "fail"; q.end = t0; q.at = Date.now(); }
+        if (q.st !== "active") { q.spent = sp; if (q.st === "done") pendingDone.push(q); }
+        else return;
+      }
+      if (q.type === "budget" && q.st === "active") return;
       if (q.st === "active" && q.until < t0) { q.st = q.type === "count" && q.cur > 0 ? "part" : "fail"; q.end = t0; }
       if (q.st === "offer" && q.offerOn && diff(q.offerOn, t0) > 2) q.st = "lapsed";          // пропозиція згасла
       const id = `q:${q.id}`;
@@ -283,13 +297,14 @@
   }
   /* обрати квест із пулу: потрібної рідкості, ще не бачений */
   function draw(rar, tag) {
-    const seen = new Set(Q.list.map((q) => q.pid));
-    let c = pool().filter((p) => p.rar === rar && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
-    if (!c.length) c = pool().filter((p) => p.rar === rar && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer")));
+    const seen = new Set(Q.list.map((q) => q.pid)), can = (p) => p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)));
+    let c = pool().filter((p) => p.rar === rar && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
+    if (!c.length) c = pool().filter((p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer")));
     if (!c.length) return null;
     const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)];
     return { id: uid(), pid: p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
-      type: p.type === "count" ? "count" : "do", target: p.target || null, unit: p.unit || "", xp: p.xp || RAR[rar].xp,
+      type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: p.xp || RAR[rar].xp,
+      cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
       st: "offer", offerOn: today(), cur: 0 };
   }
@@ -317,7 +332,8 @@
   const fill = (s, o) => String(s || "").replace(/\{(\w+)\}/g, (_, k) => o[k] != null ? o[k] : "");
   function questCard(q) {
     const r = RAR[q.rar], due = q.until ? (q.until === today() ? "до кінця дня" : `до ${human(q.until)}`) : q.scope === "day" ? "на сьогодні" : q.scope === "week" ? "на тиждень" : q.scope === "month" ? "на 30 днів" : "до кінця року";
-    return `«${q.t}»${q.desc ? ` — ${q.desc}` : ""} ${r.n} квест, ${due}, +${q.xp} досвіду.`;
+    const lim = q.type === "budget" ? (q.limitPct && T() ? ` Ліміт — близько ${T().money(q.limitPct * (T().avgWeek(q.cats) || 0) * ((q.days || (q.scope === "week" ? 7 : q.scope === "month" ? 30 : 1))) / 7)}.` : q.limit ? ` Ліміт — ${T() ? T().money(q.limit) : q.limit}.` : " Жодної монети.") + " Перевірить виписка банку." : "";
+    return `«${q.t}»${q.desc ? ` — ${q.desc}` : ""} ${r.n} квест, ${due}, +${q.xp} досвіду.${lim}`;
   }
   async function offerScene(q) {
     const h = H(); if (!h) return false;
@@ -329,7 +345,9 @@
     const i = await h.choose(questCard(q), ["Приймаю", "Не цього разу"], "hall__acts--row");
     if (i === "closed") return false;
     if (i === 0) {
-      q.st = "active"; q.from = today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now(); saveQ();
+      q.st = "active"; q.from = today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now();
+      if (q.type === "budget" && q.limitPct && T()) { const days = diff(q.from, q.until) + 1; q.limit = Math.round(q.limitPct * (T().avgWeek(q.cats) || 0) * days / 7 / 100) * 100; }
+      saveQ();
       fx("yes"); buzz("medium");
       await h.say(q.accept || pick(L.accept) || "Добре. Я стежитиму.");
     } else {
@@ -391,11 +409,14 @@
       }
       dailyRoll();
       for (const q of Q.list.filter((x) => x.st === "offer")) { if (!(await offerScene(q))) break; }
+      while (pendingDone.length) { const q = pendingDone.shift(); await doneScene(q); }
+      if (window.ORDO_TREASURY) await window.ORDO_TREASURY.scenes();
       if (H().isOpen()) H().close();
       if (pendingUp) { const u = pendingUp; pendingUp = null; await rankScene(u); }
     } finally { busy = false; }
   }
   let pendingUp = null;
+  const pendingDone = [];
 
   /* ============================================================ ВІДГУК ====== */
   function toast(html, cls) {
@@ -472,9 +493,16 @@
       <div class="dy-q__fig">${img}</div>
       <div class="dy-q__body"><span class="dy-q__kind">${r.n} квест${who ? ` · ${esc(who.name)}` : ""}</span><b class="dy-q__t">${esc(q.t)}</b>
         ${q.desc ? `<span class="dy-q__d">${esc(q.desc)}</span>` : ""}
+        ${q.type === "budget" ? budgetLine(q) : ""}
         ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}</em></span>` : ""}
         <span class="dy-q__due">${q.st === "done" ? `виконано · +${q.xp}` : due}${q.st === "active" ? ` · +${q.xp}` : ""}</span></div>
-      ${q.st === "active" ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
+      ${q.st === "active" && q.type !== "budget" ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
+  }
+  function budgetLine(q) {
+    const sp = qSpent(q), m = T() ? T().money : (x) => x;
+    if (sp == null) return `<span class="dy-num"><em>чекаю виписку банку</em></span>`;
+    const pr = q.limit ? Math.min(1, sp / q.limit) : sp > 0 ? 1 : 0;
+    return `<div class="gl-bar dy-bud"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${m(sp)} <em>${q.limit ? `/ ліміт ${m(q.limit)}` : "— має бути нуль"}</em></span>`;
   }
   function render() {
     const box = $("dayBody"); if (!box) return;

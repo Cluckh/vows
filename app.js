@@ -760,7 +760,7 @@ window.ORDO_START = function () {
     const seg = `<div class="st-seg" role="tablist">
       <button type="button" data-mode="month" class="${statsMode === "month" ? "is-on" : ""}">Місяць</button>
       <button type="button" data-mode="year" class="${statsMode === "year" ? "is-on" : ""}">Рік</button></div>`;
-    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
+    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
     on("stPrev", "click", () => { if (statsMode === "year") statsYearOff--; else statsOffset--; renderStats(); FX.buzz("light"); });
     on("stNext", "click", () => {
       if (statsMode === "year") { if (statsYearOff < 0) statsYearOff++; } else if (statsOffset < 0) statsOffset++;
@@ -2013,6 +2013,8 @@ window.ORDO_START = function () {
     if (e.data.type === "ordo-open" && e.data.url) openCall(e.data.url);            // старий service worker
   });
   window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); },
-    dayState, tab: () => TAB, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy };
+    dayState, tab: () => TAB, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy,
+    openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id) };
+  if (window.ORDO_TREASURY) { window.ORDO_TREASURY.load(); document.addEventListener("visibilitychange", () => { if (!document.hidden) window.ORDO_TREASURY.load(); }); }
   if (window.ORDO_DAY) window.ORDO_DAY.init();
 };

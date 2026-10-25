@@ -443,7 +443,19 @@
       else syncNow("now");
     });
   }
-  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500) };
+  /* зашифровані ключем сховища файли приватного репозиторію (скарбниця, писар): прочитати / записати */
+  async function readSealed(path) {
+    const raw = LS.get(K.content, null); if (!raw || !token()) return null;
+    const txt = await gh(path, { raw: true }); if (!txt) return null;
+    return JSON.parse(await open(unb64(raw), JSON.parse(txt)));
+  }
+  async function writeSealed(path, obj, message) {
+    const raw = LS.get(K.content, null); if (!raw || !token()) return false;
+    const box = await seal(unb64(raw), JSON.stringify(obj));
+    await putFile(path, JSON.stringify({ v: 1, alg: "AES-256-GCM", iv: box.iv, ct: box.ct }) + "\n", message || "дані");
+    return true;
+  }
+  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, writeSealed };
 
   async function boot() {
     let vault;

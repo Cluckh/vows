@@ -129,18 +129,26 @@
   /* звідки ціль бере дані: steps — «Здоровʼя», poker — HM3, mind — Calm, bank — виписка, "" — вручну.
      Старі цілі без поля src — за колишніми ознаками (позначка кроків, одиниця «роздач», назва з «медит») */
   const DUO_MIN = 10;                         // скільки хвилин у Duolingo зараховують денну ціль
-  const SRC = { "": "вручну", steps: "кроки", poker: "роздачі", mind: "медитації", weight: "вага", journal: "сповідь", duo: "Duolingo", bank: "скарбниця" };
+  const SRC = { "": "вручну", steps: "кроки", poker: "роздачі", mind: "медитації", weight: "вага", journal: "сповідь", app: "час у програмі", bank: "скарбниця" };
   function srcOf(t) {
     if (!t) return "";
+    if (t.src === "duo") return "app";
     if (t.src != null) return t.src;
     if (t.health === "steps") return "steps";
     if (t.type === "count" && /роздач/i.test(t.unit || "")) return "poker";
     if (/медит|meditat|calm/i.test(t.t || "")) return "mind";
     if (/journal|щоденник|сповід/i.test(t.t || "")) return "journal";
-    if (/duolingo|дуолінго/i.test(t.t || "")) return "duo";
+    if (/duolingo|дуолінго/i.test(t.t || "")) return "app";
     if (t.type !== "count" && /зважит|ваг[аиу]\b|weigh/i.test(t.t || "")) return "weight";
     return "";
   }
+  /* час у програмі: { n: назва, як у «Швидких командах», min: хвилин, lim: true — «не більше» (YouTube, Reddit) } */
+  const appKey = (n) => String(n || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "").slice(0, 24);
+  const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
+  const appMin = (k, n) => { const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
+  /* старі цілі Duolingo («Зробити»/«Число» за назвою) — у «час у програмі», 10 хв на день */
+  const appMigrate = () => Object.values(S.tasks).forEach((t) => { if (!t.del && !t.app && srcOf(t) === "app" && !(t.type === "count" && /xp/i.test(t.unit || ""))) {
+    Object.assign(t, { src: "app", app: { n: "duolingo", min: DUO_MIN, lim: false }, type: "do", mt: Date.now() }); saveS(); } });
 
   /* ========================================================== ЗДОРОВʼЯ ===== */
   /* день: кроки зі «Здоровʼя» + сон, записаний уранці в додатку, + час першого відкриття (підйом) */
@@ -171,14 +179,17 @@
       if (!(hDay(k) || {}).weight) continue;
       items(k).forEach(({ t, r }) => { if (srcOf(t) === "weight" && (!r || r.st !== "done") && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; } });
     }
-    /* Duolingo: «Зробити» — 10+ хв у застосунку за день (або урок за профілем); «Число» — хвилини чи XP за день */
+    /* час у програмі: «щонайменше» — зараховується, щойно набралось; «не більше» — за минулі дні, коли день закрито й ліміт не перевищено.
+       «Число» — хвилини за день (Duolingo з одиницею «XP» — XP за день з профілю) */
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
-      const du = (hDay(k) || {}).duo; if (!du) continue;
+      const h = hDay(k) || {};
       items(k).forEach(({ t, r }) => {
-        if (srcOf(t) !== "duo" || (r && (r.st === "moved" || r.st === "cancel"))) return;
-        const v = t.type === "count" ? (/xp/i.test(t.unit || "") ? du.today || 0 : Math.floor(du.min || 0)) : 0;     // «Число»: XP або хвилини
-        if (t.type === "count") { if (v > ((r && r.cur) || 0)) { setRec(k, t.id, { cur: v, auto: 1 }); ch = true; } }
-        else if ((du.ext || (du.min || 0) >= DUO_MIN) && (!r || r.st !== "done")) { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; }
+        if (srcOf(t) !== "app" || (r && (r.st === "moved" || r.st === "cancel"))) return;
+        const a = appOf(t), m = appMin(k, a.n), du = a.n === "duolingo" ? h.duo || {} : {};
+        if (t.type === "count") { const v = /xp/i.test(t.unit || "") ? du.today || 0 : Math.floor(m); if (v > ((r && r.cur) || 0)) { setRec(k, t.id, { cur: v, auto: 1 }); ch = true; } return; }
+        const ok = a.lim ? k < today() && m <= a.min : m >= a.min || !!du.ext;
+        if (ok && (!r || r.st !== "done")) { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; }
+        else if (a.lim && m > a.min && r && r.st === "done" && r.auto) { setRec(k, t.id, { st: null, auto: 0 }); ch = true; }   // запізніле «закрив»
       });
     }
     /* медитації з Calm («Усвідомлені хвилини»): ціль про медитацію відмічається сама */
@@ -918,6 +929,8 @@
     return `<li class="dy-it st-${st}${t.quest ? " dy-it--q" : ""}" data-dopen="${t.id}">${mark}
       <div class="dy-body"><span class="dy-t">${esc(t.t)}</span>
         ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em></span>` : ""}
+        ${(() => { if (srcOf(t) !== "app" || t.type === "count" || k > today()) return ""; const a = appOf(t), m = Math.floor(appMin(k, a.n));
+          return a.lim ? `<span class="dy-num${m > a.min ? " is-over" : ""}">${m} хв <em>/ ліміт ${a.min}</em></span>` : m ? `<span class="dy-num">${m} <em>/ ${a.min} хв</em></span>` : ""; })()}
         ${(() => { const sp = srcOf(t) === "bank" && k <= today() ? bankSpent(t, k) : null; return sp == null ? "" : `<span class="dy-num${sp > (t.bank.limit || 0) ? " is-over" : ""}">витрачено ${T().money(sp)} <em>/ ліміт ${T().money(t.bank.limit || 0)}</em></span>`; })()}
         <span class="dy-meta">${metaOf(t, r, k)}</span></div>
       ${cnt && !ro && st !== "done" && st !== "moved" && st !== "cancel" ? `<button type="button" class="gs-plus" data-dplus="${t.id}" aria-label="Додати">+</button>` : ""}
@@ -974,7 +987,8 @@
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
     const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
-    if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.min || hd.duo.streak || hd.duo.today) ? `<span>duolingo${hd.duo.min ? ` <b>${Math.round(hd.duo.min)}</b> хв` : ""}${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
+    const apm = Object.entries(hd.apps || {}).filter(([, a]) => a.min >= 1);
+    if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || apm.length || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.streak || hd.duo.today) && !(hd.apps && hd.apps.duolingo && hd.apps.duolingo.min >= 1) ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${apm.map(([n, a]) => `<span>${esc(n)} <b>${Math.floor(a.min)}</b> хв${n === "duolingo" && hd.duo && hd.duo.streak ? ` · <b>${hd.duo.streak}</b>🔥` : ""}</span>`).join("")}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
@@ -1106,7 +1120,10 @@
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
         <div class="dy-f"><label>Вага</label><div class="dy-chips" data-dk="diff">${Object.keys(DIFF).map((v) => `<button type="button" data-dv="${v}" class="${(d.diff || "normal") === v ? "is-on" : ""}">${DIFF[v]} · ${BASE[v]}</button>`).join("")}</div></div>
         <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
-        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", journal: "Відмічається сама, щойно віддаси сповідь дня.", duo: "«Зробити» — щойно за день набереться 10+ хв у Duolingo (автоматизації «відкрив / закрив»); «Число» — хвилини за день (або XP, якщо одиниця «XP»).", weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
+        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", journal: "Відмічається сама, щойно віддаси сповідь дня.", app: (d.app && d.app.lim ? "Зараховується наступного дня, якщо за день у програмі пробув не більше ліміту." : "Зараховується сама, щойно за день набереться потрібний час у програмі.") + ` Потрібні дві автоматизації «Коли програму … Відкрито / Закрито», що шлють <b>app: ${esc((d.app && d.app.n) || "назва")}</b> та <b>ev: open</b> / <b>close</b> (event_type health). «Число» — хвилини за день.`, weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
+        ${srcOf(d) === "app" ? `<div class="dy-f dy-f--row"><label>Програма</label><input class="dy-in" id="dsAN" value="${esc(appOf(d).n)}" placeholder="duolingo, youtube…" autocomplete="off" autocapitalize="off"></div>
+          <div class="dy-f"><label>Скільки</label><div class="dy-chips" data-dk="alim"><button type="button" data-dv="" class="${appOf(d).lim ? "" : "is-on"}">щонайменше</button><button type="button" data-dv="1" class="${appOf(d).lim ? "is-on" : ""}">не більше</button></div></div>
+          ${d.type === "count" ? "" : `<div class="dy-f dy-f--row"><label>Хвилин</label><input class="dy-in dy-in--n" id="dsAM" inputmode="numeric" value="${appOf(d).min}"><span class="dy-unit">${appOf(d).lim ? "на день, 0 — не відкривати" : "на день"}</span></div>`}` : ""}
         ${srcOf(d) === "bank" ? `<div class="dy-f"><label>Категорії</label><div class="dy-chips dy-chips--wrap" data-dk="bcat">${Object.entries(T() ? T().cats() : {}).filter(([c]) => c !== "own").map(([c, n]) => `<button type="button" data-dv="${c}" class="${(d.bank && d.bank.cats || []).includes(c) ? "is-on" : ""}">${esc(n)}</button>`).join("") || `<span class="dy-note">чекаю першу виписку банку</span>`}</div></div>
           <div class="dy-f dy-f--row"><label>Ліміт на день</label><input class="dy-in dy-in--n" id="dsBL" inputmode="decimal" value="${d.bank && d.bank.limit ? d.bank.limit / 100 : 0}"><span class="dy-unit">грн · 0 — без витрат</span></div>` : ""}
         <div class="dy-f"><label>Позначки</label><div class="dy-chips" data-dk="flags">
@@ -1267,6 +1284,8 @@
     if ($("dsD") && v("dsD")) d.start = v("dsD");
     if ($("dsH")) d.time = v("dsH") || "";
     if ($("dsO")) d.notes = v("dsO").trim();
+    if ($("dsAN")) { d.app = Object.assign({}, appOf(d), { n: appKey(v("dsAN")) }); }
+    if ($("dsAM")) { d.app = Object.assign({}, appOf(d), { min: Math.max(0, Math.round(numIn(v("dsAM")) || 0)) }); }
     if ($("dsBL")) { d.bank = d.bank || { cats: [], limit: 0 }; d.bank.limit = Math.max(0, Math.round((numIn(v("dsBL")) || 0) * 100)); }
   }
   function onSheetChange(e) {
@@ -1313,7 +1332,9 @@
         if (v === "poker") { d.type = "count"; d.unit = /роздач/i.test(d.unit || "") ? d.unit : "роздач"; d.target = d.target || 1000; }
         if (v === "mind" || v === "bank" || v === "weight" || v === "journal") d.type = "do";
         if (v === "bank") d.bank = d.bank || { cats: [], limit: 0 };
+        if (v === "app") d.app = Object.assign({}, appOf(d));
       }
+      if (k === "alim") d.app = Object.assign({}, appOf(d), { lim: !!v });
       if (k === "bcat") { d.bank = d.bank || { cats: [], limit: 0 }; const c = new Set(d.bank.cats); c.has(v) ? c.delete(v) : c.add(v); d.bank.cats = [...c]; }
       buzz("light"); renderSheet(); return;
     }
@@ -1328,6 +1349,7 @@
       if (!d.t) { const i = $("dsT"); if (i) i.focus(); return; }
       if (d.type === "count" && !(d.target > 0)) { const i = $("dsN"); if (i) i.focus(); return; }
       if (srcOf(d) === "bank" && !(d.bank && d.bank.cats.length)) { toast("Обери хоча б одну категорію витрат"); return; }
+      if (srcOf(d) === "app") { const a = appOf(d); if (!a.n) { const i = $("dsAN"); if (i) i.focus(); return; } if (!a.lim && !(a.min > 0) && d.type !== "count") { const i = $("dsAM"); if (i) i.focus(); return; } d.src = "app"; d.app = a; }
       const nid = sh.id || uid();
       S.tasks[nid] = Object.assign({}, d, { id: nid, mt: Date.now(), created: d.created || today() });
       saveS(); fx("yes"); buzz("medium"); closeSheet(); after(before); return;
@@ -1557,12 +1579,13 @@
       seed.tasks.forEach((t) => { if (!S.tasks[t.id]) S.tasks[t.id] = Object.assign({ diff: "normal", rep: { f: "none" }, created: today() }, t, { mt: Date.now() }); });
       S.seeded = seed.v; saveS();
     }
+    appMigrate();
     lastLevel = levelOf(totalXP());
     carryOver(); applyHealth(); applyPoker(); applyBank(); applyJournal(); settle(); lastLevel = levelOf(totalXP());
     const cb2 = $("confessBtn"); if (cb2) cb2.addEventListener("click", () => openJournal(today())); confessStatus();
     render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
-    setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); settle(); render(); } }, 60000);
+    setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); applyHealth(); settle(); render(); } }, 60000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) { carryOver(); confessStatus(); stamp(); loadHealth(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);
   }

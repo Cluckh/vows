@@ -1456,7 +1456,8 @@ window.ORDO_START = function () {
     }
     if (act === "delete") {
       if (!confirm("Видалити ціль «" + it.t + "»?")) return;
-      P.items = P.items.filter((i) => i.id !== it.id); LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id)); saveLog(); saveG();
+      P.items = P.items.filter((i) => i.id !== it.id); G.gone = G.gone || {}; G.gone[it.id] = Date.now();     // надгробок: синк не поверне
+      LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id)); saveLog(); saveG();
       FX.buzz("medium"); closeGoalSheet(); renderGoals(); updateGoalsDot();
     }
   });

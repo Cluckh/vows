@@ -60,13 +60,17 @@
     return opt.raw ? r.text() : r.json();
   }
   const shas = {};
-  async function putFile(path, text, message) {
+  /* strict: якщо файл тим часом змінив інший пристрій — не перезаписувати, а повернути конфлікт (його спершу треба злити) */
+  async function putFile(path, text, message, strict) {
     const body = { message, content: b64(enc.encode(text)), branch: BRANCH };
     for (let attempt = 0; attempt < 2; attempt++) {
       if (!(path in shas)) { const m = await gh(path); shas[path] = m && m.sha; }
       if (shas[path]) body.sha = shas[path]; else delete body.sha;
       try { const res = await gh(path, { method: "PUT", body }); shas[path] = res.content.sha; return; }
-      catch (e) { if ((e.status === 409 || e.status === 422) && attempt === 0) { delete shas[path]; continue; } throw e; }
+      catch (e) {
+        if (e.status === 409 || e.status === 422) { delete shas[path]; if (strict) throw Object.assign(new Error("conflict"), { conflict: true }); if (attempt === 0) continue; }
+        throw e;
+      }
     }
   }
 
@@ -87,7 +91,8 @@
      обʼєднується: літопис складається, цілі зливаються, рекорди — максимум).
      Змінив щось → копія відправляється за ~20 с (або одразу, коли згортаєш).
      Налаштування пристрою (звук, музика, сьогоднішній ритуал) не синхронізуються. */
-  const LOCAL_ONLY = ["ordo.lastIntro", "ordo.qQueue", "ordo.qLast", "ordo.statsMode", "ordo.ver", "ordo.sound", "ordo.music"];
+  /* лише налаштування пристрою; усе інше — спільний стан Ордену (зокрема ранковий вступ і черга цитат: відкрив на телефоні — комп уже знає) */
+  const LOCAL_ONLY = ["ordo.statsMode", "ordo.ver", "ordo.sound", "ordo.music"];
   const DATA_KEY = (k) => k.startsWith("ordo.") && !k.startsWith("ordo.k.") && !k.startsWith("ordo.bk.") && !LOCAL_ONLY.includes(k);
   function snapshot() {
     const o = {}, keys = [];
@@ -135,7 +140,7 @@
     const bL = P(L, "ordo.best", {}), bR = P(R, "ordo.best", {}), be = Object.assign({}, bR, bL);
     Object.keys(bR).forEach((k) => { be[k] = Math.max(bL[k] || 0, bR[k] || 0); });
     out["ordo.best"] = JSON.stringify(be);
-    const gL = P(L, "ordo.goals", { y: {}, m: {} }), gR = P(R, "ordo.goals", { y: {}, m: {} }), g = { y: {}, m: {} };
+    const gL = P(L, "ordo.goals", { y: {}, m: {} }), gR = P(R, "ordo.goals", { y: {}, m: {} }), g = { y: {}, m: {}, gone: Object.assign({}, gR.gone, gL.gone) };
     ["y", "m"].forEach((kind) => {
       const A = gL[kind] || {}, B = gR[kind] || {};
       new Set(Object.keys(A).concat(Object.keys(B))).forEach((key) => {
@@ -144,6 +149,7 @@
         (b.items || []).forEach((i) => { if (!ids.has(i.id)) items.push(i); });
         g[kind][key] = Object.assign({}, b, a, { items, res: a.res || b.res, skip: !!(a.skip && b.skip) });
       });
+      Object.values(g[kind]).forEach((P2) => { if (P2 && P2.items) P2.items = P2.items.filter((i) => !g.gone[i.id]); });     // видалене на одному пристрої не воскресає
     });
     out["ordo.goals"] = JSON.stringify(g);
     /* День: цілі — новіша правка; відмітки — новіша за часом; квести — новіший стан; досвід і нагороди — обʼєднання */
@@ -161,7 +167,13 @@
       const a = P(L, "ordo.quests", {}), b = P(R, "ordo.quests", {}), by = {};
       [].concat(b.list || [], a.list || []).forEach((q) => { const o = by[q.id]; if (!o || (q.at || 0) >= (o.at || 0)) by[q.id] = q; });
       const clock = Object.assign({}, b.clock, a.clock); Object.keys(b.clock || {}).forEach((k) => { if (String(b.clock[k]) > String(clock[k] || "")) clock[k] = b.clock[k]; });
-      out["ordo.quests"] = JSON.stringify({ list: Object.values(by), clock, trig: [...new Set([].concat(a.trig || [], b.trig || []))] });
+      const taken = new Set(Object.values(by).filter((q) => q.st !== "offer" && q.offerOn).map((q) => `${q.offerOn}|${q.rar}`));
+      const offers = {}, list = Object.values(by).filter((q) => {
+        if (q.st !== "offer") return true;
+        if (taken.has(`${q.offerOn}|${q.rar}`)) return false;           // того дня цієї рідкості вже є прийнятий чи відхилений квест
+        const k = `${q.offerOn}|${q.rar}`; if (offers[k] && offers[k] < q.id) return false; offers[k] = q.id; return true;
+      }).filter((q) => q.st !== "offer" || offers[`${q.offerOn}|${q.rar}`] === q.id);
+      out["ordo.quests"] = JSON.stringify({ list, clock, trig: [...new Set([].concat(a.trig || [], b.trig || []))] });
     }
     if (L["ordo.xp"] || R["ordo.xp"]) {
       const a = P(L, "ordo.xp", {}), b = P(R, "ordo.xp", {});
@@ -172,6 +184,19 @@
       Object.keys(b).forEach((k) => { if (a[k] && b[k] < a[k]) m[k] = b[k]; });
       out["ordo.ach"] = JSON.stringify(m);
     }
+    /* ранковий вступ — пізніша дата; тренування — новіший запис; рішення сторожі, вичерпані вікна, латки — обʼєднання */
+    { const a = P(L, "ordo.lastIntro", ""), b = P(R, "ordo.lastIntro", ""); if (a || b) out["ordo.lastIntro"] = JSON.stringify(a > b ? a : b); }
+    if (L["ordo.gym"] || R["ordo.gym"]) {
+      const a = P(L, "ordo.gym", {}), b = P(R, "ordo.gym", {}), newer = (x, y) => (!x ? y : !y ? x : (y.at || 0) > (x.at || 0) ? y : x);
+      const log = {}, w = {};
+      new Set(Object.keys(a.log || {}).concat(Object.keys(b.log || {}))).forEach((k) => { log[k] = newer((a.log || {})[k], (b.log || {})[k]); });
+      new Set(Object.keys(a.w || {}).concat(Object.keys(b.w || {}))).forEach((k) => { w[k] = newer((a.w || {})[k], (b.w || {})[k]); });
+      out["ordo.gym"] = JSON.stringify(Object.assign({}, b, a, { log, w }));
+    }
+    if (L["ordo.bank"] || R["ordo.bank"]) { const a = P(L, "ordo.bank", {}), b = P(R, "ordo.bank", {}); out["ordo.bank"] = JSON.stringify(Object.assign({}, b, a, { seen: Object.assign({}, b.seen, a.seen) })); }
+    ["ordo.spent"].forEach((k) => { if (L[k] || R[k]) out[k] = JSON.stringify(Object.assign({}, P(R, k, {}), P(L, k, {}))); });
+    ["ordo.patches", "ordo.gpatches"].forEach((k) => { if (L[k] || R[k]) out[k] = JSON.stringify([...new Set([].concat(P(R, k, []), P(L, k, [])))]); });
+    { const a = P(L, "ordo.since", ""), b = P(R, "ordo.since", ""); if (a || b) out["ordo.since"] = JSON.stringify(!a ? b : !b ? a : a < b ? a : b); }
     Object.keys(out).forEach((k) => { if (out[k] == null) delete out[k]; });
     return out;
   }
@@ -183,26 +208,30 @@
     busy = true; status("saving");
     let pulled = false;
     try {
-      const last = LS.get("ordo.bk.last", {});
-      const dirty = snapHash() !== last.h;
-      const remote = await gh("backups/latest.json", { raw: true });
-      if (remote) {
-        const meta = JSON.parse(remote);
-        if (meta.dev && meta.dev !== devId() && meta.at && (!last.remoteAt || meta.at > last.remoteAt)) {
-          const r = await readBackup(remote, null);
-          applyData(dirty ? mergeData(snapshot(), r.data) : r.data);
-          pulled = true;
-          LS.set("ordo.bk.last", { h: dirty ? "" : snapHash(), at: last.at || 0, remoteAt: meta.at });
-          if (dirty) push = "force";                // обʼєднане одразу віддаємо іншим пристроям
+      for (let round = 0; round < 3; round++) {
+        const last = LS.get("ordo.bk.last", {});
+        const dirty = snapHash() !== last.h;
+        const remote = await gh("backups/latest.json", { raw: true });
+        if (remote) {
+          const meta = JSON.parse(remote);
+          if (meta.dev && meta.dev !== devId() && meta.at && (!last.remoteAt || meta.at > last.remoteAt)) {
+            const r = await readBackup(remote, null);
+            /* ніколи не замінюємо цілком: свіжіше з іншого пристрою перемагає в суперечках, але те, чого там ще немає, лишається */
+            applyData(dirty ? mergeData(snapshot(), r.data) : mergeData(r.data, snapshot()));
+            pulled = true;
+            const merged = snapHash() !== hash(JSON.stringify(Object.fromEntries(Object.keys(r.data).filter(DATA_KEY).sort().map((k) => [k, r.data[k]]))));
+            LS.set("ordo.bk.last", { h: merged ? "" : snapHash(), at: last.at || 0, remoteAt: meta.at });
+            if (merged) push = "force";             // обʼєднане одразу віддаємо іншим пристроям
+          }
         }
-      }
-      const cur = LS.get("ordo.bk.last", {}), changed = snapHash() !== cur.h;
-      const due = push === "force" || changed;
-      if (due) {
+        const cur = LS.get("ordo.bk.last", {}), changed = snapHash() !== cur.h;
+        if (!(push === "force" || changed)) break;
         const b = await makeBackup();
-        await putFile("backups/latest.json", b.file, "копія");
+        try { await putFile("backups/latest.json", b.file, "копія", true); }
+        catch (e) { if (e.conflict) continue; throw e; }                      // інший пристрій щойно зберіг — спершу зливаємо його копію
         await putFile(`backups/${day()}.json`, b.file, "копія дня");
         LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at });
+        break;
       }
       LS.del("ordo.bk.err"); status("ok");
     } catch (e) {
@@ -470,8 +499,8 @@
     catch (e) { gate(`<p class="gate__lead">Не вдалося завантажити Орден. Перевір зʼєднання і відкрий знову.</p>`); return; }
     const data = await unlockContent(vault);
     if (data) {
-      /* перед стартом — коротко підтягнути зміни з інших пристроїв (не довше 3 с) */
-      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("now"), new Promise((r) => setTimeout(r, 3000))]);
+      /* перед стартом — підтягнути зміни з інших пристроїв (не довше 5 с): вступ, квести й цитати вже будуть спільні */
+      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("now"), new Promise((r) => setTimeout(r, 5000))]);
       start(data); return;
     }
     stepToken(vault);

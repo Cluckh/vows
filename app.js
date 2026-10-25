@@ -1029,16 +1029,41 @@ window.ORDO_START = function () {
     if (!c && it.done && t !== "vows") { it.done = null; LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id)); saveLog(); }
     return false;
   }
-  /* цілі заповнюються самі: про кроки й медитації — зі «Здоровʼя», про роздачі — з HM3; лічильник — сума за період, мірило — середнє на день */
+  /* звідки місячна чи річна ціль бере число: вручну, з привʼязаних денних цілей, зі «Здоровʼя» (кроки, медитації, вага) чи з HM3.
+     Старі цілі без поля src — за назвою */
+  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації" },
+                 measure: { "": "вручну", steps: "кроки (середнє)", poker: "роздачі (середнє)", weight: "вага" } };
+  function goalSrc(it) {
+    if (it.src != null) return it.src;
+    if (it.link && it.link.length) return "link";
+    const s = it.t || "";
+    return /крок/i.test(s) ? "steps" : /роздач/i.test(s) ? "poker" : /медит|calm/i.test(s) ? "mind" : tyOf(it) === "measure" && /ваг/i.test(s) ? "weight" : "";
+  }
+  const periodOf = (key) => key.length === 4 ? [`${key}-01-01`, `${key}-12-31`] : [`${key}-01`, `${key}-${pad(daysIn(key))}`];
+  /* число з джерела: лічильник — сума за період, мірило — середнє на день або вага */
+  function goalValue(it, key) {
+    const DY = window.ORDO_DAY, t = tyOf(it), src = goalSrc(it); if (!DY || !src) return null;
+    const [a, b] = periodOf(key);
+    if (src === "link") return t === "count" ? (it.linkBase || 0) + DY.linkCount(it.link || [], a, b) : null;
+    if (src === "weight") return t === "measure" ? DY.weightOn(b < todayKey() ? b : todayKey(), it.wmode || "avg7") : null;
+    const f = { steps: DY.periodSteps, poker: DY.periodHands, mind: DY.periodMind }[src], ps = f && f(key);
+    return ps ? (t === "count" ? ps.steps : ps.avg) : null;
+  }
   function stepsFill(it, key) {
-    const DY = window.ORDO_DAY, t = tyOf(it);
-    if ((t !== "count" && t !== "measure") || !DY) return;
-    const src = /крок/i.test(it.t || "") ? DY.periodSteps : /роздач/i.test(it.t || "") ? DY.periodHands : /медит|calm/i.test(it.t || "") ? DY.periodMind : null; if (!src) return;
-    const ps = src(key), v = ps && (t === "count" ? ps.steps : ps.avg); if (v == null) return;
-    const lv = lastVal(it);
-    if (t === "count") { if ((it.cur || 0) >= v) return; it.cur = v; } else if (lv && lv.v === v) return;
+    const t = tyOf(it); if (t !== "count" && t !== "measure") return;
+    const v = goalValue(it, key); if (v == null) return;
+    const lv = lastVal(it), link = goalSrc(it) === "link";
+    if (t === "count") { if (link ? it.cur === v : (it.cur || 0) >= v) return; it.cur = v; } else if (lv && lv.v === v) return;
     it.hist = it.hist || []; const td = todayKey();
     if (lv && lv.d === td) lv.v = v; else it.hist.push({ d: td, v });
+  }
+  /* ручна поправка привʼязаної цілі зсуває базу, а не губиться при наступному перерахунку */
+  function rebase(it, key) { const DY = window.ORDO_DAY, [a, b] = periodOf(key); if (DY && goalSrc(it) === "link") it.linkBase = Math.max(0, (it.cur || 0) - DY.linkCount(it.link || [], a, b)); }
+  /* привʼязка: те, що вже було набрано до неї, стає базою — щоб прогрес не пропав */
+  function relink(it, key, ids) {
+    const DY = window.ORDO_DAY, [a, b] = periodOf(key);
+    const cur = it.cur || 0, had = DY && it.link && it.link.length ? DY.linkCount(it.link, a, b) + (it.linkBase || 0) : cur;
+    it.link = ids; it.linkBase = Math.max(0, had - (DY ? DY.linkCount(ids, a, b) : 0));
   }
   function settleAll() {
     let fresh = 0;
@@ -1294,6 +1319,14 @@ window.ORDO_START = function () {
     if (!locked) h += `<div class="cmp__types gs-types">${Object.keys(GT).map((k) => `<button type="button" data-gty="${k}" class="${k === t ? "is-on" : ""}">${GT[k].name}</button>`).join("")}</div>`;
     const withPlus = !locked && t === "count";
     h += `<p class="cmp__hint">${GT[t].hint}</p><div class="gs-detail${withPlus ? " gs-detail--plus" : ""}" data-stepbox="cur"><div>${detailHTML(it, gs.kind, gs.key, true)}</div>${withPlus ? plusBtn("cur", true) : ""}</div>`;
+    if (!locked && (t === "count" || t === "measure")) {
+      const src = goalSrc(it), DY = window.ORDO_DAY;
+      h += `<div class="gs-h">Дані</div><div class="cmp__ops gs-src">${Object.entries(SRCG[t]).map(([v, n]) => `<button type="button" data-gsrc="${v}" class="${src === v ? "is-on" : ""}">${n}</button>`).join("")}</div>`;
+      if (src === "link") h += `<p class="cmp__hint">Рахується сама з денних цілей: «Зробити» — дні виконання, «Число» — сума. Що було набрано до привʼязки, лишається.</p>
+        <div class="cmp__ops gs-src">${(DY ? DY.linkables() : []).map((x) => `<button type="button" data-glink="${x.id}" class="${(it.link || []).includes(x.id) ? "is-on" : ""}">${esc(x.t)}</button>`).join("") || `<span class="cmp__hint">повторюваних денних цілей ще немає</span>`}</div>`;
+      if (src === "weight") h += `<div class="cmp__ops gs-src">${[["avg7", "середня за 7 днів"], ["last", "останнє зважування"]].map(([v, n]) => `<button type="button" data-gwm="${v}" class="${(it.wmode || "avg7") === v ? "is-on" : ""}">${n}</button>`).join("")}</div>`;
+      if (src && src !== "link") h += `<p class="cmp__hint">${src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
+    }
     if (!locked) {
       if (t === "once") h += `<button class="btn ${it.done ? "btn--ghost" : "btn--gold"}" type="button" data-gs="once">${it.done ? "Зняти позначку" : "Виконано"}</button>`;
       if (t === "count") h += `<div class="gs-row"><input type="text" inputmode="decimal" id="gsVal" placeholder="скільки є зараз"><button class="btn btn--gold" type="button" data-gs="setcur">Записати</button></div>
@@ -1322,7 +1355,7 @@ window.ORDO_START = function () {
   function stepApply(it, key, fn) {
     const td = todayKey();
     if (key === "cur") {
-      it.cur = Math.max(0, fn(it.cur || 0)); it.hist = it.hist || [];
+      it.cur = Math.max(0, fn(it.cur || 0)); it.hist = it.hist || []; if (gs) rebase(it, gs.key);
       const last = it.hist[it.hist.length - 1]; if (last && last.d === td) last.v = it.cur; else it.hist.push({ d: td, v: it.cur });
     } else {
       const p = (it.parts || []).find((x) => x.id === key); if (!p) return;
@@ -1357,6 +1390,12 @@ window.ORDO_START = function () {
       LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id && !it.done)); saveLog();
       gsAfter(it); return;
     }
+    const gsrc = e.target.closest("[data-gsrc]");
+    if (gsrc) { it.src = gsrc.dataset.gsrc; if (it.src === "link" && !it.link) relink(it, gs.key, []); stepsFill(it, gs.key); gsAfter(it); return; }
+    const gl = e.target.closest("[data-glink]");
+    if (gl) { const s = new Set(it.link || []), id = gl.dataset.glink; s.has(id) ? s.delete(id) : s.add(id); relink(it, gs.key, [...s]); stepsFill(it, gs.key); gsAfter(it); return; }
+    const gwm = e.target.closest("[data-gwm]");
+    if (gwm) { it.wmode = gwm.dataset.gwm; stepsFill(it, gs.key); gsAfter(it); return; }
     const gop = e.target.closest("[data-gop]");
     if (gop) { it.op = gop.dataset.gop; saveG(); renderGoalSheet(); renderGoals(); FX.buzz("light"); return; }
     const gv = e.target.closest("[data-gvow]");
@@ -1379,7 +1418,7 @@ window.ORDO_START = function () {
       it.hist = it.hist || []; const td = todayKey();
       const same = it.hist.length && it.hist[it.hist.length - 1].d === td;
       if (same) it.hist[it.hist.length - 1].v = v; else it.hist.push({ d: td, v });
-      if (act === "setcur") it.cur = v;
+      if (act === "setcur") { it.cur = v; rebase(it, gs.key); }
       gsAfter(it); return;
     }
     if (act === "addpart") {

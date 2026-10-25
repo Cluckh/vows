@@ -197,6 +197,28 @@
     return u && u.steps >= sum ? { steps: u.steps, avg: u.avg, at: u.at } : { steps: sum, avg: Math.round(sum / n), at: null };
   }
 
+  /* ======================================================= ЗВʼЯЗКИ ЦІЛЕЙ ===== */
+  /* повторювані денні цілі, які можна привʼязати до місячної чи річної */
+  const linkables = () => Object.values(S.tasks).filter((t) => !t.del && t.rep && t.rep.f !== "none" && (!t.end || t.end >= today()))
+    .map((t) => ({ id: t.id, t: t.t, type: t.type, unit: t.unit || "" }));
+  /* що дали привʼязані цілі за період: «Зробити» — дні виконання, «Число» — сума відміток */
+  function linkCount(ids, from, to) {
+    let n = 0; const end = to < today() ? to : today();
+    for (let k = from; k <= end; k = add(k, 1)) (ids || []).forEach((id) => {
+      const t = S.tasks[id]; if (!t || !occurs(t, k)) return;
+      const r = rec(k, id);
+      if (t.type === "count") n += (r && r.cur) || 0; else if (isWin(stOf(t, r, k))) n++;
+    });
+    return n;
+  }
+  /* вага зі «Здоровʼя» на день k: last — останнє зважування (до 14 днів тому), avg7 — середня за 7 днів */
+  function weightOn(k, mode) {
+    const D = (HL && HL.days) || {}, ks = Object.keys(D).filter((d) => d <= k && d > add(k, mode === "last" ? -14 : -7) && D[d].weight).sort();
+    if (!ks.length) return null;
+    if (mode === "last") return D[ks[ks.length - 1]].weight;
+    return Math.round(ks.reduce((a, d) => a + D[d].weight, 0) / ks.length * 10) / 10;
+  }
+
   /* ============================================================== ПОКЕР ===== */
   let pAt = 0;
   async function loadPoker(force) {
@@ -667,6 +689,7 @@
     if (gain > 0) toast(`<b>+${gain}</b> досвіду`);
     res.fresh.forEach((a, i) => setTimeout(() => { toast(`<span>нагорода</span><b>${esc(a.n)}</b>`, "dy-toast--ach"); fx("date"); }, 900 + i * 1800));
     if (res.up) { pendingUp = res.up; setTimeout(() => { toast(`<span>новий рівень</span><b>${res.up.to.L} · ${esc(res.up.to.rank.name)}</b>`, "dy-toast--lv"); scenes(); }, 600); }
+    const A = API(); if (A.goalsSync) A.goalsSync();          // привʼязані місячні й річні цілі
     render(); renderStatsIfOpen();
   }
 
@@ -757,7 +780,8 @@
       <button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k);
-    if (hd && (hd.steps != null || hd.sleepMin || hd.up || hd.mind)) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}</div>`;
+    const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
+    if ((hd && (hd.steps != null || hd.sleepMin || hd.up || hd.mind)) || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
@@ -1132,8 +1156,9 @@
       gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "" })),
       steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
       faith: Object.assign(faith(), { comeback: comeback() }),
+      weight: { last: weightOn(t0, "last"), avg7: weightOn(t0, "avg7") },
       poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
-      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
+      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       seenEvents: Object.keys(S.ev || {})
     };
@@ -1199,6 +1224,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands, periodMind, bankSync: () => { applyBank(); render(); },
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

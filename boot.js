@@ -154,7 +154,8 @@
         const A2 = (a.log || {})[k] || {}, B2 = (b.log || {})[k] || {}; log[k] = Object.assign({}, B2, A2);
         Object.keys(B2).forEach((id) => { if (A2[id] && (B2[id].at || 0) > (A2[id].at || 0)) log[k][id] = B2[id]; });
       });
-      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log }));
+      const wake = Object.assign({}, b.wake, a.wake); Object.keys(b.wake || {}).forEach((k) => { if (a.wake && a.wake[k] && b.wake[k] < a.wake[k]) wake[k] = b.wake[k]; });   // підйом — найраніше відкриття
+      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, sleep: Object.assign({}, b.sleep, a.sleep), ev: Object.assign({}, b.ev, a.ev) }));
     }
     if (L["ordo.quests"] || R["ordo.quests"]) {
       const a = P(L, "ordo.quests", {}), b = P(R, "ordo.quests", {}), by = {};
@@ -372,6 +373,7 @@
       <div class="vt-push"><span class="vt-st ${pushOn() ? "is-ok" : ""}">${pushOn() ? "вісті від храмовників увімкнено" : "вісті від храмовників вимкнено"}</span>
         <button class="btn ${pushOn() ? "btn--ghost" : "btn--line"}" type="button" data-vt="${pushOn() ? "pushoff" : "push"}">${pushOn() ? "Вимкнути вісті" : "Увімкнути вісті від храмовників"}</button></div>
       <button class="btn btn--ghost" type="button" data-vt="token">Оновити токен</button>
+      ${token() ? `<button class="btn btn--ghost" type="button" data-vt="copytok">Токен для «Швидких команд»</button>` : ""}
       <button class="btn btn--ghost" type="button" data-vt="close">Закрити</button>`;
   }
   function openVault() {
@@ -396,6 +398,11 @@
       if (act === "now") { await syncNow("force"); return; }
       if (act === "push") { a.disabled = true; try { await pushEnable(); } catch (err) { alert("Не вдалося ввімкнути вісті: " + (err && err.message || err)); } renderVault(); return; }
       if (act === "pushoff") { a.disabled = true; await pushDisable(); renderVault(); return; }
+      if (act === "copytok") {
+        try { await navigator.clipboard.writeText(token()); a.textContent = "Скопійовано — встав у команду після «Bearer »"; }
+        catch (err) { prompt("Скопіюй токен:", token()); }
+        return;
+      }
       if (act === "token") {
         const t = prompt("Новий токен доступу GitHub:"); if (!t) return;
         try { await gh("vault.key", { raw: true, token: t.trim() }); LS.set(K.token, t.trim()); LS.del("ordo.bk.err"); await syncNow("force"); }

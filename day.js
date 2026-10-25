@@ -47,7 +47,7 @@
   const XP_START_DAY = "2026-10-26";       // з цього дня рахується досвід; усе раніше — у стартовому
   const START_XP = 4650;                    // посвята: рівень 7, звання «Лицар»
   let S = LS.get("ordo.day", null); if (!S || typeof S !== "object") S = {};
-  S.tasks = S.tasks || {}; S.log = S.log || {};
+  S.tasks = S.tasks || {}; S.log = S.log || {}; S.wake = S.wake || {}; S.sleep = S.sleep || {};
   let Q = LS.get("ordo.quests", null); if (!Q || typeof Q !== "object") Q = {};
   Q.list = Q.list || []; Q.clock = Q.clock || {}; Q.trig = Q.trig || [];
   let X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
@@ -124,7 +124,15 @@
   const isWin = (st) => st === "done" || st === "fix";
 
   /* ========================================================== ЗДОРОВʼЯ ===== */
-  const hDay = (k) => (HL && HL.days && HL.days[k]) || null;
+  /* день: кроки зі «Здоровʼя» + сон, записаний уранці в додатку, + час першого відкриття (підйом) */
+  const hDay = (k) => {
+    const h = Object.assign({}, (HL && HL.days && HL.days[k]) || {}), sl = S.sleep[k];
+    if (sl && sl.min && !h.sleepMin) h.sleepMin = sl.min;
+    if (S.wake[k]) h.up = S.wake[k];
+    return Object.keys(h).length ? h : null;
+  };
+  const EARLY = "08:00", DAWN = "04:00";
+  const early = (k) => !!(S.wake[k] && S.wake[k] >= DAWN && S.wake[k] < EARLY);
   let hAt = 0;
   async function loadHealth(force) {
     const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - hAt < 5 * 60e3)) return;
@@ -223,7 +231,7 @@
   const MS_XP = { 10: 60, 25: 120, 75: 250, 180: 500, 365: 1000, 500: 1300, 730: 1800, 1000: 2500 };
   function settleDerived() {
     const A = API(), t0 = today();
-    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy):/.test(id)) delete X.e[id]; });
+    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er):/.test(id)) delete X.e[id]; });
     const vows = D().VOWS || [], starts = LS.get("ordo.starts", {});
     if (A.dayState) for (let k = XP_START_DAY; k < t0; k = add(k, 1)) vows.forEach((v) => {
       const s = A.dayState(v, k); if ((s === "c" || s === "w") && (!starts[v.id] || k >= starts[v.id])) X.e[`v:${v.id}:${k}`] = { d: k, xp: VOW_DAY, src: "vow", why: v.name };
@@ -251,6 +259,7 @@
       if (h && h.sleepMin >= 420) X.e[`sl:${k}`] = { d: k, xp: 10, src: "body", why: "сон 7+ годин" };
       if (h && h.steps >= 10000) X.e[`st:${k}`] = { d: k, xp: 10, src: "body", why: "10 000 кроків" };
       const g = GYM.log[k]; if (g && g.ex && g.ex.length) X.e[`gy:${k}`] = { d: k, xp: 20, src: "body", why: "журнал залу" };
+      if (early(k)) X.e[`er:${k}`] = { d: k, xp: 5, src: "body", why: "ранній підйом" };
     }
   }
   /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані */
@@ -338,6 +347,11 @@
   /* квест-лічильник з тією ж одиницею, що й денний лічильник, рахується з денних відміток */
   function autoCount() {
     Q.list.forEach((q) => {
+      if (q.st === "active" && q.type === "count" && /ранк/i.test(q.unit || "")) {
+        let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (early(k)) n++;
+        if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
       if (q.st !== "active" || q.type !== "count" || !q.unit || /крок/i.test(q.unit)) return;
       const ts = Object.values(S.tasks).filter((t) => t.type === "count" && !t.del && t.unit && t.unit.trim().toLowerCase() === q.unit.trim().toLowerCase());
       if (!ts.length) return;
@@ -593,7 +607,7 @@
       <button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k);
-    if (hd && (hd.steps != null || hd.sleepMin)) h += `<div class="dy-body-line">${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}</div>`;
+    if (hd && (hd.steps != null || hd.sleepMin || hd.up)) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}</div>`;
     const gymT = its.find(({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel");
     const adv = gymT && k >= today() ? gymAdvice(k) : null;
     if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
@@ -709,6 +723,15 @@
       if (isGym(t) && !fut) h += `<button type="button" class="btn btn--line" data-ds="gym">${GYM.log[k] ? "Журнал тренування — правити" : "Записати, що зроблено в залі"}</button>`;
       if (xp) h += `<p class="dy-note">За цю справу: +${xp} досвіду${ch ? ` (серія ${ch} дає +${Math.round(Math.min(0.3, ch * 0.03) * 100)}%)` : ""}</p>`;
       if (r && r.note) h += `<p class="dy-note">Поправка: ${esc(r.note)}</p>`;
+    } else if (sh.mode === "sleep") {
+      const sl = S.sleep[today()] || {}, BEDS = ["21:30", "22:00", "22:30", "23:00", "23:30", "00:00", "00:30", "01:00", "01:30"];
+      h += `<div class="gs-kicker">Ранок · ${human(today())}</div><div class="sheet__title dy-sht">Доброго ранку, лицарю. Як спав?</div>
+        <p class="dy-note">Ти на ногах до восьмої — це вже ранній підйом.</p>
+        <div class="dy-f"><label>Ліг о</label><div class="dy-chips dy-chips--wrap" data-dk="bed">${BEDS.map((b) => `<button type="button" data-dv="${b}" class="${(sh.bed || sl.bed) === b ? "is-on" : ""}">${b}</button>`).join("")}</div>
+          <input class="dy-in" id="slB" type="time" value="${sh.bed || sl.bed || ""}" style="margin-top:8px"></div>
+        <div class="dy-f dy-f--row"><label>Встав о</label><input class="dy-in" id="slW" type="time" value="${sl.wake || S.wake[today()] || ""}"></div>
+        <div class="dy-f"><label>Самопочуття</label><div class="dy-chips" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => `<button type="button" data-dv="${v}" class="${String(sh.q || sl.q || "") === v ? "is-on" : ""}">${n}</button>`).join("")}</div></div>
+        <button class="btn btn--gold" type="button" data-ds="slsave">Записати</button><button class="btn btn--ghost" type="button" data-ds="slskip">Не зараз</button>`;
     } else if (sh.mode === "gym") {
       if (!sh.gym) {
         const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k), adv = gymAdvice(sh.k);
@@ -779,6 +802,12 @@
   function onSheet(e) {
     if (!sh) return;
     const ch = e.target.closest("[data-dv]");
+    if (ch && sh.mode === "sleep") {
+      const k = ch.parentElement.dataset.dk;
+      if (k === "bed") { sh.bed = ch.dataset.dv; const b = $("slB"); if (b) b.value = sh.bed; }
+      if (k === "q") sh.q = ch.dataset.dv;
+      sh.wakeV = ($("slW") || {}).value; buzz("light"); renderSheet(); if (sh.wakeV && $("slW")) $("slW").value = sh.wakeV; return;
+    }
     if (ch && sh.mode === "edit") {
       readDraft();
       const d = sh.draft, k = ch.parentElement.dataset.dk, v = ch.dataset.dv;
@@ -814,6 +843,18 @@
     if (a === "fixq") { sh.mode = "fix"; renderSheet(); setTimeout(() => { const f = $("dsF"); if (f) f.focus(); }, 300); return; }
     if (a === "fix") { const n = ($("dsF") || {}).value || ""; setRec(k, id, { st: "fix", note: n.trim() || null }); fx("yes"); buzz("medium"); closeSheet(); after(before); if (isGym(S.tasks[id])) setTimeout(() => openSheet("gym", id, k), 500); return; }
     if (a === "gym") { openSheet("gym", id, k); return; }
+    if (a === "slsave" || a === "slskip") {
+      const t0 = today();
+      if (a === "slskip") S.sleep[t0] = { skip: 1 };
+      else {
+        const bed = ($("slB") || {}).value || sh.bed || "", wake = ($("slW") || {}).value || S.wake[t0] || "";
+        const toMin = (x) => { const [hh, mm] = x.split(":").map(Number); return hh * 60 + mm; };
+        let min = bed && wake ? toMin(wake) - toMin(bed) : 0; if (min <= 0) min += 1440;
+        S.sleep[t0] = { bed, wake, q: sh.q ? +sh.q : null, min: bed && wake && min < 16 * 60 ? min : null };
+        fx("yes"); buzz("medium");
+      }
+      saveS(); closeSheet(); after(before); setTimeout(scenes, 900); return;
+    }
     if (a === "goals") { closeSheet(); const A = API(); if (A.showTab) setTimeout(() => A.showTab("goals"), 300); return; }
     if (a === "gsave") { readGym(); const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now();
       if (g.ex.length) GYM.log[k] = g; else delete GYM.log[k]; saveG(); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
@@ -912,7 +953,7 @@
       achievements: Object.keys(ACH),
       goals: { month: goals(G.m && G.m[mk]), year: goals(G.y && G.y[yk]) },
       gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "" })),
-      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin })).filter((x) => x.steps != null || x.sleepMin),
+      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       seenEvents: Object.keys(S.ev || {})
     };
@@ -958,11 +999,23 @@
     }
     lastLevel = levelOf(totalXP());
     applyHealth(); settle(); lastLevel = levelOf(totalXP());
-    render(); loadHealth(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000);
+    render(); loadHealth(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); settle(); render(); } }, 60000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadHealth(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { stamp(); loadHealth(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);
+  }
+  /* перше відкриття дня = підйом; до 8:00 — питаємо, як спав (після ритуалу, коли нічого не відкрито) */
+  function stamp() {
+    const n = new Date(), hm = `${p2(n.getHours())}:${p2(n.getMinutes())}`, t0 = today();
+    if (!S.wake[t0] && hm >= DAWN) { S.wake[t0] = hm; saveS(); }
+    if (early(t0) && !S.sleep[t0]) morning(Date.now());
+  }
+  function morning(t0) {
+    const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };
+    if (S.sleep[today()] || Date.now() - t0 > 15 * 60e3) return;
+    if (busy()) { setTimeout(() => morning(t0), 1500); return; }
+    openSheet("sleep", null, today());
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 

@@ -945,6 +945,10 @@
     h += `<div class="dy-nav"><button type="button" data-dnav="-1" aria-label="Попередній день">‹</button>
       <div class="dy-nav__c"><b>${rel(k)}</b><span>${WDL[wd(k)]}, ${human(k)}</span></div>
       <button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>`;
+    /* смуга днів: вчора … +5 — великі цілі для пальця, один тап на потрібний день */
+    const t0d = today(), strip = []; for (let i = -1; i <= 5; i++) strip.push(add(t0d, i));
+    if (!strip.includes(k)) strip.push(k);
+    h += `<div class="dy-strip">${strip.map((d) => `<button type="button" data-dday="${d}" class="${d === k ? "is-on" : ""}${d === t0d ? " is-today" : ""}"><span>${WD[wd(d)]}</span><b>${dt(d).getDate()}</b></button>`).join("")}</div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k);
     const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
@@ -1374,7 +1378,20 @@
   }
 
   /* ------------------------------------------------------------ кліки ------ */
+  /* перемикання днів одразу на дотик: на iPhone «клік» інколи не доходить; повторний клік після дотику ігноруємо */
+  let navTapAt = 0;
+  function goDay(nv) {
+    if (nv.dataset.dday) view = nv.dataset.dday;
+    else { const n = +nv.dataset.dnav; view = n === 0 ? today() : add(view || today(), n); }
+    buzz("light"); render();
+  }
+  function onBodyTouch(e) {
+    const nv = e.target.closest && e.target.closest("[data-dnav], [data-dday]"); if (!nv || e.pointerType === "mouse") return;
+    navTapAt = Date.now(); e.preventDefault(); goDay(nv);
+  }
   function onBody(e) {
+    const nv0 = e.target.closest("[data-dnav], [data-dday]");
+    if (nv0) { if (Date.now() - navTapAt > 700) goDay(nv0); return; }
     const g = e.target.closest("[data-dgo]"); if (g) { const A = API(); if (A.showTab) A.showTab("stats"); return; }
     const nv = e.target.closest("[data-dnav]");
     if (nv) { const n = +nv.dataset.dnav; view = n === 0 ? today() : add(view || today(), n); buzz("light"); render(); return; }
@@ -1501,7 +1518,7 @@
   let started = false;
   function init() {
     if (started) return; started = true;
-    const box = $("dayBody"); if (box) box.addEventListener("click", onBody);
+    const box = $("dayBody"); if (box) { box.addEventListener("click", onBody); box.addEventListener("pointerup", onBodyTouch); }
     const sc = $("scrim"); if (sc) sc.addEventListener("click", () => { if (sh) closeSheet(); });
     const seed = (D().DAY || {}).seed;
     if (seed && seed.tasks && S.seeded !== seed.v) {

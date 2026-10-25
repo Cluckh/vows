@@ -1262,7 +1262,7 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .em--big{width:72px;height:72px;flex:none}
 /* навігація днями */
 .dy-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
-.dy-nav button{width:40px;height:40px;border-radius:50%;border:1px solid var(--edge);color:var(--gold);font-size:22px;line-height:1}
+.dy-nav button{width:48px;height:48px;flex:none;border-radius:50%;border:1px solid var(--edge);color:var(--gold);font-size:26px;line-height:1;touch-action:manipulation;position:relative;z-index:2}
 .dy-nav__c{text-align:center}
 .dy-nav__c b{display:block;font-family:var(--f-display);font-weight:600;font-size:17.5px;letter-spacing:.08em;color:var(--bone)}
 .dy-nav__c span{font-family:var(--f-serif);font-style:italic;font-size:14.5px;color:var(--ash)}
@@ -1498,3 +1498,12 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .vt-p.is-ok b::before{content:"● ";color:#6fae7a}
 .vt-p.is-warn b::before{content:"● ";color:var(--gold)}
 .vt-p.is-err b::before{content:"● ";color:var(--ember-2)}
+
+/* — смуга днів у «Дні» — */
+.dy-strip{display:flex;gap:6px;justify-content:space-between;margin:0 0 12px}
+.dy-strip button{flex:1;min-width:0;display:grid;justify-items:center;gap:2px;padding:7px 0;border:1px solid var(--edge-soft);border-radius:12px;touch-action:manipulation;color:var(--ash)}
+.dy-strip span{font-family:var(--f-ui);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.dy-strip b{font-family:var(--f-display);font-size:18px;font-weight:600;color:var(--bone)}
+.dy-strip .is-today{border-color:color-mix(in srgb,var(--gold) 40%,transparent)}
+.dy-strip .is-on{background:color-mix(in srgb,var(--gold) 18%,transparent);border-color:var(--gold)}
+.dy-strip .is-on b{color:var(--gold-2)}

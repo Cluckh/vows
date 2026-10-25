@@ -42,10 +42,18 @@
     loadedAt = Date.now();
     try {
       const s = await V.readSealed("bank/summary.json");
+      ask(s);
       if (s && s.at !== (B && B.at)) { B = s; LS.set("ordo.k.bank", s); const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); if (window.ORDO_DAY && window.ORDO_DAY.bankSync) window.ORDO_DAY.bankSync(); }
     } catch (e) {}
   }
 
+  /* виписці понад годину, а Орден відкрито — попросити свіжу (не частіше ніж раз на 45 хв); підтягнути, щойно банк відповість */
+  function ask(s) {
+    const V = window.ORDO_VAULT, age = s && s.at ? Date.now() - Date.parse(s.at) : Infinity, last = LS.get("ordo.k.bankAsk", 0);
+    if (!V || !V.dispatch || age < 60 * 60e3 || Date.now() - last < 45 * 60e3) return;
+    LS.set("ordo.k.bankAsk", Date.now());
+    V.dispatch("bank").then((ok) => { if (ok) [3.5, 7].forEach((m) => setTimeout(() => load(true), m * 60e3)); });
+  }
   /* ------------------------------------------------------------ обчислення */
   const EXCL = ["home", "healer", "tithe"];                   // обовʼязкове — не рахуємо в «ощадливість»
   function spentIn(cats, from, to) {

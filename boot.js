@@ -493,7 +493,16 @@
     await putFile(path, JSON.stringify({ v: 1, alg: "AES-256-GCM", iv: box.iv, ct: box.ct }) + "\n", message || "дані");
     return true;
   }
-  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, writeSealed };
+  /* попросити сховище оновитися (repository_dispatch): напр. свіжу виписку банку, коли Орден відкрито */
+  async function dispatch(type) {
+    if (!token()) return false;
+    try {
+      const r = await fetch(`https://api.github.com/repos/${REPO}/dispatches`, { method: "POST",
+        headers: { Authorization: `Bearer ${token()}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify({ event_type: type }) });
+      return r.status === 204;
+    } catch (e) { return false; }
+  }
+  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, writeSealed, dispatch };
 
   async function boot() {
     let vault;

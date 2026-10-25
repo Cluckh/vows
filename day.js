@@ -204,9 +204,8 @@
   /* що дали привʼязані цілі за період: «Зробити» — дні виконання, «Число» — сума відміток */
   function linkCount(ids, from, to) {
     let n = 0; const end = to < today() ? to : today();
-    for (let k = from; k <= end; k = add(k, 1)) (ids || []).forEach((id) => {
-      const t = S.tasks[id]; if (!t || !occurs(t, k)) return;
-      const r = rec(k, id);
+    for (let k = from; k <= end; k = add(k, 1)) items(k).forEach(({ t, r }) => {            // разом із перенесеними на цей день
+      if (!(ids || []).includes(t.id)) return;
       if (t.type === "count") n += (r && r.cur) || 0; else if (isWin(stOf(t, r, k))) n++;
     });
     return n;

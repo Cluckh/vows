@@ -1136,7 +1136,8 @@
   function writerState() {
     const A = API(), t0 = today(), vows = D().VOWS || [], LOG = LS.get("ordo.log", []), lv = levelOf(totalXP());
     const since = (n) => add(t0, -n), days14 = []; for (let i = 13; i >= 0; i--) days14.push(add(t0, -i));
-    const rate = (t) => { let o = 0, w = 0; days14.forEach((k) => { if (!occurs(t, k) || k > t0) return; const st = stOf(t, rec(k, t.id), k); if (st === "moved" || st === "cancel") return; o++; if (isWin(st)) w++; }); return o ? `${w}/${o}` : null; };
+    /* виконання за 2 тижні — з тих самих справ дня, що й у списку (перенесені рахуються там, де зроблені) */
+    const rate = (t) => { let o = 0, w = 0; days14.forEach((k) => { if (k > t0) return; const x = items(k).find((y) => y.t.id === t.id); if (!x) return; const st = stOf(t, x.r, k); if (st === "moved" || st === "cancel") return; o++; if (isWin(st)) w++; }); return o ? `${w}/${o}` : null; };
     const G = LS.get("ordo.goals", { y: {}, m: {} }), mk = t0.slice(0, 7), yk = t0.slice(0, 4);
     const goals = (P) => P ? (P.items || []).map((it) => ({ t: it.t, type: it.type || "once", done: !!it.done, cur: it.cur, target: it.target })) : [];
     const T = window.ORDO_TREASURY;

@@ -347,7 +347,7 @@
     try { const t = new Date();
       A.D.VOWS.forEach((v) => { const st = A.streak(v), m = (A.D.MILESTONES || []).find((x) => x >= st); if (m) next.push({ v: v.id, n: m, d: ky(new Date(t.getFullYear(), t.getMonth(), t.getDate() + m - st)) }); }); } catch (e) {}
     const G = LS.get("ordo.goals", {}), P = G.m && G.m[ky(new Date()).slice(0, 7)];
-    return { sw, app: LS.get("ordo.ver", ""), call: LS.get("ordo.k.call", null), trace: LS.get("ordo.k.trace", []), next, gm: P ? { n: P.items.length, done: !!P.res } : null };
+    return { sw, app: LS.get("ordo.ver", ""), call: LS.get("ordo.k.call", null), trace: LS.get("ordo.k.trace", []), errs: LS.get("ordo.k.errs", []), next, gm: P ? { n: P.items.length, done: !!P.res } : null };
   }
   async function pushSave(sub) {
     const j = sub.toJSON(), dg = await diag();

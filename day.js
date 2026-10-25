@@ -931,7 +931,17 @@
     const pr = q.limit ? Math.min(1, sp / q.limit) : sp > 0 ? 1 : 0;
     return `<div class="gl-bar dy-bud"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${m(sp)} <em>${q.limit ? `/ ліміт ${m(q.limit)}` : "— має бути нуль"}</em></span>`;
   }
+  /* страховка: якщо якийсь блок упаде, день однаково перемкнеться, а помилка буде видна (і піде в діагностику) */
   function render() {
+    try { renderDay(); }
+    catch (e) {
+      const box = $("dayBody"), k = view || today(); if (!box) return;
+      try { const errs = LS.get("ordo.k.errs", []); errs.push({ at: new Date().toISOString(), day: k, msg: String(e && e.message || e), st: String(e && e.stack || "").split("\n").slice(0, 3).join(" | ") }); LS.set("ordo.k.errs", errs.slice(-10)); } catch (x) {}
+      box.dataset.seg = ""; box.innerHTML = `<div class="dy-nav"><button type="button" data-dnav="-1" aria-label="Попередній день">‹</button><div class="dy-nav__c"><b>${rel(k)}</b><span>${WDL[wd(k)]}, ${human(k)}</span></div><button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>
+        <button class="dy-today" type="button" data-dnav="0">до сьогодні</button><p class="dy-note">Не вдалося показати цей день: ${esc(String(e && e.message || e))}. Скинь цей текст — виправлю.</p>`;
+    }
+  }
+  function renderDay() {
     const box = $("dayBody"); if (!box) return;
     const k = view || today(); view = k;
     const sub = $("daySub"); if (sub) sub.textContent = `${WDL[wd(today())]}, ${human(today())}`;
@@ -950,9 +960,9 @@
     if (!strip.includes(k)) strip.push(k);
     h += `<div class="dy-strip">${strip.map((d) => `<button type="button" data-dday="${d}" class="${d === k ? "is-on" : ""}${d === t0d ? " is-today" : ""}"><span>${WD[wd(d)]}</span><b>${dt(d).getDate()}</b></button>`).join("")}</div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
-    const hd = hDay(k);
+    const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
     const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
-    if ((hd && (hd.steps != null || hd.sleepMin || hd.up || hd.mind)) || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
+    if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));

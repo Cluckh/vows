@@ -702,7 +702,8 @@ window.ORDO_START = function () {
   }
 
   /* медальйон храмовника з реплікою (Літописець, Сенешаль) */
-  const medallion = (who, fig, text, cls) => window.ORDO_HALL && who ? `<div class="md${cls ? " " + cls : ""}"><div class="md__fig">${who.art ? `<img class="md__img" src="${esc(who.art)}" alt="">` : window.ORDO_HALL.figure(typeof fig === "string" ? { head: fig } : fig)}</div>
+  const cardId = (who) => who === D.SENESCHAL ? "seneschal" : who === D.CHRONICLER ? "chronicler" : Object.keys(D.KEEPERS || {}).find((k) => D.KEEPERS[k] === who) || "";
+  const medallion = (who, fig, text, cls) => window.ORDO_HALL && who ? `<div class="md${cls ? " " + cls : ""}"><div class="md__fig"${who.art ? ` data-card="${cardId(who)}"` : ""}>${who.art ? `<img class="md__img" src="${esc(who.art)}" alt="">` : window.ORDO_HALL.figure(typeof fig === "string" ? { head: fig } : fig)}</div>
     <div class="md__txt"><div class="md__who">${esc(who.name)} · ${esc(who.title)}</div><p class="md__say">${esc(text)}</p></div></div>` : "";
   const fill = (tpl, o) => tpl.replace(/\{(\w+)\}/g, (_, k) => o[k] != null ? o[k] : "");
   function chronicler() {
@@ -1681,7 +1682,7 @@ window.ORDO_START = function () {
     if (voice.mode === "candle") { const qt = $("qText"); if (qt) qt.textContent = legendary ? LQ[h % LQ.length] : nextQuote(); }
     if (voice.mode === "keeper") {
       const K = D.KEEPERS[voice.v.id];
-      const f = $("kpFig"); if (f) { f.innerHTML = K.art ? `<img src="${esc(K.art)}" alt="">` : window.ORDO_HALL.figure({ icon: voice.v.icon, look: K.look }); f.classList.toggle("kp-fig--art", !!K.art); f.classList.remove("drawn"); }
+      const f = $("kpFig"); if (f) { f.innerHTML = K.art ? `<img src="${esc(K.art)}" alt="">` : window.ORDO_HALL.figure({ icon: voice.v.icon, look: K.look }); f.classList.toggle("kp-fig--art", !!K.art); f.classList.remove("drawn"); if (K.art) f.dataset.card = voice.v.id; else delete f.dataset.card; }
       const kn = $("kpName"); if (kn) kn.textContent = K.name;
       const kt = $("kpTitle"); if (kt) kt.textContent = K.title;
       /* інколи замість репліки — що саме дає стрік на цьому дні */
@@ -1762,6 +1763,11 @@ window.ORDO_START = function () {
   on("intro", "pointerdown", onSkip);
   on("intro", "keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSkip(); } });
   on("replay", "click", () => { FX.unlock(); FX.buzz("light"); $("board") && $("board").classList.remove("reveal"); runIntro(); });
+  /* медальйон чи храмовник ритуалу → картка храмовника (перехоплюємо раніше за тап-«далі») */
+  document.addEventListener("click", (e) => {
+    const c = e.target.closest && e.target.closest("[data-card]");
+    if (c && c.dataset.card && window.ORDO_HALL && window.ORDO_HALL.card(c.dataset.card)) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeConfirm(); closeSheet(); closeMark(); closeProto(); closeGoalSheet(); } });
 
   /* ---- старт + щоденна синхронізація ---- */

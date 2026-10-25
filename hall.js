@@ -189,7 +189,7 @@
   }
 
   /* ============================================================ СЦЕНА ===== */
-  let hall = null, typing = null, onTap = null, curFig = "";
+  let hall = null, typing = null, onTap = null, curFig = "", curWho = "";
   function build() {
     if (hall) return hall;
     hall = document.createElement("div"); hall.className = "hall"; hall.id = "hall"; hall.setAttribute("role", "dialog"); hall.setAttribute("aria-modal", "true");
@@ -201,6 +201,7 @@
     document.body.appendChild(hall);
     hall.addEventListener("click", (e) => {
       if (e.target.closest("#hallX")) { close(); return; }
+      if (e.target.closest("#hallFig, #hallPlate") && card(curWho)) return;   // портрет → картка храмовника
       if (e.target.closest(".hall__acts button")) return;
       if (typing) { typing(); return; }            // докрутити текст
       if (onTap) { const f = onTap; onTap = null; f(); }
@@ -228,13 +229,50 @@
         (im.decode ? im.decode() : Promise.resolve()).then(go, go);         // проявляється, коли вже завантажився
       } else { f.innerHTML = key; void f.offsetWidth; requestAnimationFrame(() => f.classList.add("drawn")); }
     }
-    $("hallPlate").innerHTML = `<b>${esc(who.name || k.name || "")}</b><span>${esc(who.title || k.title || "")}</span>${(who.bio || k.bio) ? `<em>${esc(who.bio || k.bio)}</em>` : ""}`;
+    curWho = entry(who.id) ? who.id : "";
+    $("hallPlate").innerHTML = `<b>${esc(who.name || k.name || "")}${curWho ? `<i class="hall__info" aria-hidden="true">i</i>` : ""}</b><span>${esc(who.title || k.title || "")}</span>${(who.bio || k.bio) ? `<em>${esc(who.bio || k.bio)}</em>` : ""}`;
     hall.classList.toggle("hall--supreme", who.id === "supreme");
     if (!hall.classList.contains("open")) {
       hall.classList.add("open"); document.body.classList.add("in-hall");
       const A = API(); if (A.FX) { A.FX.play(who.id === "supreme" ? "date" : "sign", true); A.FX.buzz("medium"); }
     }
   }
+  /* ---------- картка храмовника: великий портрет, девіз, знак, історія ---------- */
+  function entry(id) {
+    const K = D().KEEPERS || {};
+    const e = id === "seneschal" ? D().SENESCHAL : id === "chronicler" ? D().CHRONICLER : K[id];
+    return e && (e.art || e.about) ? e : null;
+  }
+  function card(id) {
+    const e = entry(id); if (!e) return false;
+    const A = API(), dw = A.daysWord || (() => "днів");
+    const v = (D().VOWS || []).find((x) => x.id === id);
+    let stat = "";
+    if (v && A.streak) { const n = A.streak(v); stat = `Твій стрій під його вартою: <b>${n}</b> ${dw(n)}`; }
+    else if (id === "supreme") { const n = Object.keys(D().KEEPERS || {}).length - 1; if (n > 0) stat = `Під його рукою — <b>${n}</b> хранителів`; }
+    const views = e.artFull ? `<div class="kc__views" role="tablist"><button type="button" class="on" data-v="${esc(e.art)}">Погруддя</button><button type="button" data-v="${esc(e.artFull)}">На весь зріст</button></div>` : "";
+    const el = document.createElement("div"); el.className = "kc"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
+    el.innerHTML = `<div class="kc__scroll">
+        ${e.art ? `<figure class="kc__art"><img src="${esc(e.art)}" alt="${esc(e.name || "")}"></figure>` : ""}${views}
+        <h2 class="kc__name">${esc(e.name || "")}</h2><p class="kc__title">${esc(e.title || "")}</p>${e.bio ? `<p class="kc__bio">${esc(e.bio)}</p>` : ""}
+        ${e.motto ? `<blockquote class="kc__motto">«${esc(e.motto)}»</blockquote>` : ""}${stat ? `<p class="kc__stat">${stat}</p>` : ""}
+        ${e.sign ? `<h3 class="kc__h">Знак</h3><p class="kc__p">${esc(e.sign)}</p>` : ""}
+        ${(e.about || []).length ? `<h3 class="kc__h">Хто він</h3>${e.about.map((t) => `<p class="kc__p">${esc(t)}</p>`).join("")}` : ""}
+      </div><button class="kc__x" type="button" aria-label="Закрити"><svg><use href="#i-x"/></svg></button>`;
+    document.body.appendChild(el);
+    const img = el.querySelector(".kc__art img");
+    const shut = () => { el.classList.remove("open"); setTimeout(() => el.remove(), 350); };
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const b = ev.target.closest(".kc__views button");
+      if (b && img) { el.querySelectorAll(".kc__views button").forEach((x) => x.classList.toggle("on", x === b)); img.parentNode.classList.toggle("full", b !== el.querySelector(".kc__views button")); img.src = b.dataset.v; return; }
+      if (ev.target.closest(".kc__x")) shut();
+    });
+    requestAnimationFrame(() => el.classList.add("open"));
+    if (A.FX) A.FX.buzz("light");
+    return true;
+  }
+
   let closeResolve = null;
   function close() {
     if (!hall) return;
@@ -498,5 +536,5 @@
     if (isOpen()) close();
   }
 
-  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, summon, letter, isOpen, close, fresh, gainAt };
+  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, summon, letter, card, isOpen, close, fresh, gainAt };
 })();

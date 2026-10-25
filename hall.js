@@ -193,7 +193,7 @@
   function build() {
     if (hall) return hall;
     hall = document.createElement("div"); hall.className = "hall"; hall.id = "hall"; hall.setAttribute("role", "dialog"); hall.setAttribute("aria-modal", "true");
-    hall.innerHTML = `<div class="hall__rays" aria-hidden="true"></div>
+    hall.innerHTML = `<div class="hall__bg" aria-hidden="true"><i class="hb-day"></i><i class="hb-night"></i></div><div class="hall__rays" aria-hidden="true"></div>
       <div class="hall__fig" id="hallFig"></div>
       <div class="hall__plate" id="hallPlate"></div>
       <div class="hall__box" id="hallBox"><p class="hall__say" id="hallSay"></p><div class="hall__acts" id="hallActs"></div><div class="hall__tap" id="hallTap">торкнись, щоб продовжити</div></div>
@@ -207,14 +207,26 @@
     });
     return hall;
   }
+  /* мальований портрет (шлях лежить у зашифрованому вмісті: art / artFull); нема — гравюра кодом */
+  function artOf(who, full) {
+    if (who.art) return who.art;
+    const K = D().KEEPERS || {};
+    const k = who.id === "supreme" ? K.supreme : who.id === "seneschal" ? D().SENESCHAL : K[who.id];
+    return k ? (full ? k.artFull : k.art) || null : null;
+  }
   function show(who) {
     build();
     const k = (D().KEEPERS || {})[who.id] || {};
-    const fig = figure({ kind: who.kind || "bust", icon: who.icon, supreme: who.id === "supreme", head: who.head, look: who.look || k.look });
+    const art = artOf(who, who.kind === "full");
     const f = $("hallFig");
-    if (curFig !== fig) {
-      f.innerHTML = fig; curFig = fig;
-      f.classList.remove("drawn"); void f.offsetWidth; requestAnimationFrame(() => f.classList.add("drawn"));
+    const key = art || figure({ kind: who.kind || "bust", icon: who.icon, supreme: who.id === "supreme", head: who.head, look: who.look || k.look });
+    if (curFig !== key) {
+      curFig = key; f.classList.remove("drawn");
+      if (art) {
+        f.innerHTML = `<img class="hall__art${who.kind === "full" ? " hall__art--full" : who.id === "letter" ? " hall__art--item" : ""}" src="${esc(art)}" alt="">`;
+        const im = f.firstChild, go = () => requestAnimationFrame(() => f.classList.add("drawn"));
+        (im.decode ? im.decode() : Promise.resolve()).then(go, go);         // проявляється, коли вже завантажився
+      } else { f.innerHTML = key; void f.offsetWidth; requestAnimationFrame(() => f.classList.add("drawn")); }
     }
     $("hallPlate").innerHTML = `<b>${esc(who.name || k.name || "")}</b><span>${esc(who.title || k.title || "")}</span>${(who.bio || k.bio) ? `<em>${esc(who.bio || k.bio)}</em>` : ""}`;
     hall.classList.toggle("hall--supreme", who.id === "supreme");
@@ -451,8 +463,12 @@
   async function letter(lid) {
     const L = (D().LETTERS || []).find((x) => x.id === lid), K = D().KEEPERS || {}; if (!L) return;
     const v = (D().VOWS || []).find((x) => x.id === L.from);
-    show(v ? { id: L.from, icon: v.icon } : L.from === "supreme" ? SUPREME : Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {}));
-    if ((await say(`✉ Лист із печаткою Ордену. ${L.title ? "«" + L.title + "»" : ""}`)) === "closed") return;
+    const from = v ? { id: L.from, icon: v.icon } : L.from === "supreme" ? SUPREME : Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {});
+    const fromName = from.id === "supreme" ? (K.supreme || {}).name : from.name || (K[from.id] || {}).name || "";
+    /* спершу — сам лист із сургучем, тоді той, хто писав */
+    show({ id: "letter", art: "art/p/letter.webp", name: "Голубина пошта", title: L.title ? `«${L.title}»` : "Лист із печаткою Ордену" });
+    if ((await say(`✉ Лист із печаткою Ордену${fromName ? ". Від: " + fromName : ""}. Торкнись, щоб зламати печатку.`)) === "closed") return;
+    show(from);
     await runDialog(L);
     if (isOpen()) close();
   }

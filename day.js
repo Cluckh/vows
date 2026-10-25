@@ -128,13 +128,14 @@
   /* ===================================================== ДЖЕРЕЛА ДАНИХ ===== */
   /* звідки ціль бере дані: steps — «Здоровʼя», poker — HM3, mind — Calm, bank — виписка, "" — вручну.
      Старі цілі без поля src — за колишніми ознаками (позначка кроків, одиниця «роздач», назва з «медит») */
-  const SRC = { "": "вручну", steps: "кроки", poker: "роздачі", mind: "медитації", bank: "скарбниця" };
+  const SRC = { "": "вручну", steps: "кроки", poker: "роздачі", mind: "медитації", weight: "вага", bank: "скарбниця" };
   function srcOf(t) {
     if (!t) return "";
     if (t.src != null) return t.src;
     if (t.health === "steps") return "steps";
     if (t.type === "count" && /роздач/i.test(t.unit || "")) return "poker";
     if (/медит|meditat|calm/i.test(t.t || "")) return "mind";
+    if (t.type !== "count" && /зважит|ваг[аиу]\b|weigh/i.test(t.t || "")) return "weight";
     return "";
   }
 
@@ -161,6 +162,11 @@
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
       const h = hDay(k); if (!h || h.steps == null) continue;
       items(k).forEach(({ t, r }) => { if (srcOf(t) === "steps" && (!r || (r.cur || 0) < h.steps) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: h.steps, auto: 1 }); ch = true; } });
+    }
+    /* вага: ціль «зважитися» відмічається сама, щойно в «Здоровʼї» є зважування за день */
+    for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
+      if (!(hDay(k) || {}).weight) continue;
+      items(k).forEach(({ t, r }) => { if (srcOf(t) === "weight" && (!r || r.st !== "done") && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; } });
     }
     /* медитації з Calm («Усвідомлені хвилини»): ціль про медитацію відмічається сама */
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
@@ -993,7 +999,7 @@
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
         <div class="dy-f"><label>Вага</label><div class="dy-chips" data-dk="diff">${Object.keys(DIFF).map((v) => `<button type="button" data-dv="${v}" class="${(d.diff || "normal") === v ? "is-on" : ""}">${DIFF[v]} · ${BASE[v]}</button>`).join("")}</div></div>
         <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
-        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
+        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
         ${srcOf(d) === "bank" ? `<div class="dy-f"><label>Категорії</label><div class="dy-chips dy-chips--wrap" data-dk="bcat">${Object.entries(T() ? T().cats() : {}).filter(([c]) => c !== "own").map(([c, n]) => `<button type="button" data-dv="${c}" class="${(d.bank && d.bank.cats || []).includes(c) ? "is-on" : ""}">${esc(n)}</button>`).join("") || `<span class="dy-note">чекаю першу виписку банку</span>`}</div></div>
           <div class="dy-f dy-f--row"><label>Ліміт на день</label><input class="dy-in dy-in--n" id="dsBL" inputmode="decimal" value="${d.bank && d.bank.limit ? d.bank.limit / 100 : 0}"><span class="dy-unit">грн · 0 — без витрат</span></div>` : ""}
         <div class="dy-f"><label>Позначки</label><div class="dy-chips" data-dk="flags">
@@ -1169,7 +1175,7 @@
         d.src = v; d.health = v === "steps" ? "steps" : null;
         if (v === "steps") { d.type = "count"; d.unit = d.unit || "кроків"; d.target = d.target || 10000; }
         if (v === "poker") { d.type = "count"; d.unit = /роздач/i.test(d.unit || "") ? d.unit : "роздач"; d.target = d.target || 1000; }
-        if (v === "mind" || v === "bank") d.type = "do";
+        if (v === "mind" || v === "bank" || v === "weight") d.type = "do";
         if (v === "bank") d.bank = d.bank || { cats: [], limit: 0 };
       }
       if (k === "bcat") { d.bank = d.bank || { cats: [], limit: 0 }; const c = new Set(d.bank.cats); c.has(v) ? c.delete(v) : c.add(v); d.bank.cats = [...c]; }

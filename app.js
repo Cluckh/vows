@@ -1032,7 +1032,7 @@ window.ORDO_START = function () {
   /* звідки місячна чи річна ціль бере число: вручну, з привʼязаних денних цілей, зі «Здоровʼя» (кроки, медитації, вага) чи з HM3.
      Старі цілі без поля src — за назвою */
   const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації" },
-                 measure: { "": "вручну", steps: "кроки (середнє)", poker: "роздачі (середнє)", weight: "вага" } };
+                 measure: { "": "вручну", steps: "кроки (середнє)", poker: "роздачі (середнє)", weight: "вага", jar: "скарбничка" } };
   function goalSrc(it) {
     if (it.src != null) return it.src;
     if (it.link && it.link.length) return "link";
@@ -1046,6 +1046,7 @@ window.ORDO_START = function () {
     const [a, b] = periodOf(key);
     if (src === "link") return t === "count" ? (it.linkBase || 0) + DY.linkCount(it.link || [], a, b) : null;
     if (src === "weight") return t === "measure" ? DY.weightOn(b < todayKey() ? b : todayKey(), it.wmode || "avg7") : null;
+    if (src === "jar") { const T = window.ORDO_TREASURY, acc = T && T.accs && T.accs().find((x) => x.label === it.jar); return t === "measure" && acc ? Math.round(acc.bal) / 100 : null; }
     const f = { steps: DY.periodSteps, poker: DY.periodHands, mind: DY.periodMind }[src], ps = f && f(key);
     return ps ? (t === "count" ? ps.steps : ps.avg) : null;
   }
@@ -1065,7 +1066,29 @@ window.ORDO_START = function () {
     const cur = it.cur || 0, had = DY && it.link && it.link.length ? DY.linkCount(it.link, a, b) + (it.linkBase || 0) : cur;
     it.link = ids; it.linkBase = Math.max(0, had - (DY ? DY.linkCount(ids, a, b) : 0));
   }
+  /* одноразові привʼязки цілей (D.PATCHES з полем goals, у зашифрованому вмісті): ціль за частиною назви → джерело,
+     денні цілі за частиною назви. Не чіпає цілей, яким джерело вже вибрано вручну */
+  let goalPatched = false;
+  function goalPatches() {
+    if (goalPatched || !window.ORDO_DAY) return;
+    const done = LS.get("ordo.gpatches", []), tasks = window.ORDO_DAY.linkables(); let ch = false;
+    if (!tasks.length) return;                    // денні цілі ще не завантажені — спробуємо при наступному перерахунку
+    goalPatched = true;
+    (D.PATCHES || []).filter((p) => p.goals && !done.includes(p.id)).forEach((p) => {
+      ["m", "y"].forEach((kind) => Object.keys(G[kind]).forEach((key) => {
+        const P = G[kind][key]; if (P.res) return;
+        P.items.forEach((it) => {
+          const g = p.goals.find((x) => (it.t || "").toLowerCase().includes(x.m.toLowerCase())); if (!g || it.src != null) return;
+          if (g.src === "link") relink(it, key, tasks.filter((x) => (g.tasks || []).some((n) => x.t.toLowerCase().includes(n.toLowerCase()))).map((x) => x.id));
+          it.src = g.src; if (g.wmode) it.wmode = g.wmode; if (g.jar) it.jar = g.jar; ch = true;
+        });
+      }));
+      done.push(p.id);
+    });
+    LS.set("ordo.gpatches", done); if (ch) saveG();
+  }
   function settleAll() {
+    goalPatches();
     let fresh = 0;
     ["y", "m"].forEach((kind) => Object.keys(G[kind]).forEach((key) => {
       const P = G[kind][key]; if (P.res) return;
@@ -1324,8 +1347,10 @@ window.ORDO_START = function () {
       h += `<div class="gs-h">Дані</div><div class="cmp__ops gs-src">${Object.entries(SRCG[t]).map(([v, n]) => `<button type="button" data-gsrc="${v}" class="${src === v ? "is-on" : ""}">${n}</button>`).join("")}</div>`;
       if (src === "link") h += `<p class="cmp__hint">Рахується сама з денних цілей: «Зробити» — дні виконання, «Число» — сума. Що було набрано до привʼязки, лишається.</p>
         <div class="cmp__ops gs-src">${(DY ? DY.linkables() : []).map((x) => `<button type="button" data-glink="${x.id}" class="${(it.link || []).includes(x.id) ? "is-on" : ""}">${esc(x.t)}</button>`).join("") || `<span class="cmp__hint">повторюваних денних цілей ще немає</span>`}</div>`;
+      if (src === "jar") { const T = window.ORDO_TREASURY, accs = T && T.accs ? T.accs() : [];
+        h += `<div class="cmp__ops gs-src">${accs.map((x) => `<button type="button" data-gjar="${esc(x.label)}" class="${it.jar === x.label ? "is-on" : ""}">${esc(x.label)} · ${T.money(x.bal, x.cur)}</button>`).join("") || `<span class="cmp__hint">чекаю виписку банку</span>`}</div>`; }
       if (src === "weight") h += `<div class="cmp__ops gs-src">${[["avg7", "середня за 7 днів"], ["last", "останнє зважування"]].map(([v, n]) => `<button type="button" data-gwm="${v}" class="${(it.wmode || "avg7") === v ? "is-on" : ""}">${n}</button>`).join("")}</div>`;
-      if (src && src !== "link") h += `<p class="cmp__hint">${src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
+      if (src && src !== "link") h += `<p class="cmp__hint">${src === "jar" ? "Баланс рахунку чи банки з виписки підставляється сам (4 рази на день)." : src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
     }
     if (!locked) {
       if (t === "once") h += `<button class="btn ${it.done ? "btn--ghost" : "btn--gold"}" type="button" data-gs="once">${it.done ? "Зняти позначку" : "Виконано"}</button>`;
@@ -1394,6 +1419,8 @@ window.ORDO_START = function () {
     if (gsrc) { it.src = gsrc.dataset.gsrc; if (it.src === "link" && !it.link) relink(it, gs.key, []); stepsFill(it, gs.key); gsAfter(it); return; }
     const gl = e.target.closest("[data-glink]");
     if (gl) { const s = new Set(it.link || []), id = gl.dataset.glink; s.has(id) ? s.delete(id) : s.add(id); relink(it, gs.key, [...s]); stepsFill(it, gs.key); gsAfter(it); return; }
+    const gjar = e.target.closest("[data-gjar]");
+    if (gjar) { it.jar = gjar.dataset.gjar; stepsFill(it, gs.key); gsAfter(it); return; }
     const gwm = e.target.closest("[data-gwm]");
     if (gwm) { it.wmode = gwm.dataset.gwm; stepsFill(it, gs.key); gsAfter(it); return; }
     const gop = e.target.closest("[data-gop]");

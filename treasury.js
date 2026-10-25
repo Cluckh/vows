@@ -190,5 +190,5 @@
     const h = H(); if (h && h.isOpen()) h.close();
   }
 
-  window.ORDO_TREASURY = { load, statsHTML, scenes, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {} };
+  window.ORDO_TREASURY = { load, statsHTML, scenes, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {}, accs: () => (B && B.accs) || [] };
 })();

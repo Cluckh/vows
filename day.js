@@ -468,6 +468,7 @@
       dailyRoll();
       for (const q of Q.list.filter((x) => x.st === "offer")) { if (!(await offerScene(q))) break; }
       while (pendingDone.length) { const q = pendingDone.shift(); await doneScene(q); }
+      if (!(await eventScene())) return;
       if (window.ORDO_TREASURY) await window.ORDO_TREASURY.scenes();
       if (H().isOpen()) H().close();
       if (pendingUp) { const u = pendingUp; pendingUp = null; await rankScene(u); }
@@ -870,6 +871,61 @@
   }
   function renderStatsIfOpen() { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); }
 
+  /* ============================================================ ПИСАР ====== */
+  /* зведення для нічного писаря: що відбувається в житті Ордену (шифрується ключем сховища) */
+  function writerState() {
+    const A = API(), t0 = today(), vows = D().VOWS || [], LOG = LS.get("ordo.log", []), lv = levelOf(totalXP());
+    const since = (n) => add(t0, -n), days14 = []; for (let i = 13; i >= 0; i--) days14.push(add(t0, -i));
+    const rate = (t) => { let o = 0, w = 0; days14.forEach((k) => { if (!occurs(t, k) || k > t0) return; const st = stOf(t, rec(k, t.id), k); if (st === "moved" || st === "cancel") return; o++; if (isWin(st)) w++; }); return o ? `${w}/${o}` : null; };
+    const G = LS.get("ordo.goals", { y: {}, m: {} }), mk = t0.slice(0, 7), yk = t0.slice(0, 4);
+    const goals = (P) => P ? (P.items || []).map((it) => ({ t: it.t, type: it.type || "once", done: !!it.done, cur: it.cur, target: it.target })) : [];
+    const T = window.ORDO_TREASURY;
+    return {
+      at: new Date().toISOString(), today: t0, weekday: WDL[wd(t0)],
+      rank: { name: lv.rank.name, level: lv.L, xp: lv.xp, toNext: lv.to - lv.xp },
+      xp7: days14.slice(-7).map((k) => ({ d: k, xp: Object.values(X.e).filter((e) => e.d === k).reduce((a, e) => a + e.xp, 0) })),
+      vows: vows.map((v) => ({ id: v.id, name: v.name, streak: A.streak ? A.streak(v) : null, start: (LS.get("ordo.starts", {})[v.id]) || v.start, best: (LS.get("ordo.best", {})[v.id]) || null })),
+      breaches30: LOG.filter((e) => e.k === "breach" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, why: e.why || "" })),
+      calls30: LOG.filter((e) => e.k === "call" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, st: e.st })),
+      tasks: Object.values(S.tasks).filter((t) => !t.del && (!t.end || t.end >= t0)).map((t) => ({ t: t.t, type: t.type, target: t.target, unit: t.unit, rep: repText(t) || "раз", time: t.time || "", gym: isGym(t), rate14: rate(t) })),
+      perfectDays14: days14.filter((k) => perfect(k)).length,
+      quests: Q.list.slice(-25).map((q) => ({ pid: q.pid, rar: q.rar, giver: q.giver, t: q.t, st: q.st, from: q.from || q.offerOn, until: q.until, cur: q.cur, target: q.target })),
+      achievements: Object.keys(ACH),
+      goals: { month: goals(G.m && G.m[mk]), year: goals(G.y && G.y[yk]) },
+      gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "" })),
+      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin })).filter((x) => x.steps != null || x.sleepMin),
+      bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
+      seenEvents: Object.keys(S.ev || {})
+    };
+  }
+  let wAt = LS.get("ordo.k.writerAt", 0);
+  async function writerSync() {
+    const V = window.ORDO_VAULT; if (!V || !V.writeSealed || Date.now() - wAt < 6 * 3600e3) return;
+    try { if (await V.writeSealed("writer/state.json", writerState(), "писар: стан Ордену")) { wAt = Date.now(); LS.set("ordo.k.writerAt", wAt); } } catch (e) {}
+  }
+  /* те, що написав писар: нові квести (у пул), репліки храмовників, листи, події-сцени */
+  let DROP = LS.get("ordo.k.drop", null), dAt = 0;
+  function applyDrop() {
+    if (!DROP) return;
+    const K = D().KEEPERS || {};
+    Object.entries(DROP.lines || {}).forEach(([id, ls]) => { const k = id === "seneschal" ? null : K[id]; if (k && Array.isArray(ls)) { k.lines = k.lines || []; ls.forEach((l) => { if (!k.lines.includes(l)) k.lines.push(l); }); } });
+    if (Array.isArray(DROP.letters) && D().LETTERS) DROP.letters.forEach((l) => { if (!D().LETTERS.some((x) => x.id === l.id)) D().LETTERS.push(l); });
+  }
+  async function loadDrop() {
+    const V = window.ORDO_VAULT; if (!V || !V.readSealed || Date.now() - dAt < 30 * 60e3) return;
+    dAt = Date.now();
+    try { const d = await V.readSealed("writer/drop.json"); if (d && d.at !== (DROP && DROP.at)) { DROP = d; LS.set("ordo.k.drop", d); applyDrop(); } } catch (e) {}
+  }
+  async function eventScene() {
+    const h = H(); if (!h || !DROP || !Array.isArray(DROP.events)) return true;
+    S.ev = S.ev || {};
+    const ev = DROP.events.find((e) => e.on <= today() && (!e.until || e.until >= today()) && !S.ev[e.id] && e.n && e.n.length);
+    if (!ev) return true;
+    S.ev[ev.id] = today(); saveS();
+    h.stage(ev.giver || "supreme", ev.glow ? { glow: ev.glow } : {});
+    return h.runDialog({ n: ev.n });
+  }
+
   /* ============================================================ СТАРТ ====== */
   let started = false;
   function init() {
@@ -878,14 +934,14 @@
     const sc = $("scrim"); if (sc) sc.addEventListener("click", () => { if (sh) closeSheet(); });
     lastLevel = levelOf(totalXP());
     applyHealth(); settle(); lastLevel = levelOf(totalXP());
-    render(); loadHealth(true);
+    render(); loadHealth(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); settle(); render(); } }, 60000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadHealth(); settle(); render(); setTimeout(scenes, 1500); } });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadHealth(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
   window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem,
-    _state: () => ({ S, Q, X, ACH }) };
+    _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

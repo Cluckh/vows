@@ -161,8 +161,9 @@
         Object.keys(B2).forEach((id) => { if (A2[id] && (B2[id].at || 0) > (A2[id].at || 0)) log[k][id] = B2[id]; });
       });
       const wake = Object.assign({}, b.wake, a.wake); Object.keys(b.wake || {}).forEach((k) => { if (a.wake && a.wake[k] && b.wake[k] < a.wake[k]) wake[k] = b.wake[k]; });   // підйом — найраніше відкриття
+      const journal = Object.assign({}, b.journal, a.journal); Object.keys(b.journal || {}).forEach((k) => { if (a.journal && a.journal[k] && (b.journal[k].at || 0) > (a.journal[k].at || 0)) journal[k] = b.journal[k]; });
       const night = Object.assign({}, b.night, a.night); Object.keys(b.night || {}).forEach((k) => { if (a.night && a.night[k] && (b.night[k].ts || 0) > (a.night[k].ts || 0)) night[k] = b.night[k]; });
-      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, sleep: Object.assign({}, b.sleep, a.sleep), ev: Object.assign({}, b.ev, a.ev) }));
+      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep: Object.assign({}, b.sleep, a.sleep), ev: Object.assign({}, b.ev, a.ev) }));
     }
     if (L["ordo.quests"] || R["ordo.quests"]) {
       const a = P(L, "ordo.quests", {}), b = P(R, "ordo.quests", {}), by = {};

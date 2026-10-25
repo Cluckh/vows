@@ -17,7 +17,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="fonts/CormorantSC-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/EBGaramond-500i-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="styles.css?v=39">
+<link rel="stylesheet" href="styles.css?v=40">
 </head>
 <body>
 <div class="scene" aria-hidden="true"><i class="scene__dusk"></i><i class="scene__night"></i></div>
@@ -352,6 +352,7 @@
         <span class="crest__hint">у скрутну мить — торкнись щита</span>
       </header>
       <ul class="oaths" id="oaths"></ul>
+      <button class="confess" id="confessBtn" type="button"><svg><use href="#i-scroll"/></svg><span class="confess__t">Сповідь дня</span><span class="confess__s" id="confessSt">як минув день?</span></button>
       <footer class="board__foot">
         <div class="board__acts">
           <button class="replay" id="replay" type="button"><svg><use href="#i-play"/></svg>ритуал</button>
@@ -466,10 +467,10 @@
   </div>
 </div>
 
-<script src="app.js?v=48"></script>
+<script src="app.js?v=49"></script>
 <script src="hall.js?v=13"></script>
-<script src="day.js?v=12"></script>
+<script src="day.js?v=13"></script>
 <script src="treasury.js?v=5"></script>
-<script src="boot.js?v=14"></script>
+<script src="boot.js?v=15"></script>
 </body>
 </html>

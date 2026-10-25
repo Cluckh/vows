@@ -274,7 +274,7 @@
       await type(text);
       if (!isOpen()) return;
       const box = $("hallActs");
-      box.className = "hall__acts" + (cls ? " " + cls : "");
+      box.className = "hall__acts" + (cls ? " " + cls : "") + (options.length > 5 ? " hall__acts--many" : "");
       box.innerHTML = options.map((o, i) => `<button type="button" data-i="${i}" style="--d:${i * 70}ms">${esc(o)}</button>`).join("");
       const t0 = performance.now();                 // захист від випадкового «подвійного» тапу
       box.onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b || performance.now() - t0 < 450) return; box.onclick = null; closeResolve = null;

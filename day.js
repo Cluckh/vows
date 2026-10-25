@@ -125,6 +125,19 @@
   }
   const isWin = (st) => st === "done" || st === "fix";
 
+  /* ===================================================== ДЖЕРЕЛА ДАНИХ ===== */
+  /* звідки ціль бере дані: steps — «Здоровʼя», poker — HM3, mind — Calm, bank — виписка, "" — вручну.
+     Старі цілі без поля src — за колишніми ознаками (позначка кроків, одиниця «роздач», назва з «медит») */
+  const SRC = { "": "вручну", steps: "кроки", poker: "роздачі", mind: "медитації", bank: "скарбниця" };
+  function srcOf(t) {
+    if (!t) return "";
+    if (t.src != null) return t.src;
+    if (t.health === "steps") return "steps";
+    if (t.type === "count" && /роздач/i.test(t.unit || "")) return "poker";
+    if (/медит|meditat|calm/i.test(t.t || "")) return "mind";
+    return "";
+  }
+
   /* ========================================================== ЗДОРОВʼЯ ===== */
   /* день: кроки зі «Здоровʼя» + сон, записаний уранці в додатку, + час першого відкриття (підйом) */
   const hDay = (k) => {
@@ -147,13 +160,13 @@
     let ch = false;
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
       const h = hDay(k); if (!h || h.steps == null) continue;
-      items(k).forEach(({ t, r }) => { if (t.health === "steps" && (!r || (r.cur || 0) < h.steps) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: h.steps, auto: 1 }); ch = true; } });
+      items(k).forEach(({ t, r }) => { if (srcOf(t) === "steps" && (!r || (r.cur || 0) < h.steps) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: h.steps, auto: 1 }); ch = true; } });
     }
     /* медитації з Calm («Усвідомлені хвилини»): ціль про медитацію відмічається сама */
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
       const m = (hDay(k) || {}).mind; if (!m) continue;
       items(k).forEach(({ t, r }) => {
-        if (!isMind(t) || (r && (r.st === "moved" || r.st === "cancel"))) return;
+        if (srcOf(t) !== "mind" || (r && (r.st === "moved" || r.st === "cancel"))) return;
         if (t.type === "count") { if (!r || (r.cur || 0) < m) { setRec(k, t.id, { cur: m, auto: 1 }); ch = true; } }
         else if (!r || r.st !== "done") { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; }
       });
@@ -166,7 +179,6 @@
     if (ch) { saveQ(); const before = totalXP(); settle(); if (totalXP() > before) toast(`<b>+${totalXP() - before}</b> досвіду`); }
   }
   const hm = (min) => `${Math.floor(min / 60)} год ${p2(min % 60)} хв`;
-  const isMind = (t) => /медит|meditat|calm/i.test((t && t.t) || "");
   /* сесії медитації за місяць ("2026-10") чи рік ("2026"): з «Швидких команд», а якщо їх немає — сума записаних днів і місяців */
   function periodMind(key) {
     const D = (HL && HL.days) || {}, M = (HL && HL.months) || {};
@@ -199,7 +211,24 @@
     let ch = false;
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
       const p = pDay(k); if (!p || !p.hands) continue;
-      items(k).forEach(({ t, r }) => { if (t.type === "count" && /роздач/i.test(t.unit || "") && (!r || (r.cur || 0) < p.hands) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: p.hands, auto: 1 }); ch = true; } });
+      items(k).forEach(({ t, r }) => { if (t.type === "count" && srcOf(t) === "poker" && (!r || (r.cur || 0) < p.hands) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: p.hands, auto: 1 }); ch = true; } });
+    }
+    if (ch) { const before = totalXP(); settle(); if (totalXP() > before) toast(`<b>+${totalXP() - before}</b> досвіду`); }
+  }
+  /* ціль зі скарбниці: витрати в категоріях за день не більші за ліміт; день зараховується, коли виписка його вже покрила */
+  const bankSpent = (t, k) => T() && T().ready() && t.bank && t.bank.cats && t.bank.cats.length ? T().spentIn(t.bank.cats, k, k) : null;
+  function applyBank() {
+    if (!T() || !T().ready()) return;
+    let ch = false;
+    for (let k = add(today(), -6); k < today(); k = add(k, 1)) {
+      if (T().at() <= k) continue;
+      items(k).forEach(({ t, r }) => {
+        if (srcOf(t) !== "bank" || (r && (r.st === "moved" || r.st === "cancel"))) return;
+        const sp = bankSpent(t, k); if (sp == null) return;
+        const ok = sp <= (t.bank.limit || 0);
+        if (ok && (!r || r.st !== "done")) { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; }
+        else if (!ok && r && r.st === "done" && r.auto) { setRec(k, t.id, { st: null, auto: 0 }); ch = true; }      // запізніла транзакція
+      });
     }
     if (ch) { const before = totalXP(); settle(); if (totalXP() > before) toast(`<b>+${totalXP() - before}</b> досвіду`); }
   }
@@ -687,6 +716,7 @@
     return `<li class="dy-it st-${st}${t.quest ? " dy-it--q" : ""}" data-dopen="${t.id}">${mark}
       <div class="dy-body"><span class="dy-t">${esc(t.t)}</span>
         ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em></span>` : ""}
+        ${(() => { const sp = srcOf(t) === "bank" && k <= today() ? bankSpent(t, k) : null; return sp == null ? "" : `<span class="dy-num${sp > (t.bank.limit || 0) ? " is-over" : ""}">витрачено ${T().money(sp)} <em>/ ліміт ${T().money(t.bank.limit || 0)}</em></span>`; })()}
         <span class="dy-meta">${metaOf(t, r, k)}</span></div>
       ${cnt && !ro && st !== "done" && st !== "moved" && st !== "cancel" ? `<button type="button" class="gs-plus" data-dplus="${t.id}" aria-label="Додати">+</button>` : ""}
       ${xp ? `<span class="dy-xp">+${xp}</span>` : ""}</li>`;
@@ -823,9 +853,12 @@
         <div class="dy-f dy-f--row"><label>Час</label><input class="dy-in" id="dsH" type="time" value="${d.time || ""}"></div>
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
         <div class="dy-f"><label>Вага</label><div class="dy-chips" data-dk="diff">${Object.keys(DIFF).map((v) => `<button type="button" data-dv="${v}" class="${(d.diff || "normal") === v ? "is-on" : ""}">${DIFF[v]} · ${BASE[v]}</button>`).join("")}</div></div>
+        <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
+        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
+        ${srcOf(d) === "bank" ? `<div class="dy-f"><label>Категорії</label><div class="dy-chips dy-chips--wrap" data-dk="bcat">${Object.entries(T() ? T().cats() : {}).filter(([c]) => c !== "own").map(([c, n]) => `<button type="button" data-dv="${c}" class="${(d.bank && d.bank.cats || []).includes(c) ? "is-on" : ""}">${esc(n)}</button>`).join("") || `<span class="dy-note">чекаю першу виписку банку</span>`}</div></div>
+          <div class="dy-f dy-f--row"><label>Ліміт на день</label><input class="dy-in dy-in--n" id="dsBL" inputmode="decimal" value="${d.bank && d.bank.limit ? d.bank.limit / 100 : 0}"><span class="dy-unit">грн · 0 — без витрат</span></div>` : ""}
         <div class="dy-f"><label>Позначки</label><div class="dy-chips" data-dk="flags">
-          <button type="button" data-dv="gym" class="${d.gym ? "is-on" : ""}">зал</button>
-          <button type="button" data-dv="steps" class="${d.health === "steps" ? "is-on" : ""}">кроки зі «Здоровʼя»</button></div></div>
+          <button type="button" data-dv="gym" class="${d.gym ? "is-on" : ""}">зал</button></div></div>
         <button class="btn btn--gold" type="button" data-ds="save">${sh.id ? "Зберегти" : "Додати"}</button>
         ${sh.id ? `<button class="btn btn--reset" type="button" data-ds="del">Видалити ціль</button>` : ""}
         <button class="btn btn--ghost" type="button" data-ds="close">Скасувати</button>`;
@@ -914,6 +947,7 @@
     if ($("dsD") && v("dsD")) d.start = v("dsD");
     if ($("dsH")) d.time = v("dsH") || "";
     if ($("dsO")) d.notes = v("dsO").trim();
+    if ($("dsBL")) { d.bank = d.bank || { cats: [], limit: 0 }; d.bank.limit = Math.max(0, Math.round((numIn(v("dsBL")) || 0) * 100)); }
   }
   function onSheetChange(e) {
     if (!sh) return;
@@ -942,7 +976,15 @@
       if (k === "rep") { d.rep = { f: v, n: 1 }; if (v === "week") d.rep.days = [wd(d.start)]; }
       if (k === "days") { const s = new Set(d.rep.days || []); const n = +v; s.has(n) ? s.delete(n) : s.add(n); d.rep.days = [...s].sort(); if (!d.rep.days.length) d.rep.days = [n]; }
       if (k === "diff") d.diff = v;
-      if (k === "flags") { if (v === "gym") d.gym = !d.gym; if (v === "steps") { d.health = d.health === "steps" ? null : "steps"; if (d.health) { d.type = "count"; d.unit = d.unit || "кроків"; d.target = d.target || 10000; } } }
+      if (k === "flags" && v === "gym") d.gym = !d.gym;
+      if (k === "src") {
+        d.src = v; d.health = v === "steps" ? "steps" : null;
+        if (v === "steps") { d.type = "count"; d.unit = d.unit || "кроків"; d.target = d.target || 10000; }
+        if (v === "poker") { d.type = "count"; d.unit = /роздач/i.test(d.unit || "") ? d.unit : "роздач"; d.target = d.target || 1000; }
+        if (v === "mind" || v === "bank") d.type = "do";
+        if (v === "bank") d.bank = d.bank || { cats: [], limit: 0 };
+      }
+      if (k === "bcat") { d.bank = d.bank || { cats: [], limit: 0 }; const c = new Set(d.bank.cats); c.has(v) ? c.delete(v) : c.add(v); d.bank.cats = [...c]; }
       buzz("light"); renderSheet(); return;
     }
     const mv = e.target.closest("[data-dmv]"); if (mv) { moveTo(mv.dataset.dmv); return; }
@@ -954,6 +996,7 @@
       readDraft(); const d = sh.draft;
       if (!d.t) { const i = $("dsT"); if (i) i.focus(); return; }
       if (d.type === "count" && !(d.target > 0)) { const i = $("dsN"); if (i) i.focus(); return; }
+      if (srcOf(d) === "bank" && !(d.bank && d.bank.cats.length)) { toast("Обери хоча б одну категорію витрат"); return; }
       const nid = sh.id || uid();
       S.tasks[nid] = Object.assign({}, d, { id: nid, mt: Date.now(), created: d.created || today() });
       saveS(); fx("yes"); buzz("medium"); closeSheet(); after(before); return;
@@ -1135,7 +1178,7 @@
       S.seeded = seed.v; saveS();
     }
     lastLevel = levelOf(totalXP());
-    applyHealth(); applyPoker(); settle(); lastLevel = levelOf(totalXP());
+    applyHealth(); applyPoker(); applyBank(); settle(); lastLevel = levelOf(totalXP());
     render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); settle(); render(); } }, 60000);
@@ -1156,6 +1199,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands, periodMind,
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands, periodMind, bankSync: () => { applyBank(); render(); },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

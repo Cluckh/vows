@@ -42,7 +42,7 @@
     loadedAt = Date.now();
     try {
       const s = await V.readSealed("bank/summary.json");
-      if (s && s.at !== (B && B.at)) { B = s; LS.set("ordo.k.bank", s); const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); }
+      if (s && s.at !== (B && B.at)) { B = s; LS.set("ordo.k.bank", s); const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); if (window.ORDO_DAY && window.ORDO_DAY.bankSync) window.ORDO_DAY.bankSync(); }
     } catch (e) {}
   }
 

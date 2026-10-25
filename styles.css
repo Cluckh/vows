@@ -1428,6 +1428,8 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-body-line svg{width:16px;height:16px;color:var(--gold)}
 .dy-body-line b{color:var(--bone);font-weight:500}
 .dy-body-line--sub{margin:-8px 0 14px;font-size:12.5px;gap:14px;flex-wrap:wrap}
+.dy-num.is-over,.dy-num.is-over em{color:var(--ember-2)}
+.dy-note--src{margin:-4px 0 10px;font-size:12.5px}
 /* — День: шлях повернення після зриву — */
 .dy-ret{display:grid;justify-items:center;gap:6px;margin:0 0 16px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--gold) 35%,transparent);border-radius:14px;background:color-mix(in srgb,var(--gold) 6%,transparent)}
 .dy-ret__t{font-family:var(--f-display);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}

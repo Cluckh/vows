@@ -54,6 +54,7 @@
   let X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
   X.e = X.e || {};
   let ACH = LS.get("ordo.ach", {}) || {};
+  let PK = LS.get("ordo.k.poker", null);                    // роздачі й сесії з бази HM3 (з компа через приватний репозиторій)
   let HL = LS.get("ordo.k.health", null);                   // кроки й сон зі «Здоровʼя» (лише на пристрої; джерело — приватний репозиторій)
   let GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {};
   const saveG = () => LS.set("ordo.gym", GYM);
@@ -163,6 +164,34 @@
     Object.keys((HL && HL.days) || {}).forEach((k) => { const v = HL.days[k].steps; if (k.startsWith(key) && v != null) { sum += v; n++; } });
     if (!u && !n) return null;
     return u && u.steps >= sum ? { steps: u.steps, avg: u.avg, at: u.at } : { steps: sum, avg: Math.round(sum / n), at: null };
+  }
+
+  /* ============================================================== ПОКЕР ===== */
+  let pAt = 0;
+  async function loadPoker(force) {
+    const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - pAt < 5 * 60e3)) return;
+    pAt = Date.now();
+    try { const p = await V.readSealed("poker/log.json"); if (p && p.at !== (PK && PK.at)) { PK = p; LS.set("ordo.k.poker", p); applyPoker(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } } catch (e) {}
+  }
+  const pDay = (k) => (PK && PK.days && PK.days[k]) || null;
+  /* роздачі з HM3 — у лічильники з одиницею «роздач» (квести на роздачі рахуються з них самі) */
+  function applyPoker() {
+    if (!PK || !PK.days) return;
+    let ch = false;
+    for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
+      const p = pDay(k); if (!p || !p.hands) continue;
+      items(k).forEach(({ t, r }) => { if (t.type === "count" && /роздач/i.test(t.unit || "") && (!r || (r.cur || 0) < p.hands) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: p.hands, auto: 1 }); ch = true; } });
+    }
+    if (ch) { const before = totalXP(); settle(); if (totalXP() > before) toast(`<b>+${totalXP() - before}</b> досвіду`); }
+  }
+  /* роздачі за місяць ("2026-10") чи рік ("2026"): з HM3, а якщо їх немає — сума записаних днів */
+  function periodHands(key) {
+    const up = PK && (key.length === 4 ? PK.years : PK.months), u = up && up[key];
+    let sum = 0, n = 0;
+    Object.keys((PK && PK.days) || {}).forEach((k) => { const v = PK.days[k].hands; if (k.startsWith(key) && v) { sum += v; n++; } });
+    if (!u && !n) return null;
+    const hands = Math.max(u ? u.hands : 0, sum);
+    return { steps: hands, hands, avg: n ? Math.round(sum / n) : null };
   }
 
   /* ================================================================ ЗАЛ ===== */
@@ -680,6 +709,8 @@
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k);
     if (hd && (hd.steps != null || hd.sleepMin || hd.up)) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}</div>`;
+    const pk = pDay(k);
+    if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${hm(pk.min || 0).replace(" 00 хв", "")}` : ""}</span></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) h += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
     const cb = k === today() ? comeback() : null;
@@ -1039,6 +1070,7 @@
       gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "" })),
       steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
       faith: Object.assign(faith(), { comeback: comeback() }),
+      poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
       health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       seenEvents: Object.keys(S.ev || {})
@@ -1084,11 +1116,11 @@
       S.seeded = seed.v; saveS();
     }
     lastLevel = levelOf(totalXP());
-    applyHealth(); settle(); lastLevel = levelOf(totalXP());
-    render(); loadHealth(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
+    applyHealth(); applyPoker(); settle(); lastLevel = levelOf(totalXP());
+    render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); settle(); render(); } }, 60000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) { stamp(); loadHealth(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { stamp(); loadHealth(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);
   }
   /* перше відкриття дня = підйом; до 8:00 — питаємо, як спав (після ритуалу, коли нічого не відкрито) */
@@ -1105,6 +1137,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps,
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands,
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

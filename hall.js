@@ -258,15 +258,43 @@
         ${e.motto ? `<blockquote class="kc__motto">«${esc(e.motto)}»</blockquote>` : ""}${stat ? `<p class="kc__stat">${stat}</p>` : ""}
         ${e.sign ? `<h3 class="kc__h">Знак</h3><p class="kc__p">${esc(e.sign)}</p>` : ""}
         ${(e.about || []).length ? `<h3 class="kc__h">Хто він</h3>${e.about.map((t) => `<p class="kc__p">${esc(t)}</p>`).join("")}` : ""}
+        <button class="kc__back btn btn--ghost" type="button">Повернутись</button>
       </div><button class="kc__x" type="button" aria-label="Закрити"><svg><use href="#i-x"/></svg></button>`;
     document.body.appendChild(el);
     const img = el.querySelector(".kc__art img");
+    const sc = el.querySelector(".kc__scroll");
     const shut = () => { el.classList.remove("open"); setTimeout(() => el.remove(), 350); };
+    /* свайп униз (коли картка догорнута до верху) або вбік — закрити */
+    let t0 = null;
+    el.addEventListener("touchstart", (ev) => { const t = ev.touches[0]; t0 = { x: t.clientX, y: t.clientY, top: sc.scrollTop <= 0, mode: null, d: 0 }; sc.style.transition = "none"; }, { passive: true });
+    el.addEventListener("touchmove", (ev) => {
+      if (!t0 || ev.touches.length > 1) return;
+      const t = ev.touches[0], dx = t.clientX - t0.x, dy = t.clientY - t0.y;
+      if (!t0.mode) {
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) t0.mode = "x";
+        else if (dy > 12 && t0.top && dy > Math.abs(dx)) t0.mode = "y";
+        else if (Math.abs(dy) > 12) t0.mode = "scroll";
+      }
+      if (t0.mode !== "x" && t0.mode !== "y") return;
+      ev.preventDefault();
+      t0.d = t0.mode === "x" ? dx : Math.max(0, dy);
+      sc.style.transform = t0.mode === "x" ? `translateX(${t0.d}px)` : `translateY(${t0.d}px)`;
+      el.style.opacity = String(1 - Math.min(Math.abs(t0.d) / 500, 0.45));
+    }, { passive: false });
+    el.addEventListener("touchend", () => {
+      if (!t0) return; const m = t0.mode, d = t0.d; t0 = null;
+      sc.style.transition = "transform .3s var(--ease)";
+      if ((m === "x" || m === "y") && Math.abs(d) > 90) {
+        const out = m === "x" ? `translateX(${d > 0 ? "" : "-"}110%)` : "translateY(60%)";
+        sc.style.transform = out; el.style.transition = "opacity .3s ease"; el.style.opacity = "0"; setTimeout(() => el.remove(), 320);
+        if (A.FX) A.FX.buzz("light");
+      } else { sc.style.transform = ""; el.style.opacity = ""; }
+    });
     el.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const b = ev.target.closest(".kc__views button");
       if (b && img) { el.querySelectorAll(".kc__views button").forEach((x) => x.classList.toggle("on", x === b)); img.parentNode.classList.toggle("full", b !== el.querySelector(".kc__views button")); img.src = b.dataset.v; return; }
-      if (ev.target.closest(".kc__x")) shut();
+      if (ev.target.closest(".kc__x, .kc__back")) shut();
     });
     requestAnimationFrame(() => el.classList.add("open"));
     if (A.FX) A.FX.buzz("light");

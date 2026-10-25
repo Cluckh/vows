@@ -1225,3 +1225,6 @@ body.is-night .hall__bg .hb-night{opacity:1}
 .kc__h{margin:26px 0 8px;font-family:var(--f-display);font-weight:600;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold)}
 .kc__h::before,.kc__h::after{content:"";display:inline-block;width:28px;height:1px;margin:0 10px;vertical-align:middle;background:rgba(205,163,73,.4)}
 .kc__p{margin:0 auto 12px;max-width:440px;text-align:left;font-family:var(--f-serif);font-size:17px;line-height:1.6;color:var(--bone)}
+.kc__scroll{overscroll-behavior:contain;touch-action:pan-y}
+.kc__back{display:block;width:min(100%,440px);margin:26px auto 0}
+.sheet,.confirm,.hall{overscroll-behavior:contain}

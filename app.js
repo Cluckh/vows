@@ -294,7 +294,7 @@ window.ORDO_START = function () {
        (списки обітниць, цілей, Літопис, шторки, введення цілей), накладок немає —
        вібрація лишається на нерухомих кнопках: вкладки, кнопки під табло, вікна
        підтвердження, ревю «Виконав / Не виконав». */
-    const SCROLLS = "#oaths, #goalsBody, #statsBody, .sheet, #riteEntry";
+    const SCROLLS = "#oaths, #goalsBody, #statsBody, .sheet, #riteEntry, .kc";
     const skip = (el) => /^(INPUT|TEXTAREA|SELECT|LABEL)$/.test(el.tagName) || el.classList.contains("hx-ovl") || !!el.closest(SCROLLS);
     function dress(el) {
       if (skip(el) || el.querySelector(":scope > .hx-ovl")) return;
@@ -1763,6 +1763,19 @@ window.ORDO_START = function () {
   on("intro", "pointerdown", onSkip);
   on("intro", "keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSkip(); } });
   on("replay", "click", () => { FX.unlock(); FX.buzz("light"); $("board") && $("board").classList.remove("reveal"); runIntro(); });
+  /* поки відкрита шторка, вікно чи зала — фон стоїть (iOS ігнорує overflow:hidden на body, тож фіксуємо body) */
+  {
+    const OVER = ".scrim.open, .confirm.open, .hall.open, .kc, .rite.open, #vaultModal.open";
+    let lockY = null, queued = false;
+    const sync = () => {
+      queued = false;
+      const on = !!document.querySelector(OVER), bs = document.body.style;
+      if (on && lockY === null) { lockY = window.scrollY; bs.position = "fixed"; bs.top = -lockY + "px"; bs.left = bs.right = "0"; }
+      else if (!on && lockY !== null) { bs.position = bs.top = bs.left = bs.right = ""; window.scrollTo(0, lockY); lockY = null; }
+    };
+    new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(sync); } })
+      .observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+  }
   /* медальйон чи храмовник ритуалу → картка храмовника (перехоплюємо раніше за тап-«далі») */
   document.addEventListener("click", (e) => {
     const c = e.target.closest && e.target.closest("[data-card]");

@@ -79,6 +79,7 @@
         return d.getDate() === Math.min(s.getDate(), dim(d.getFullYear(), d.getMonth() + 1));
       }
       case "year": return t.start.slice(5) === k.slice(5);
+      case "mlast": return k === endOfMonth(k);
       default: return k === t.start;
     }
   }
@@ -90,6 +91,7 @@
     if (r.f === "week") { const ds = (r.days && r.days.length ? r.days : [wd(t.start)]).slice().sort(); return (n > 1 ? `кожні ${n} тижні: ` : "") + (ds.length === 7 ? "щодня" : ds.map((d) => WD[d]).join(", ")); }
     if (r.f === "month") return n > 1 ? `кожні ${n} місяці` : `щомісяця, ${dt(t.start).getDate()}-го`;
     if (r.f === "year") return `щороку, ${human(t.start)}`;
+    if (r.f === "mlast") return "в останній день місяця";
     return "";
   }
 
@@ -333,8 +335,19 @@
     if (q.type === "budget") { const sp = qSpent(q); return q.st === "done" ? 1 : sp == null ? 0 : q.limit ? Math.max(0, 1 - sp / q.limit) : sp > 0 ? 0 : 1; }
     return q.type === "count" && q.target ? Math.min(1, (q.cur || 0) / q.target) : q.st === "done" ? 1 : 0;
   }
+  /* квест-лічильник з одиницею, як у денного лічильника (роздач, склянок…), рахується з денних відміток */
+  function autoCount() {
+    Q.list.forEach((q) => {
+      if (q.st !== "active" || q.type !== "count" || !q.unit || /крок/i.test(q.unit)) return;
+      const ts = Object.values(S.tasks).filter((t) => t.type === "count" && !t.del && t.unit && t.unit.trim().toLowerCase() === q.unit.trim().toLowerCase());
+      if (!ts.length) return;
+      let sum = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) ts.forEach((t) => { const r = rec(k, t.id); if (r && r.cur) sum += r.cur; });
+      if (sum > (q.cur || 0)) { q.cur = sum; q.at = Date.now(); if (q.target && q.cur >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+    });
+  }
   function settleQuests() {
     const t0 = today();
+    autoCount();
     Q.list.forEach((q) => {
       if (q.type === "budget" && q.st === "active" && T() && T().ready()) {          // бюджет: суддя — виписка банку
         const sp = qSpent(q);
@@ -527,6 +540,7 @@
     if (r && r.from) bits.push(`перенесено з ${human(r.from)}`);
     if (r && r.st === "moved" && r.to) bits.push(`перенесено на ${human(r.to)}`);
     if (r && r.note) bits.push(`<i>${esc(r.note)}</i>`);
+    else if (t.notes && t.notes.length <= 40) bits.push(`<i>${esc(t.notes)}</i>`);
     return bits.join(" · ");
   }
   function rowHTML(t, r, k) {
@@ -648,7 +662,7 @@
     if (!document.querySelector(".sheet.open, .confirm.open")) { const sc = $("scrim"); if (sc) sc.classList.remove("open"); }
     sh = null;
   }
-  const REPS = [["none", "Ніколи"], ["day", "Щодня"], ["wd", "У будні"], ["we", "У вихідні"], ["week", "Щотижня"], ["month", "Щомісяця"], ["year", "Щороку"]];
+  const REPS = [["none", "Ніколи"], ["day", "Щодня"], ["wd", "У будні"], ["we", "У вихідні"], ["week", "Щотижня"], ["month", "Щомісяця"], ["mlast", "Останній день місяця"], ["year", "Щороку"]];
   function renderSheet() {
     const el = sheetEl(); if (!sh) return;
     let h = `<div class="sheet__grip"></div>`;
@@ -666,6 +680,7 @@
         ${["day", "week", "month"].includes(r.f) ? `<div class="dy-f dy-f--row"><label>Кожні</label><input class="dy-in dy-in--n" id="dsE" inputmode="numeric" value="${r.n || 1}"><span class="dy-unit">${r.f === "day" ? "дн." : r.f === "week" ? "тиж." : "міс."}</span></div>` : ""}
         <div class="dy-f dy-f--row"><label>${r.f === "none" ? "Дата" : "Починаючи з"}</label><input class="dy-in" id="dsD" type="date" value="${d.start}"></div>
         <div class="dy-f dy-f--row"><label>Час</label><input class="dy-in" id="dsH" type="time" value="${d.time || ""}"></div>
+        <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
         <div class="dy-f"><label>Вага</label><div class="dy-chips" data-dk="diff">${Object.keys(DIFF).map((v) => `<button type="button" data-dv="${v}" class="${(d.diff || "normal") === v ? "is-on" : ""}">${DIFF[v]} · ${BASE[v]}</button>`).join("")}</div></div>
         <div class="dy-f"><label>Позначки</label><div class="dy-chips" data-dk="flags">
           <button type="button" data-dv="gym" class="${d.gym ? "is-on" : ""}">зал</button>
@@ -678,7 +693,9 @@
       const k = sh.k, r = rec(k, t.id), st = stOf(t, r, k), fut = k > today(), cnt = t.type === "count";
       const xp = xpTask(t, r || {}, k), ch = chainBefore(t, k);
       h += `<div class="gs-kicker">${rel(k)}, ${human(k)}</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
-        <div class="sheet__stat">${[repText(t), t.time, DIFF[t.diff || "normal"] + " · " + BASE[t.diff || "normal"]].filter(Boolean).join(" · ")}${ch ? ` · поспіль ${ch}` : ""}</div>`;
+        <div class="sheet__stat">${[repText(t), t.time, DIFF[t.diff || "normal"] + " · " + BASE[t.diff || "normal"]].filter(Boolean).join(" · ")}${ch ? ` · поспіль ${ch}` : ""}</div>
+        ${t.notes ? `<p class="dy-note dy-note--t">${esc(t.notes)}</p>` : ""}
+        ${t.link === "goals" ? `<button type="button" class="btn btn--line" data-ds="goals">Відкрити Цілі</button>` : ""}`;
       if (cnt) h += `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dsC" inputmode="decimal" value="${(r && r.cur) || 0}"><span class="dy-unit">/ ${fmtN(t.target)} ${esc(t.unit || "")}</span></div>`;
       if (!fut) {
         h += `<div class="dy-acts">`;
@@ -746,6 +763,7 @@
     if ($("dsE")) d.rep.n = Math.max(1, Math.round(numIn(v("dsE")) || 1));
     if ($("dsD") && v("dsD")) d.start = v("dsD");
     if ($("dsH")) d.time = v("dsH") || "";
+    if ($("dsO")) d.notes = v("dsO").trim();
   }
   function onSheetChange(e) {
     if (!sh) return;
@@ -796,6 +814,7 @@
     if (a === "fixq") { sh.mode = "fix"; renderSheet(); setTimeout(() => { const f = $("dsF"); if (f) f.focus(); }, 300); return; }
     if (a === "fix") { const n = ($("dsF") || {}).value || ""; setRec(k, id, { st: "fix", note: n.trim() || null }); fx("yes"); buzz("medium"); closeSheet(); after(before); if (isGym(S.tasks[id])) setTimeout(() => openSheet("gym", id, k), 500); return; }
     if (a === "gym") { openSheet("gym", id, k); return; }
+    if (a === "goals") { closeSheet(); const A = API(); if (A.showTab) setTimeout(() => A.showTab("goals"), 300); return; }
     if (a === "gsave") { readGym(); const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now();
       if (g.ex.length) GYM.log[k] = g; else delete GYM.log[k]; saveG(); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
     if (a === "gadd") { readGym(); sh.gym.ex.push({ n: "", sets: [{ r: null, w: null }] }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".gy-n"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
@@ -932,6 +951,11 @@
     if (started) return; started = true;
     const box = $("dayBody"); if (box) box.addEventListener("click", onBody);
     const sc = $("scrim"); if (sc) sc.addEventListener("click", () => { if (sh) closeSheet(); });
+    const seed = (D().DAY || {}).seed;
+    if (seed && seed.tasks && S.seeded !== seed.v) {
+      seed.tasks.forEach((t) => { if (!S.tasks[t.id]) S.tasks[t.id] = Object.assign({ diff: "normal", rep: { f: "none" }, created: today() }, t, { mt: Date.now() }); });
+      S.seeded = seed.v; saveS();
+    }
     lastLevel = levelOf(totalXP());
     applyHealth(); settle(); lastLevel = levelOf(totalXP());
     render(); loadHealth(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000);

@@ -1437,3 +1437,4 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .gy-set i{color:var(--ash-2);font-style:normal}
 .gy-r,.gy-w{width:58px;padding:8px 6px;text-align:center;font-size:15px}
 .gy-plus{padding:8px 12px;border-radius:999px;border:1px dashed var(--edge);font-family:var(--f-serif);font-size:13px;color:var(--gold)}
+.dy-note--t{white-space:pre-line;color:var(--bone)}

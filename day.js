@@ -167,12 +167,13 @@
   }
   const hm = (min) => `${Math.floor(min / 60)} год ${p2(min % 60)} хв`;
   const isMind = (t) => /медит|meditat|calm/i.test((t && t.t) || "");
-  /* сесії медитації за місяць ("2026-10") чи рік ("2026"): місяць — з «Швидких команд» або сума записаних днів, рік — сума місяців */
+  /* сесії медитації за місяць ("2026-10") чи рік ("2026"): з «Швидких команд», а якщо їх немає — сума записаних днів і місяців */
   function periodMind(key) {
     const D = (HL && HL.days) || {}, M = (HL && HL.months) || {};
     const month = (mk) => { let n = 0; Object.keys(D).forEach((k) => { if (k.startsWith(mk)) n += D[k].mind || 0; }); return Math.max((M[mk] && M[mk].mind) || 0, n); };
     const mks = key.length === 7 ? [key] : [...new Set(Object.keys(D).concat(Object.keys(M)).map((k) => k.slice(0, 7)))].filter((m) => m.startsWith(key));
-    const n = mks.reduce((a, m) => a + month(m), 0);
+    const y = key.length === 4 && HL && HL.years && HL.years[key] && HL.years[key].mind;
+    const n = Math.max(y || 0, mks.reduce((a, m) => a + month(m), 0));
     return n ? { steps: n, avg: null } : null;
   }
   /* кроки за місяць ("2026-10") чи рік ("2026"): з «Швидких команд», а якщо їх немає — сума записаних днів */

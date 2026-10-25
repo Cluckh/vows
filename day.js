@@ -37,6 +37,7 @@
   const endOfMonth = (k) => { const d = dt(k); return keyOf(new Date(d.getFullYear(), d.getMonth() + 1, 0, 12)); };
   const WD = ["", "пн", "вт", "ср", "чт", "пт", "сб", "нд"];
   const WDL = ["", "понеділок", "вівторок", "середа", "четвер", "пʼятниця", "субота", "неділя"];
+  const MN = ["січень", "лютий", "березень", "квітень", "травень", "червень", "липень", "серпень", "вересень", "жовтень", "листопад", "грудень"];
   const MG = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"];
   const human = (k) => { const d = dt(k); return `${d.getDate()} ${MG[d.getMonth()]}`; };
   const rel = (k) => { const n = diff(today(), k); return n === 0 ? "Сьогодні" : n === -1 ? "Вчора" : n === 1 ? "Завтра" : n === 2 ? "Післязавтра" : n === -2 ? "Позавчора" : `${WDL[wd(k)].replace(/^./, (c) => c.toUpperCase())}`; };
@@ -137,7 +138,7 @@
   async function loadHealth(force) {
     const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - hAt < 5 * 60e3)) return;
     hAt = Date.now();
-    try { const h = await V.readSealed("health/log.json"); if (h && h.at !== (HL && HL.at)) { HL = h; LS.set("ordo.k.health", h); applyHealth(); render(); } } catch (e) {}
+    try { const h = await V.readSealed("health/log.json"); if (h && h.at !== (HL && HL.at)) { HL = h; LS.set("ordo.k.health", h); applyHealth(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } } catch (e) {}
   }
   /* кроки з телефона — у лічильники з позначкою «кроки» і в квести на кроки */
   function applyHealth() {
@@ -155,6 +156,14 @@
     if (ch) { saveQ(); const before = totalXP(); settle(); if (totalXP() > before) toast(`<b>+${totalXP() - before}</b> досвіду`); }
   }
   const hm = (min) => `${Math.floor(min / 60)} год ${p2(min % 60)} хв`;
+  /* кроки за місяць ("2026-10") чи рік ("2026"): з «Швидких команд», а якщо їх немає — сума записаних днів */
+  function periodSteps(key) {
+    const up = HL && (key.length === 4 ? HL.years : HL.months), u = up && up[key];
+    let sum = 0, n = 0;
+    Object.keys((HL && HL.days) || {}).forEach((k) => { const v = HL.days[k].steps; if (k.startsWith(key) && v != null) { sum += v; n++; } });
+    if (!u && !n) return null;
+    return u && u.steps >= sum ? { steps: u.steps, avg: u.avg, at: u.at } : { steps: sum, avg: Math.round(sum / n), at: null };
+  }
 
   /* ================================================================ ЗАЛ ===== */
   const isGym = (t) => !!(t && (t.gym || /(^|[^а-яіїєґ])зал([^а-яіїєґ]|$)|тренуван|gym/i.test(t.t || "")));
@@ -608,6 +617,8 @@
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k);
     if (hd && (hd.steps != null || hd.sleepMin || hd.up)) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}</div>`;
+    const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
+    if (pm || py) h += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
     const gymT = its.find(({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel");
     const adv = gymT && k >= today() ? gymAdvice(k) : null;
     if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
@@ -953,6 +964,7 @@
       achievements: Object.keys(ACH),
       goals: { month: goals(G.m && G.m[mk]), year: goals(G.y && G.y[yk]) },
       gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "" })),
+      steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
       health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       seenEvents: Object.keys(S.ev || {})
@@ -1019,6 +1031,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem,
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps,
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

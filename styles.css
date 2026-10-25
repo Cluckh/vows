@@ -1425,6 +1425,7 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-body-line span{display:inline-flex;align-items:center;gap:6px}
 .dy-body-line svg{width:16px;height:16px;color:var(--gold)}
 .dy-body-line b{color:var(--bone);font-weight:500}
+.dy-body-line--sub{margin:-8px 0 14px;font-size:12.5px;gap:14px;flex-wrap:wrap}
 .dy-adv{margin:0 0 14px}
 .dy-tips{margin:6px 0 0;padding-left:16px;font-family:var(--f-serif);font-size:13.5px;color:var(--bone)}
 .dy-tips li{margin:2px 0}

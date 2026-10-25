@@ -1020,11 +1020,21 @@ window.ORDO_START = function () {
     if (!c && it.done && t !== "vows") { it.done = null; LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id)); saveLog(); }
     return false;
   }
+  /* цілі про кроки заповнюються самі зі «Здоровʼя»: лічильник — кроки за період, мірило — середнє на день */
+  function stepsFill(it, key) {
+    const DY = window.ORDO_DAY, t = tyOf(it);
+    if (!/крок/i.test(it.t || "") || (t !== "count" && t !== "measure") || !DY || !DY.periodSteps) return;
+    const ps = DY.periodSteps(key), v = ps && (t === "count" ? ps.steps : ps.avg); if (v == null) return;
+    const lv = lastVal(it);
+    if (t === "count") { if ((it.cur || 0) >= v) return; it.cur = v; } else if (lv && lv.v === v) return;
+    it.hist = it.hist || []; const td = todayKey();
+    if (lv && lv.d === td) lv.v = v; else it.hist.push({ d: td, v });
+  }
   function settleAll() {
     let fresh = 0;
     ["y", "m"].forEach((kind) => Object.keys(G[kind]).forEach((key) => {
       const P = G[kind][key]; if (P.res) return;
-      P.items.forEach((it) => { if (settle(it, kind, key)) fresh++; });
+      P.items.forEach((it) => { stepsFill(it, key); if (settle(it, kind, key)) fresh++; });
     }));
     saveG(); return fresh;
   }
@@ -2014,7 +2024,8 @@ window.ORDO_START = function () {
   });
   window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); },
     dayState, tab: () => TAB, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy,
-    openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id) };
+    openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id),
+    goalsSync: () => { settleAll(); updateGoalsDot(); if (TAB === "goals") renderGoals(); } };
   if (window.ORDO_TREASURY) { window.ORDO_TREASURY.load(); document.addEventListener("visibilitychange", () => { if (!document.hidden) window.ORDO_TREASURY.load(); }); }
   if (window.ORDO_DAY) window.ORDO_DAY.init();
 };

@@ -401,6 +401,13 @@ window.ORDO_START = function () {
   /* вікна місяця: відмітки; якщо місяць позначено «вичерпано» — усі використані */
   const windowsUsed = (v, mk) => { mk = mk || monthKey(); if ((LS.get("ordo.spent", {}))[`${v.id}|${mk}`]) return v.window ? v.window.limit : 0; return monthEvents(v, mk, "mark").length; };
   const oversIn = (v, mk) => monthEvents(v, mk || monthKey(), "breach").filter((e) => e.why !== "manual").length;
+  /* вірні дні обітниці за останні 30 (з початку обліку): зрив обнуляє стрік, але не їх */
+  function faith30(v) {
+    const t = todayKey(), br = new Set(LOG.filter((e) => e.k === "breach" && e.v === v.id).map((e) => e.d));
+    let n = 0, all = 0, fell = false;
+    for (let i = 0; i < 30; i++) { const d = new Date(); d.setDate(d.getDate() - i); const k = keyOf(d); if (k < SINCE) break; all++; if (br.has(k)) fell = true; else n++; }
+    return { n, all, fell };
+  }
   const todayMark = (v) => LOG.find((e) => e.k === "mark" && e.v === v.id && e.d === todayKey());
 
   function breach(v, why, n) {
@@ -469,6 +476,8 @@ window.ORDO_START = function () {
       } else {
         sub = nm ? `ціль ${nm} · лишилось ${nm - s} ${daysWord(nm - s)}` : "усі віхи взято";
       }
+      const f30 = faith30(v);
+      if (f30.fell) sub += `<span class="oath__faith">вірних ${f30.n} з ${f30.all}</span>`;
       const li = document.createElement("li");
       const btn = document.createElement("div");
       btn.className = "oath" + (frozen ? " oath--frozen" : ""); btn.setAttribute("role", "button"); btn.tabIndex = 0; btn.dataset.id = v.id;
@@ -786,14 +795,14 @@ window.ORDO_START = function () {
     D.VOWS.forEach((v) => {
       const s = streak(v), b = bestOf(v);
       const mBr = LOG.filter((e) => e.k === "breach" && e.v === v.id && e.d.slice(0, 7) === mk).length;
-      let cells = "";
-      for (let i = 1; i <= N; i++) cells += `<i class="c-${dayState(v, `${mk}-${pad(i)}`)}${isCur && i === new Date().getDate() ? " c-now" : ""}"></i>`;
+      let cells = "", faithN = 0;
+      for (let i = 1; i <= N; i++) { const st = dayState(v, `${mk}-${pad(i)}`); if (st === "c" || st === "w") faithN++; cells += `<i class="c-${st}${isCur && i === new Date().getDate() ? " c-now" : ""}"></i>`; }
       const winTxt = v.window ? `вікна ${windowsUsed(v, mk)}/${v.window.limit} · ` : "";
       h += `<div class="st-vow">
         <div class="st-vow__head"><svg><use href="#i-${v.icon}"/></svg><span class="st-vow__name">${v.name}</span>
           <span class="st-vow__nums"><b>${s}</b> <em>рекорд ${b}</em></span></div>
         <div class="st-cal" style="grid-template-columns:repeat(${N},1fr)">${cells}</div>
-        <div class="st-vow__meta">${winTxt}${mBr} ${brWord(mBr)} у ${loc}</div>
+        <div class="st-vow__meta">${winTxt}${faithN} ${pluralUk(faithN, ["вірний день", "вірні дні", "вірних днів"])} · ${mBr} ${brWord(mBr)} у ${loc}</div>
       </div>`;
     });
     return h + `<div class="st-legend"><span><i class="c-c"></i>чистий</span><span><i class="c-w"></i>вікно</span><span><i class="c-b"></i>зрив</span><span><i class="c-x"></i>без запису</span></div>` +

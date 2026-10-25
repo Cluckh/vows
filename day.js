@@ -188,6 +188,47 @@
     const head = rot ? fill(pick(L.rotate) || "Минулого разу було інше. Сьогодні черга {day}.", { day: human(rot.k) }) : fill(pick(L.again) || "Минулого разу ({day}) ти взяв своє. Тиснемо далі.", { day: human(last.k) });
     return { giver: L.giver || "supreme", head, tips };
   }
+  const gymSig = (g) => JSON.stringify([g.ex.map((e) => [e.n, (e.sets || []).map((z) => [z.r, z.w])]), g.note || ""]);
+  /* текст для живого тренера в чаті: останні тренування з підходами й нотатками */
+  function gymText(draft) {
+    const ss = sessions().filter((x) => !draft || x.k !== draft.k);
+    if (draft && draft.ex.some((e) => e.n && e.sets.some((z) => z.r))) ss.push(draft);
+    ss.sort((a, b) => a.k < b.k ? -1 : 1);
+    const set = (z) => z.w ? `${z.r}×${fmtN(z.w)}` : `${z.r}`;
+    const out = ss.slice(-8).map((x) => [`${human(x.k)} (${WDL[wd(x.k)]}):`]
+      .concat(x.ex.filter((e) => e.n).map((e) => `— ${e.n}: ${(e.sets || []).filter((z) => z.r).map(set).join(", ")}`))
+      .concat(x.note ? [`Нотатка: ${x.note}`] : []).join("\n"));
+    const adv = gymAdvice(add(today(), 1));
+    return `Мої останні тренування (повтори×кг):\n\n${out.join("\n\n")}` + (adv && adv.tips.length ? `\n\nДодаток радить на наступне: ${adv.tips.join("; ")}.` : "") +
+      `\n\nПодивись на прогрес, що б ти змінив і на що звернути увагу?`;
+  }
+
+  /* ========================================================= ВІРНІСТЬ ===== */
+  /* день вірності — жодна обітниця не зірвана (вікна дозволені). На відміну від стріку, зрив не забирає вже прожитих днів */
+  function faithIdx() {
+    const all = new Set(), by = {};
+    LS.get("ordo.log", []).forEach((e) => { if (e.k === "breach") { all.add(e.d); (by[e.v] = by[e.v] || new Set()).add(e.d); } });
+    return { since: LS.get("ordo.since", today()), all, by };
+  }
+  const faithful = (F, k, vid) => k >= F.since && k <= today() && !(vid ? F.by[vid] && F.by[vid].has(k) : F.all.has(k));
+  function faith() {
+    const F = faithIdx(), t0 = today(), y = add(t0, -1);
+    let total = 0, run = 0, best = 0, rise = false, fell = false, months = 0, d30 = 0, n30 = 0;
+    for (let k = F.since; k <= y; k = add(k, 1)) {
+      if (faithful(F, k)) { total++; run++; best = Math.max(best, run); if (fell && run >= 7) rise = true; }
+      else { run = 0; fell = true; }
+      if (k.slice(8) === endOfMonth(k).slice(8) && `${k.slice(0, 7)}-01` >= F.since && ![...F.all].some((d) => d.startsWith(k.slice(0, 7)))) months++;
+    }
+    for (let k = add(t0, -29); k <= t0; k = add(k, 1)) if (k >= F.since) { n30++; if (faithful(F, k)) d30++; }
+    return { total, run, best, rise, months, d30, n30 };
+  }
+  /* шлях повернення: сім днів вірності після останнього зриву; n — скільки вже прожито */
+  function comeback() {
+    const F = faithIdx(), t0 = today();
+    for (let i = 0; i <= 7; i++) if (F.all.has(add(t0, -i))) return { from: add(t0, -i), n: Math.max(0, i - 1), today: i === 0 };
+    return null;
+  }
+
   const BASE = { easy: 8, normal: 15, hard: 30 };
   const DIFF = { easy: "легка", normal: "звичайна", hard: "важка" };
   /* скільки разів поспіль перед цим днем повторювана ціль була виконана */
@@ -240,7 +281,7 @@
   const MS_XP = { 10: 60, 25: 120, 75: 250, 180: 500, 365: 1000, 500: 1300, 730: 1800, 1000: 2500 };
   function settleDerived() {
     const A = API(), t0 = today();
-    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er):/.test(id)) delete X.e[id]; });
+    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er|rt):/.test(id)) delete X.e[id]; });
     const vows = D().VOWS || [], starts = LS.get("ordo.starts", {});
     if (A.dayState) for (let k = XP_START_DAY; k < t0; k = add(k, 1)) vows.forEach((v) => {
       const s = A.dayState(v, k); if ((s === "c" || s === "w") && (!starts[v.id] || k >= starts[v.id])) X.e[`v:${v.id}:${k}`] = { d: k, xp: VOW_DAY, src: "vow", why: v.name };
@@ -270,6 +311,11 @@
       const g = GYM.log[k]; if (g && g.ex && g.ex.length) X.e[`gy:${k}`] = { d: k, xp: 20, src: "body", why: "журнал залу" };
       if (early(k)) X.e[`er:${k}`] = { d: k, xp: 5, src: "body", why: "ранній підйом" };
     }
+    const F = faithIdx();          // шлях повернення: кожен вірний день із семи після зриву
+    for (let k = XP_START_DAY; k < t0; k = add(k, 1)) {
+      if (!faithful(F, k)) continue;
+      for (let i = 1; i <= 7; i++) if (F.all.has(add(k, -i))) { X.e[`rt:${k}`] = { d: k, xp: 6, src: "vow", why: `шлях повернення, день ${i}` }; break; }
+    }
   }
   /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані */
   function perfect(k) {
@@ -289,7 +335,8 @@
     for (let k = XP_START_DAY; k <= today(); k = add(k, 1)) { if (perfect(k)) { pdRun++; pdBest = Math.max(pdBest, pdRun); } else if (k < today()) pdRun = 0; }
     Object.values(S.tasks).forEach((t) => { if (t.rep && t.rep.f !== "none") chainBest = Math.max(chainBest, chainBefore(t, add(today(), 1))); });
     const qd = (rar) => Q.list.filter((q) => q.st === "done" && (!rar || q.rar === rar)).length;
-    return { gym: sessions().length, done, early, pdBest, pdN: Object.keys(X.e).filter((i) => i.startsWith("pd:")).length, chainBest, qd, lv: levelOf(totalXP()).L };
+    const f = faith();
+    return { f, gym: sessions().length, done, early, pdBest, pdN: Object.keys(X.e).filter((i) => i.startsWith("pd:")).length, chainBest, qd, lv: levelOf(totalXP()).L };
   }
   const ACHS = [
     { id: "first", tier: "bronze", n: "Перший крок", h: "Виконати першу денну ціль", ok: (c) => c.done >= 1, xp: 30 },
@@ -306,6 +353,12 @@
     { id: "ql", tier: "legend", n: "Легенда", h: "Виконати легендарний квест", ok: (c) => c.qd("legend") >= 1, xp: 100, rar: "legend" },
     { id: "qm", tier: "myth", n: "Міф", h: "Виконати міфічний квест", ok: (c) => c.qd("myth") >= 1, xp: 300, rar: "myth" },
     { id: "q10", tier: "gold", n: "Мандрівний лицар", h: "10 виконаних квестів", ok: (c) => c.qd() >= 10, xp: 200 },
+    { id: "f10", tier: "bronze", n: "Десять вірних днів", h: "10 днів без жодного зриву — не обовʼязково поспіль", ok: (c) => c.f.total >= 10, xp: 40 },
+    { id: "f50", tier: "silver", n: "Пів сотні вірних", h: "50 днів вірності сумарно", ok: (c) => c.f.total >= 50, xp: 150 },
+    { id: "f100", tier: "gold", n: "Сто днів вірності", h: "100 днів вірності сумарно", ok: (c) => c.f.total >= 100, xp: 400 },
+    { id: "f365", tier: "myth", n: "Рік вірності", h: "365 днів вірності сумарно", ok: (c) => c.f.total >= 365, xp: 1200 },
+    { id: "rise", tier: "silver", n: "Друге дихання", h: "Після зриву — 7 днів вірності поспіль", ok: (c) => c.f.rise, xp: 120 },
+    { id: "fmon", tier: "gold", n: "Місяць без падінь", h: "Календарний місяць без жодного зриву", ok: (c) => c.f.months >= 1, xp: 300 },
     { id: "gym10", tier: "silver", n: "Зброярня", h: "10 записаних тренувань", ok: (c) => c.gym >= 10, xp: 150 },
     { id: "gym50", tier: "gold", n: "Залізний брат", h: "50 записаних тренувань", ok: (c) => c.gym >= 50, xp: 400 },
     { id: "lv10", tier: "silver", n: "Лицар Хреста", h: "Дійти до 10-го рівня", ok: (c) => c.lv >= 10, xp: 0 },
@@ -330,6 +383,8 @@
     const t0 = today();
     if (perfect(t0) && perfect(add(t0, -1)) && perfect(add(t0, -2)) && Q.clock.tPd !== t0) { Q.clock.tPd = t0; trigger("rare"); }
     if (Object.keys(X.e).some((id) => id.startsWith("vm:") && X.e[id].d === t0) && Q.clock.tMs !== t0) { Q.clock.tMs = t0; trigger("legend"); }
+    const cb = comeback();          // зрив → доручення на шлях повернення
+    if (cb && cb.n === 0 && Q.clock.tRet !== cb.from) { Q.clock.tRet = cb.from; trigger("rare", "return"); }
     const lv = levelOf(totalXP());
     const up = lastLevel && lv.L > lastLevel.L ? { from: lastLevel, to: lv } : null;
     lastLevel = lv;
@@ -358,6 +413,12 @@
     Q.list.forEach((q) => {
       if (q.st === "active" && q.type === "count" && /ранк/i.test(q.unit || "")) {
         let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (early(k)) n++;
+        if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
+      if (q.st === "active" && q.type === "count" && /вірн/i.test(q.unit || "")) {          // дні вірності: лише прожиті до кінця
+        const F = faithIdx(), end = q.until < today() ? q.until : add(today(), -1);
+        let n = 0; for (let k = q.from; k <= end; k = add(k, 1)) if (faithful(F, k, q.vow)) n++;
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
@@ -393,12 +454,14 @@
   function draw(rar, tag) {
     const seen = new Set(Q.list.map((q) => q.pid)), can = (p) => p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)));
     let c = pool().filter((p) => p.rar === rar && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
-    if (!c.length) c = pool().filter((p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer")));
+    const free = (p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer"));
+    if (!c.length && tag) c = pool().filter((p) => free(p) && (p.tags || []).includes(tag));      // тематичні можна повторювати
+    if (!c.length) c = pool().filter(free);
     if (!c.length) return null;
     const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)];
     return { id: uid(), pid: p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: p.xp || RAR[rar].xp,
-      cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0,
+      cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
       st: "offer", offerOn: today(), cur: 0 };
   }
@@ -409,17 +472,17 @@
     Q.clock.roll = t0;
     if (Q.list.some((q) => q.st === "offer")) { saveQ(); return; }
     const since = (r) => Q.clock[r] ? diff(Q.clock[r], t0) : 99;
-    const trig = Q.trig.shift();
+    const [trig, tag] = (Q.trig.shift() || "").split(":");
     let rar = null;
     if (trig) rar = trig;
     else if (again) rar = null;
     else if (since("myth") >= 21 && roll(t0 + "m") < 0.1) rar = "myth";
     else if (since("legend") >= 7 && roll(t0 + "l") < 0.25) rar = "legend";
     else if (since("rare") >= 2 && roll(t0 + "r") < 0.4) rar = "rare";
-    if (rar) { const q = draw(rar); if (q) { Q.list.push(q); Q.clock[rar] = t0; } }
+    if (rar) { const q = draw(rar, tag); if (q) { Q.list.push(q); Q.clock[rar] = t0; } }
     saveQ();
   }
-  function trigger(rar) { if (!Q.trig.includes(rar)) { Q.trig.push(rar); saveQ(); } }
+  function trigger(rar, tag) { const t = tag ? `${rar}:${tag}` : rar; if (!Q.trig.includes(t)) { Q.trig.push(t); saveQ(); } }
 
   /* ============================================================ СЦЕНИ ====== */
   const glowOf = (rar) => rar;
@@ -592,7 +655,7 @@
         ${q.type === "budget" ? budgetLine(q) : ""}
         ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}</em></span>` : ""}
         <span class="dy-q__due">${q.st === "done" ? `виконано · +${q.xp}` : due}${q.st === "active" ? ` · +${q.xp}` : ""}</span></div>
-      ${q.st === "active" && q.type !== "budget" ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
+      ${q.st === "active" && q.type !== "budget" && !/вірн/i.test(q.unit || "") ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
   }
   function budgetLine(q) {
     const sp = qSpent(q), m = T() ? T().money : (x) => x;
@@ -619,6 +682,9 @@
     if (hd && (hd.steps != null || hd.sleepMin || hd.up)) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}</div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) h += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
+    const cb = k === today() ? comeback() : null;
+    if (cb) h += `<div class="dy-ret"><span class="dy-ret__t">Шлях повернення</span><span class="dy-ret__pips">${[1, 2, 3, 4, 5, 6, 7].map((i) => `<i class="${i <= cb.n ? "is-on" : ""}"></i>`).join("")}</span>
+      <span class="dy-ret__s">${cb.today ? "почнеться завтра — кожен вірний день дасть +6" : `день ${cb.n + 1} з 7 · стрік почався знову, а вірні дні ніхто не забирає`}</span></div>`;
     const gymT = its.find(({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel");
     const adv = gymT && k >= today() ? gymAdvice(k) : null;
     if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
@@ -747,7 +813,7 @@
       if (!sh.gym) {
         const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k), adv = gymAdvice(sh.k);
         const tpl = ex ? ex : { ex: (adv && ss.length ? (ss.length > 1 && !ss[ss.length - 1].ex.some((e) => ss[ss.length - 2].ex.some((f) => f.n.toLowerCase() === e.n.toLowerCase())) ? ss[ss.length - 2] : ss[ss.length - 1]).ex : [{ n: "", sets: [{}] }]).map((e) => ({ n: e.n, sets: (e.sets || [{}]).map((x) => ({ r: x.r, w: x.w, hint: true })) })) };
-        sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" }));
+        sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" })); sh.gymTpl = gymSig(sh.gym);
       }
       const g = sh.gym, known = [...new Set(sessions().flatMap((x) => x.ex.map((e) => e.n)))];
       h += `<div class="gs-kicker">Журнал залу · ${human(sh.k)}</div><div class="sheet__title dy-sht">Що зроблено?</div>
@@ -758,7 +824,7 @@
           <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button></div></div>`).join("")}
         <button type="button" class="gl-new" data-ds="gadd"><svg><use href="#i-plus"/></svg>Вправа</button>
         <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="нотатка: самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>
-        <button class="btn btn--gold" type="button" data-ds="gsave">Записати тренування · +20</button><button class="btn btn--ghost" type="button" data-ds="close">Пізніше</button>`;
+        <button class="btn btn--gold" type="button" data-ds="gsave">Записати тренування · +20</button><button class="btn btn--line" type="button" data-ds="gcopy">Скопіювати для тренера</button><button class="btn btn--ghost" type="button" data-ds="close">Пізніше</button>`;
     } else if (sh.mode === "fix") {
       const t = S.tasks[sh.id], r = rec(sh.k, sh.id);
       h += `<div class="gs-kicker">Виконано з поправкою</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
@@ -869,6 +935,12 @@
     if (a === "goals") { closeSheet(); const A = API(); if (A.showTab) setTimeout(() => A.showTab("goals"), 300); return; }
     if (a === "gsave") { readGym(); const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now();
       if (g.ex.length) GYM.log[k] = g; else delete GYM.log[k]; saveG(); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
+    if (a === "gcopy") {
+      readGym(); const txt = gymText(GYM.log[k] || gymSig(sh.gym) !== sh.gymTpl ? Object.assign({ k }, JSON.parse(JSON.stringify(sh.gym))) : null);
+      const ask = () => prompt("Скопіюй і встав у чат:", txt);
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => { b.textContent = "Скопійовано — встав у чат із тренером"; buzz("light"); }, ask); else ask();
+      return;
+    }
     if (a === "gadd") { readGym(); sh.gym.ex.push({ n: "", sets: [{ r: null, w: null }] }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".gy-n"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
     if (a === "gset") { readGym(); const e = sh.gym.ex[+b.dataset.i]; const l = e.sets[e.sets.length - 1] || {}; e.sets.push({ r: l.r, w: l.w }); renderSheet(); return; }
     if (a === "gdel") { readGym(); sh.gym.ex.splice(+b.dataset.i, 1); renderSheet(); return; }
@@ -932,6 +1004,7 @@
         <span class="dy-g__next">до ${lv.L + 1}-го рівня — ${fmtN(lv.to - lv.xp)}${lv.next ? ` · звання «${esc(lv.next.name)}» з ${lv.next.lv}-го` : ""}</span></div></div>
       <div class="dy-g__bars" aria-label="Досвід за 14 днів">${last14.map((x) => `<i style="height:${Math.round(4 + 40 * x.xp / mx)}px" title="${human(x.k)}: ${x.xp}"></i>`).join("")}</div>
       <div class="dy-g__qs"><span class="dy-q--rare"><b>${qn("rare")}</b>рідкісних</span><span class="dy-q--legend"><b>${qn("legend")}</b>легендарних</span><span class="dy-q--myth"><b>${qn("myth")}</b>міфічних</span></div>
+      ${(() => { const f = faith(); return `<div class="dy-g__qs dy-g__faith"><span><b>${f.total}</b>днів вірності</span><span><b>${f.d30}/${f.n30}</b>за 30 днів</span><span><b>${f.best}</b>найдовше поспіль</span></div>`; })()}
       <div class="st-h st-h--sub">Нагороди</div><div class="dy-ach">`;
     h += ACHS.map((a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" title="${esc(a.h)}"><svg><use href="#medal"/></svg><b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`).join("");
     h += vowMedals.map((m) => `<div class="dy-a is-on dy-a--vow"><svg><use href="#i-${m.v.icon}"/></svg><b>${esc(m.v.name)} · ${m.n}</b><span>печатка обітниці</span></div>`).join("");
@@ -965,6 +1038,7 @@
       goals: { month: goals(G.m && G.m[mk]), year: goals(G.y && G.y[yk]) },
       gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "" })),
       steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
+      faith: Object.assign(faith(), { comeback: comeback() }),
       health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       seenEvents: Object.keys(S.ev || {})

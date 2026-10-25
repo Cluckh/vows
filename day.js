@@ -145,6 +145,7 @@
   /* час у програмі: { n: назва, як у «Швидких командах», min: хвилин, lim: true — «не більше» (YouTube, Reddit) } */
   const appKey = (n) => String(n || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "").slice(0, 24);
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
+  const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   const appMin = (k, n) => { const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
   /* старі цілі Duolingo («Зробити»/«Число» за назвою) — у «час у програмі», 10 хв на день */
   const appMigrate = () => Object.values(S.tasks).forEach((t) => { if (!t.del && !t.app && srcOf(t) === "app" && !(t.type === "count" && /xp/i.test(t.unit || ""))) {
@@ -691,6 +692,13 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      if (q.st === "active" && q.type === "count" && q.app) {          // час у програмі: сума хвилин, або (appMax) дні, прожиті в межах ліміту
+        if (!appTracked(q.app)) return;
+        let n = 0; const end = q.appMax != null ? (q.until < today() ? q.until : add(today(), -1)) : (q.until < today() ? q.until : today());
+        for (let k = q.from; k <= end; k = add(k, 1)) n += q.appMax != null ? (appMin(k, q.app) <= q.appMax ? 1 : 0) : Math.floor(appMin(k, q.app));
+        if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
       if (q.st === "active" && q.type === "count" && /тренуван/i.test(q.unit || "")) {        // зал, кардіо — усе з позначкою «тренування»
         let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (items(k).some(({ t, r }) => isGym(t) && r && isWin(r.st))) n++;
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
@@ -738,7 +746,7 @@
   /* обрати квест із пулу: потрібної рідкості, ще не бачений */
   /* only — конкретний квест (писар призначив на дату); квести з датою в випадковий розіграш не потрапляють */
   function draw(rar, tag, only) {
-    const seen = new Set(Q.list.map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats))));
+    const seen = new Set(Q.list.map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.app || appTracked(p.app));
     let c = pool().filter((p) => (only || p.rar === rar) && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
     const free = (p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer"));
     if (!c.length && tag) c = pool().filter((p) => free(p) && (p.tags || []).includes(tag));      // тематичні можна повторювати
@@ -747,7 +755,7 @@
     const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)]; rar = p.rar;
     return { id: uid(), pid: p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: p.xp || RAR[rar].xp,
-      cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null,
+      cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
       st: "offer", offerOn: today(), cur: 0 };
   }
@@ -1528,7 +1536,9 @@
       vows: vows.map((v) => ({ id: v.id, name: v.name, streak: A.streak ? A.streak(v) : null, start: (LS.get("ordo.starts", {})[v.id]) || v.start, best: (LS.get("ordo.best", {})[v.id]) || null })),
       breaches30: LOG.filter((e) => e.k === "breach" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, why: e.why || "" })),
       calls30: LOG.filter((e) => e.k === "call" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, st: e.st })),
-      tasks: Object.values(S.tasks).filter((t) => !t.del && (!t.end || t.end >= t0)).map((t) => ({ t: t.t, type: t.type, target: t.target, unit: t.unit, rep: repText(t) || "раз", time: t.time || "", gym: isGym(t), rate14: rate(t) })),
+      tasks: Object.values(S.tasks).filter((t) => !t.del && (!t.end || t.end >= t0)).map((t) => ({ t: t.t, type: t.type, target: t.target, unit: t.unit, rep: repText(t) || "раз", time: t.time || "", gym: isGym(t), rate14: rate(t),
+        auto: srcOf(t) ? SRC[srcOf(t)] + (srcOf(t) === "app" ? ` ${appOf(t).n} ${appOf(t).lim ? "≤" : "≥"} ${appOf(t).min} хв` : "") : null })),
+      apps: days14.map((k) => { const h = hDay(k) || {}, o = {}; Object.entries(h.apps || {}).forEach(([n, a]) => { if (a.min >= 1) o[n] = Math.floor(a.min); }); return Object.keys(o).length ? Object.assign({ d: k }, o) : null; }).filter(Boolean),
       perfectDays14: days14.filter((k) => perfect(k)).length,
       quests: Q.list.slice(-25).map((q) => ({ pid: q.pid, rar: q.rar, giver: q.giver, t: q.t, st: q.st, from: q.from || q.offerOn, until: q.until, cur: q.cur, target: q.target })),
       achievements: Object.keys(ACH),

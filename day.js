@@ -149,6 +149,15 @@
       const h = hDay(k); if (!h || h.steps == null) continue;
       items(k).forEach(({ t, r }) => { if (t.health === "steps" && (!r || (r.cur || 0) < h.steps) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: h.steps, auto: 1 }); ch = true; } });
     }
+    /* медитації з Calm («Усвідомлені хвилини»): ціль про медитацію відмічається сама */
+    for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
+      const m = (hDay(k) || {}).mind; if (!m) continue;
+      items(k).forEach(({ t, r }) => {
+        if (!isMind(t) || (r && (r.st === "moved" || r.st === "cancel"))) return;
+        if (t.type === "count") { if (!r || (r.cur || 0) < m) { setRec(k, t.id, { cur: m, auto: 1 }); ch = true; } }
+        else if (!r || r.st !== "done") { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; }
+      });
+    }
     Q.list.forEach((q) => {
       if (q.st !== "active" || q.type !== "count" || !/крок/i.test(q.unit || "")) return;
       let sum = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) sum += (hDay(k) || {}).steps || 0;
@@ -157,6 +166,15 @@
     if (ch) { saveQ(); const before = totalXP(); settle(); if (totalXP() > before) toast(`<b>+${totalXP() - before}</b> досвіду`); }
   }
   const hm = (min) => `${Math.floor(min / 60)} год ${p2(min % 60)} хв`;
+  const isMind = (t) => /медит|meditat|calm/i.test((t && t.t) || "");
+  /* сесії медитації за місяць ("2026-10") чи рік ("2026"): місяць — з «Швидких команд» або сума записаних днів, рік — сума місяців */
+  function periodMind(key) {
+    const D = (HL && HL.days) || {}, M = (HL && HL.months) || {};
+    const month = (mk) => { let n = 0; Object.keys(D).forEach((k) => { if (k.startsWith(mk)) n += D[k].mind || 0; }); return Math.max((M[mk] && M[mk].mind) || 0, n); };
+    const mks = key.length === 7 ? [key] : [...new Set(Object.keys(D).concat(Object.keys(M)).map((k) => k.slice(0, 7)))].filter((m) => m.startsWith(key));
+    const n = mks.reduce((a, m) => a + month(m), 0);
+    return n ? { steps: n, avg: null } : null;
+  }
   /* кроки за місяць ("2026-10") чи рік ("2026"): з «Швидких команд», а якщо їх немає — сума записаних днів */
   function periodSteps(key) {
     const up = HL && (key.length === 4 ? HL.years : HL.months), u = up && up[key];
@@ -708,9 +726,9 @@
       <button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k);
-    if (hd && (hd.steps != null || hd.sleepMin || hd.up)) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}</div>`;
+    if (hd && (hd.steps != null || hd.sleepMin || hd.up || hd.mind)) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}</div>`;
     const pk = pDay(k);
-    if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${hm(pk.min || 0).replace(" 00 хв", "")}` : ""}</span></div>`;
+    if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) h += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
     const cb = k === today() ? comeback() : null;
@@ -1137,6 +1155,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands,
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands, periodMind,
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

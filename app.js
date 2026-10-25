@@ -1029,11 +1029,11 @@ window.ORDO_START = function () {
     if (!c && it.done && t !== "vows") { it.done = null; LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id)); saveLog(); }
     return false;
   }
-  /* цілі заповнюються самі: про кроки — зі «Здоровʼя», про роздачі — з HM3; лічильник — сума за період, мірило — середнє на день */
+  /* цілі заповнюються самі: про кроки й медитації — зі «Здоровʼя», про роздачі — з HM3; лічильник — сума за період, мірило — середнє на день */
   function stepsFill(it, key) {
     const DY = window.ORDO_DAY, t = tyOf(it);
     if ((t !== "count" && t !== "measure") || !DY) return;
-    const src = /крок/i.test(it.t || "") ? DY.periodSteps : /роздач/i.test(it.t || "") ? DY.periodHands : null; if (!src) return;
+    const src = /крок/i.test(it.t || "") ? DY.periodSteps : /роздач/i.test(it.t || "") ? DY.periodHands : /медит|calm/i.test(it.t || "") ? DY.periodMind : null; if (!src) return;
     const ps = src(key), v = ps && (t === "count" ? ps.steps : ps.avg); if (v == null) return;
     const lv = lastVal(it);
     if (t === "count") { if ((it.cur || 0) >= v) return; it.cur = v; } else if (lv && lv.v === v) return;

@@ -53,6 +53,9 @@
   let X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
   X.e = X.e || {};
   let ACH = LS.get("ordo.ach", {}) || {};
+  let HL = LS.get("ordo.k.health", null);                   // кроки й сон зі «Здоровʼя» (лише на пристрої; джерело — приватний репозиторій)
+  let GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {};
+  const saveG = () => LS.set("ordo.gym", GYM);
   const saveS = () => LS.set("ordo.day", S), saveQ = () => LS.set("ordo.quests", Q), saveX = () => LS.set("ordo.xp", X), saveA = () => LS.set("ordo.ach", ACH);
 
   /* ======================================================= ПОВТОРЕННЯ ===== */
@@ -118,7 +121,54 @@
   }
   const isWin = (st) => st === "done" || st === "fix";
 
-  /* ============================================================ ДОСВІД ===== */
+  /* ========================================================== ЗДОРОВʼЯ ===== */
+  const hDay = (k) => (HL && HL.days && HL.days[k]) || null;
+  let hAt = 0;
+  async function loadHealth(force) {
+    const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - hAt < 5 * 60e3)) return;
+    hAt = Date.now();
+    try { const h = await V.readSealed("health/log.json"); if (h && h.at !== (HL && HL.at)) { HL = h; LS.set("ordo.k.health", h); applyHealth(); render(); } } catch (e) {}
+  }
+  /* кроки з телефона — у лічильники з позначкою «кроки» і в квести на кроки */
+  function applyHealth() {
+    if (!HL || !HL.days) return;
+    let ch = false;
+    for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
+      const h = hDay(k); if (!h || h.steps == null) continue;
+      items(k).forEach(({ t, r }) => { if (t.health === "steps" && (!r || (r.cur || 0) < h.steps) && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { cur: h.steps, auto: 1 }); ch = true; } });
+    }
+    Q.list.forEach((q) => {
+      if (q.st !== "active" || q.type !== "count" || !/крок/i.test(q.unit || "")) return;
+      let sum = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) sum += (hDay(k) || {}).steps || 0;
+      if (sum > (q.cur || 0)) { q.cur = sum; q.at = Date.now(); ch = true; if (q.target && q.cur >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+    });
+    if (ch) { saveQ(); const before = totalXP(); settle(); if (totalXP() > before) toast(`<b>+${totalXP() - before}</b> досвіду`); }
+  }
+  const hm = (min) => `${Math.floor(min / 60)} год ${p2(min % 60)} хв`;
+
+  /* ================================================================ ЗАЛ ===== */
+  const isGym = (t) => !!(t && (t.gym || /(^|[^а-яіїєґ])зал([^а-яіїєґ]|$)|тренуван|gym/i.test(t.t || "")));
+  function sessions() { return Object.keys(GYM.log).sort().map((k) => Object.assign({ k }, GYM.log[k])).filter((x) => x.ex && x.ex.length); }
+  /* порада на наступний зал: прогресія ваги/повторів і черговість вправ */
+  function gymAdvice(k) {
+    const ss = sessions().filter((x) => x.k < k); if (!ss.length) return null;
+    const last = ss[ss.length - 1], prev = ss[ss.length - 2];
+    const names = (x) => x.ex.map((e) => e.n.toLowerCase());
+    let rot = null;
+    if (prev && !names(last).some((n) => names(prev).includes(n))) rot = prev;              // спліт: минулого разу інші вправи → черга попередніх
+    const base = rot || last, tips = [];
+    base.ex.slice(0, 4).forEach((e) => {
+      const sets = (e.sets || []).filter((x) => x.r), w = Math.max(0, ...sets.map((x) => x.w || 0)), minR = Math.min(...sets.map((x) => x.r));
+      if (!sets.length) return;
+      if (w && minR >= 10) tips.push(`${e.n}: ${fmtN(w + 2.5)} кг`);
+      else if (w && minR >= 6) tips.push(`${e.n}: ${fmtN(w)} кг, на повтор більше`);
+      else if (w) tips.push(`${e.n}: ${fmtN(w)} кг, дотисни техніку`);
+      else tips.push(`${e.n}: ${minR + 1}+ повторів`);
+    });
+    const L = (D().DAY || {}).gym || {};
+    const head = rot ? fill(pick(L.rotate) || "Минулого разу було інше. Сьогодні черга {day}.", { day: human(rot.k) }) : fill(pick(L.again) || "Минулого разу ({day}) ти взяв своє. Тиснемо далі.", { day: human(last.k) });
+    return { giver: L.giver || "supreme", head, tips };
+  }
   const BASE = { easy: 8, normal: 15, hard: 30 };
   const DIFF = { easy: "легка", normal: "звичайна", hard: "важка" };
   /* скільки разів поспіль перед цим днем повторювана ціль була виконана */
@@ -171,7 +221,7 @@
   const MS_XP = { 10: 60, 25: 120, 75: 250, 180: 500, 365: 1000, 500: 1300, 730: 1800, 1000: 2500 };
   function settleDerived() {
     const A = API(), t0 = today();
-    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd):/.test(id)) delete X.e[id]; });
+    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy):/.test(id)) delete X.e[id]; });
     const vows = D().VOWS || [], starts = LS.get("ordo.starts", {});
     if (A.dayState) for (let k = XP_START_DAY; k < t0; k = add(k, 1)) vows.forEach((v) => {
       const s = A.dayState(v, k); if ((s === "c" || s === "w") && (!starts[v.id] || k >= starts[v.id])) X.e[`v:${v.id}:${k}`] = { d: k, xp: VOW_DAY, src: "vow", why: v.name };
@@ -193,7 +243,13 @@
         if (when >= XP_START_DAY && pct > 0) X.e[`gm:${kind}${key}`] = { d: when, xp: kind === "y" ? pct * 6 : pct * 2, src: "goal", why: kind === "y" ? `ревю ${key} року` : "ревю місяця" };
       }
     }));
-    for (let k = XP_START_DAY; k <= t0; k = add(k, 1)) if (perfect(k)) X.e[`pd:${k}`] = { d: k, xp: 25, src: "day", why: "чистий день" };
+    for (let k = XP_START_DAY; k <= t0; k = add(k, 1)) {
+      if (perfect(k)) X.e[`pd:${k}`] = { d: k, xp: 25, src: "day", why: "чистий день" };
+      const h = hDay(k);
+      if (h && h.sleepMin >= 420) X.e[`sl:${k}`] = { d: k, xp: 10, src: "body", why: "сон 7+ годин" };
+      if (h && h.steps >= 10000) X.e[`st:${k}`] = { d: k, xp: 10, src: "body", why: "10 000 кроків" };
+      const g = GYM.log[k]; if (g && g.ex && g.ex.length) X.e[`gy:${k}`] = { d: k, xp: 20, src: "body", why: "журнал залу" };
+    }
   }
   /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані */
   function perfect(k) {
@@ -213,7 +269,7 @@
     for (let k = XP_START_DAY; k <= today(); k = add(k, 1)) { if (perfect(k)) { pdRun++; pdBest = Math.max(pdBest, pdRun); } else if (k < today()) pdRun = 0; }
     Object.values(S.tasks).forEach((t) => { if (t.rep && t.rep.f !== "none") chainBest = Math.max(chainBest, chainBefore(t, add(today(), 1))); });
     const qd = (rar) => Q.list.filter((q) => q.st === "done" && (!rar || q.rar === rar)).length;
-    return { done, early, pdBest, pdN: Object.keys(X.e).filter((i) => i.startsWith("pd:")).length, chainBest, qd, lv: levelOf(totalXP()).L };
+    return { gym: sessions().length, done, early, pdBest, pdN: Object.keys(X.e).filter((i) => i.startsWith("pd:")).length, chainBest, qd, lv: levelOf(totalXP()).L };
   }
   const ACHS = [
     { id: "first", tier: "bronze", n: "Перший крок", h: "Виконати першу денну ціль", ok: (c) => c.done >= 1, xp: 30 },
@@ -230,6 +286,8 @@
     { id: "ql", tier: "legend", n: "Легенда", h: "Виконати легендарний квест", ok: (c) => c.qd("legend") >= 1, xp: 100, rar: "legend" },
     { id: "qm", tier: "myth", n: "Міф", h: "Виконати міфічний квест", ok: (c) => c.qd("myth") >= 1, xp: 300, rar: "myth" },
     { id: "q10", tier: "gold", n: "Мандрівний лицар", h: "10 виконаних квестів", ok: (c) => c.qd() >= 10, xp: 200 },
+    { id: "gym10", tier: "silver", n: "Зброярня", h: "10 записаних тренувань", ok: (c) => c.gym >= 10, xp: 150 },
+    { id: "gym50", tier: "gold", n: "Залізний брат", h: "50 записаних тренувань", ok: (c) => c.gym >= 50, xp: 400 },
     { id: "lv10", tier: "silver", n: "Лицар Хреста", h: "Дійти до 10-го рівня", ok: (c) => c.lv >= 10, xp: 0 },
     { id: "lv16", tier: "gold", n: "Командор", h: "Дійти до 16-го рівня", ok: (c) => c.lv >= 16, xp: 0 }
   ];
@@ -519,6 +577,12 @@
       <div class="dy-nav__c"><b>${rel(k)}</b><span>${WDL[wd(k)]}, ${human(k)}</span></div>
       <button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
+    const hd = hDay(k);
+    if (hd && (hd.steps != null || hd.sleepMin)) h += `<div class="dy-body-line">${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}</div>`;
+    const gymT = its.find(({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel");
+    const adv = gymT && k >= today() ? gymAdvice(k) : null;
+    if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
+      h += `<div class="md md--voice dy-adv"><div class="md__fig"${K && K.art ? ` data-card="${adv.giver}"` : ""}>${K && K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K ? K.name : "")} · порада на зал</div><p class="md__say">${esc(adv.head)}</p>${adv.tips.length ? `<ul class="dy-tips">${adv.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div></div>`; }
     if (live.length && k === today()) h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>`;
     h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">${k === today() ? "Справи дня" : k < today() ? "Того дня" : "Заплановано"}</span><span class="gl-sec__meta">${its.length ? `${doneN}/${its.length}` : ""}</span></div>`;
     if (!its.length) h += `<p class="gl-empty">${k < today() ? "Того дня справ не було." : "Справ на цей день немає."}</p>`;
@@ -534,7 +598,7 @@
     const t = S.tasks[id]; if (!t) return;
     const before = totalXP(), r = rec(k, id), st = stOf(t, r, k);
     if (st === "done" || st === "fix") { setRec(k, id, { st: null, note: null }); buzz("light"); }
-    else { setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); }
+    else { setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); if (isGym(t)) setTimeout(() => openSheet("gym", id, k), 500); }
     after(before);
   }
   function plus(id, k, n) {
@@ -624,8 +688,25 @@
       h += `<div class="dy-acts dy-acts--3"><button type="button" class="btn btn--ghost" data-ds="move">Перенести</button>
         <button type="button" class="btn btn--ghost" data-ds="${st === "cancel" ? "uncancel" : "cancel"}">${st === "cancel" ? "Повернути" : "Скасувати"}</button>
         <button type="button" class="btn btn--ghost" data-ds="edit">Правити</button></div>`;
+      if (isGym(t) && !fut) h += `<button type="button" class="btn btn--line" data-ds="gym">${GYM.log[k] ? "Журнал тренування — правити" : "Записати, що зроблено в залі"}</button>`;
       if (xp) h += `<p class="dy-note">За цю справу: +${xp} досвіду${ch ? ` (серія ${ch} дає +${Math.round(Math.min(0.3, ch * 0.03) * 100)}%)` : ""}</p>`;
       if (r && r.note) h += `<p class="dy-note">Поправка: ${esc(r.note)}</p>`;
+    } else if (sh.mode === "gym") {
+      if (!sh.gym) {
+        const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k), adv = gymAdvice(sh.k);
+        const tpl = ex ? ex : { ex: (adv && ss.length ? (ss.length > 1 && !ss[ss.length - 1].ex.some((e) => ss[ss.length - 2].ex.some((f) => f.n.toLowerCase() === e.n.toLowerCase())) ? ss[ss.length - 2] : ss[ss.length - 1]).ex : [{ n: "", sets: [{}] }]).map((e) => ({ n: e.n, sets: (e.sets || [{}]).map((x) => ({ r: x.r, w: x.w, hint: true })) })) };
+        sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" }));
+      }
+      const g = sh.gym, known = [...new Set(sessions().flatMap((x) => x.ex.map((e) => e.n)))];
+      h += `<div class="gs-kicker">Журнал залу · ${human(sh.k)}</div><div class="sheet__title dy-sht">Що зроблено?</div>
+        <p class="dy-note">Підходи: повтори × вага. Значення з минулого разу підставлено — виправ, що змінилось.</p>
+        <datalist id="gyKnown">${known.map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
+        ${g.ex.map((e, i) => `<div class="gy-ex" data-i="${i}"><div class="gy-ex__h"><input class="dy-in gy-n" list="gyKnown" placeholder="Вправа" value="${esc(e.n)}"><button type="button" class="gy-x" data-ds="gdel" data-i="${i}" aria-label="Прибрати">×</button></div>
+          <div class="gy-sets">${e.sets.map((x, j) => `<span class="gy-set"><input class="dy-in gy-r" inputmode="numeric" placeholder="повт" value="${x.r == null ? "" : x.r}"><i>×</i><input class="dy-in gy-w" inputmode="decimal" placeholder="кг" value="${x.w == null ? "" : x.w}"></span>`).join("")}
+          <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button></div></div>`).join("")}
+        <button type="button" class="gl-new" data-ds="gadd"><svg><use href="#i-plus"/></svg>Вправа</button>
+        <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="нотатка: самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>
+        <button class="btn btn--gold" type="button" data-ds="gsave">Записати тренування · +20</button><button class="btn btn--ghost" type="button" data-ds="close">Пізніше</button>`;
     } else if (sh.mode === "fix") {
       const t = S.tasks[sh.id], r = rec(sh.k, sh.id);
       h += `<div class="gs-kicker">Виконано з поправкою</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
@@ -644,6 +725,16 @@
         <button class="btn btn--ghost" type="button" data-ds="back">Назад</button>`;
     }
     el.innerHTML = h;
+  }
+  const el0 = () => $("dSheet");
+  function readGym() {
+    if (!sh || !sh.gym) return;
+    el0().querySelectorAll(".gy-ex").forEach((box) => {
+      const e = sh.gym.ex[+box.dataset.i]; if (!e) return;
+      e.n = box.querySelector(".gy-n").value.trim();
+      e.sets = [...box.querySelectorAll(".gy-set")].map((st) => ({ r: numIn(st.querySelector(".gy-r").value), w: numIn(st.querySelector(".gy-w").value) }));
+    });
+    const n = $("gyNote"); if (n) sh.gym.note = n.value.trim();
   }
   function readDraft() {
     const d = sh.draft, v = (id) => { const e = $(id); return e ? e.value : null; };
@@ -699,10 +790,16 @@
       saveS(); buzz("medium"); closeSheet(); after(before); return;
     }
     if (a === "edit") { openSheet("edit", id, k); return; }
-    if (a === "done") { setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
+    if (a === "done") { setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); closeSheet(); after(before); if (isGym(S.tasks[id])) setTimeout(() => openSheet("gym", id, k), 500); return; }
     if (a === "undo") { setRec(k, id, { st: null, note: null }); buzz("light"); closeSheet(); after(before); return; }
     if (a === "fixq") { sh.mode = "fix"; renderSheet(); setTimeout(() => { const f = $("dsF"); if (f) f.focus(); }, 300); return; }
-    if (a === "fix") { const n = ($("dsF") || {}).value || ""; setRec(k, id, { st: "fix", note: n.trim() || null }); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
+    if (a === "fix") { const n = ($("dsF") || {}).value || ""; setRec(k, id, { st: "fix", note: n.trim() || null }); fx("yes"); buzz("medium"); closeSheet(); after(before); if (isGym(S.tasks[id])) setTimeout(() => openSheet("gym", id, k), 500); return; }
+    if (a === "gym") { openSheet("gym", id, k); return; }
+    if (a === "gsave") { readGym(); const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now();
+      if (g.ex.length) GYM.log[k] = g; else delete GYM.log[k]; saveG(); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
+    if (a === "gadd") { readGym(); sh.gym.ex.push({ n: "", sets: [{ r: null, w: null }] }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".gy-n"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
+    if (a === "gset") { readGym(); const e = sh.gym.ex[+b.dataset.i]; const l = e.sets[e.sets.length - 1] || {}; e.sets.push({ r: l.r, w: l.w }); renderSheet(); return; }
+    if (a === "gdel") { readGym(); sh.gym.ex.splice(+b.dataset.i, 1); renderSheet(); return; }
     if (a === "cur" || a === "part") {
       const c = numIn(($("dsC") || {}).value); setRec(k, id, { cur: c == null ? (rec(k, id) || {}).cur || 0 : Math.max(0, c), st: a === "part" ? "part" : null });
       buzz("medium"); closeSheet(); after(before); return;
@@ -780,11 +877,11 @@
     const box = $("dayBody"); if (box) box.addEventListener("click", onBody);
     const sc = $("scrim"); if (sc) sc.addEventListener("click", () => { if (sh) closeSheet(); });
     lastLevel = levelOf(totalXP());
-    settle(); lastLevel = levelOf(totalXP());
-    render();
+    applyHealth(); settle(); lastLevel = levelOf(totalXP());
+    render(); loadHealth(true);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); settle(); render(); } }, 60000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) { settle(); render(); setTimeout(scenes, 1500); } });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadHealth(); settle(); render(); setTimeout(scenes, 1500); } });
     setTimeout(scenes, 2500);
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }

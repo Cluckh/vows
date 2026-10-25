@@ -202,11 +202,11 @@
   }
 
   let busy = false;
-  /* push: "now" — віддати, якщо є зміни; "force" — завжди */
+  /* push: "now" — віддати, якщо є зміни; "force" — завжди; "pull" — лише підтягнути (перед стартом, щоб не чекати збереження) */
   async function syncNow(push) {
     if (busy || !token() || !LS.get(K.backup, null)) return { pulled: false };
     busy = true; status("saving");
-    let pulled = false;
+    let pulled = false; const pullOnly = push === "pull";
     try {
       for (let round = 0; round < 3; round++) {
         const last = LS.get("ordo.bk.last", {});
@@ -221,11 +221,11 @@
             pulled = true;
             const merged = snapHash() !== hash(JSON.stringify(Object.fromEntries(Object.keys(r.data).filter(DATA_KEY).sort().map((k) => [k, r.data[k]]))));
             LS.set("ordo.bk.last", { h: merged ? "" : snapHash(), at: last.at || 0, remoteAt: meta.at });
-            if (merged) push = "force";             // обʼєднане одразу віддаємо іншим пристроям
+            if (merged && !pullOnly) push = "force";             // обʼєднане одразу віддаємо іншим пристроям (у режимі pull — наступним, фоновим синком)
           }
         }
         const cur = LS.get("ordo.bk.last", {}), changed = snapHash() !== cur.h;
-        if (!(push === "force" || changed)) break;
+        if (pullOnly || !(push === "force" || changed)) break;
         const b = await makeBackup();
         try { await putFile("backups/latest.json", b.file, "копія", true); }
         catch (e) { if (e.conflict) continue; throw e; }                      // інший пристрій щойно зберіг — спершу зливаємо його копію
@@ -237,7 +237,7 @@
     } catch (e) {
       LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err");
     } finally { busy = false; }
-    if (pulled && window.__ordoStarted) reloadWhenCalm();
+    if (pulled && window.__ordoStarted && !pullOnly) reloadWhenCalm();
     return { pulled };
   }
   const backupNow = () => syncNow("force");
@@ -499,9 +499,10 @@
     catch (e) { gate(`<p class="gate__lead">Не вдалося завантажити Орден. Перевір зʼєднання і відкрий знову.</p>`); return; }
     const data = await unlockContent(vault);
     if (data) {
-      /* перед стартом — підтягнути зміни з інших пристроїв (не довше 5 с): вступ, квести й цитати вже будуть спільні */
-      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("now"), new Promise((r) => setTimeout(r, 5000))]);
-      start(data); return;
+      /* перед стартом — лише підтягнути зміни з інших пристроїв (один запит, не довше 3,5 с): вступ, квести й цитати вже будуть спільні */
+      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
+      start(data); setTimeout(() => syncNow("now"), 2500);      // збереження — уже у фоні, коли Орден відкритий
+      return;
     }
     stepToken(vault);
   }

@@ -708,14 +708,15 @@
     saveQ();
   }
   /* обрати квест із пулу: потрібної рідкості, ще не бачений */
-  function draw(rar, tag) {
-    const seen = new Set(Q.list.map((q) => q.pid)), can = (p) => p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)));
-    let c = pool().filter((p) => p.rar === rar && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
+  /* only — конкретний квест (писар призначив на дату); квести з датою в випадковий розіграш не потрапляють */
+  function draw(rar, tag, only) {
+    const seen = new Set(Q.list.map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats))));
+    let c = pool().filter((p) => (only || p.rar === rar) && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
     const free = (p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer"));
     if (!c.length && tag) c = pool().filter((p) => free(p) && (p.tags || []).includes(tag));      // тематичні можна повторювати
     if (!c.length) c = pool().filter(free);
     if (!c.length) return null;
-    const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)];
+    const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)]; rar = p.rar;
     return { id: uid(), pid: p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: p.xp || RAR[rar].xp,
       cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null,
@@ -729,6 +730,9 @@
     Q.clock.roll = t0;
     if (Q.list.some((q) => q.st === "offer")) { saveQ(); return; }
     const since = (r) => Q.clock[r] ? diff(Q.clock[r], t0) : 99;
+    /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу */
+    const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !Q.list.some((q) => q.pid === p.id));
+    if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
     const [trig, tag] = (Q.trig.shift() || "").split(":");
     let rar = null;
     if (trig) rar = trig;

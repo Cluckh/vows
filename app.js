@@ -1978,7 +1978,8 @@ window.ORDO_START = function () {
   function sync() {
     const today = todayKey(), dayChanged = shownDay !== today;
     if (dayChanged) { STARTS = loadStarts(); settleAll(); renderBoard(); updateGoalsDot(); if (TAB === "stats") renderStats(); if (TAB === "goals") renderGoals(); }
-    if (LS.get("ordo.lastIntro", "") !== today) { LS.set("ordo.lastIntro", today); runIntro(); }
+    const nw = new Date(), lateNight = nw.getHours() * 60 + nw.getMinutes() < 270;     // до 04:30 ранок ще не настав — вступ почекає (уночі приходить нічна варта)
+    if (LS.get("ordo.lastIntro", "") !== today && !lateNight) { LS.set("ordo.lastIntro", today); runIntro(); }
     else {
       if (dayChanged) { $("intro") && $("intro").setAttribute("hidden", ""); $("board") && $("board").classList.add("reveal"); }
       /* ритуал сьогодні вже був — але цілі чи ревю, що чекають, відкриваються при будь-якому вході */

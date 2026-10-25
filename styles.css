@@ -1430,6 +1430,15 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-body-line--sub{margin:-8px 0 14px;font-size:12.5px;gap:14px;flex-wrap:wrap}
 .dy-num.is-over,.dy-num.is-over em{color:var(--ember-2)}
 .dy-note--src{margin:-4px 0 10px;font-size:12.5px}
+/* — нічна варта: дихання 4-7-8 — */
+.nb{display:grid;justify-items:center;gap:6px;margin:10px 0 14px}
+.nb__orb{width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--gold) 55%,transparent),color-mix(in srgb,var(--gold) 8%,transparent) 70%);box-shadow:0 0 40px color-mix(in srgb,var(--gold) 25%,transparent);transform:scale(.55)}
+.nb__orb.is-in{transform:scale(1);transition:transform 4s ease-in-out}
+.nb__orb.is-hold{transform:scale(1);transition:none}
+.nb__orb.is-out{transform:scale(.55);transition:transform 8s ease-in-out}
+.nb__t{font-family:var(--f-serif);font-style:italic;font-size:17px;color:var(--bone)}
+.nb__n{font-family:var(--f-display);font-size:28px;color:var(--gold)}
+.dy-night .dy-tips{margin:4px 0 0;text-align:left;font-family:var(--f-serif);font-size:13.5px;color:var(--ash)}
 /* — запис тренування — */
 .gy-text{display:block;width:100%;box-sizing:border-box;min-height:190px;font-size:16px;line-height:1.45}
 .gy-saved{min-height:16px;margin:4px 2px 10px;text-align:right;font-family:var(--f-serif);font-style:italic;font-size:12px;color:var(--ash-2)}

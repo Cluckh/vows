@@ -48,7 +48,7 @@
   const XP_START_DAY = "2026-10-26";       // з цього дня рахується досвід; усе раніше — у стартовому
   const START_XP = 4650;                    // посвята: рівень 7, звання «Лицар»
   let S = LS.get("ordo.day", null); if (!S || typeof S !== "object") S = {};
-  S.tasks = S.tasks || {}; S.log = S.log || {}; S.wake = S.wake || {}; S.sleep = S.sleep || {};
+  S.tasks = S.tasks || {}; S.log = S.log || {}; S.wake = S.wake || {}; S.sleep = S.sleep || {}; S.night = S.night || {};
   let Q = LS.get("ordo.quests", null); if (!Q || typeof Q !== "object") Q = {};
   Q.list = Q.list || []; Q.clock = Q.clock || {}; Q.trig = Q.trig || [];
   let X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
@@ -263,6 +263,88 @@
     return { steps: hands, hands, avg: n ? Math.round(sum / n) : null };
   }
 
+  /* ======================================================== НІЧНА ВАРТА ===== */
+  /* відкрив Орден між 00:30 і 04:30 — приходить храмовник: що розбудило? Тривогу кладемо на ранок і дихаємо;
+     вранці той самий храмовник повертає її: справа, відпустити чи доручення на день. Наступний день — легший протокол */
+  const hmNow = () => { const n = new Date(); return `${p2(n.getHours())}:${p2(n.getMinutes())}`; };
+  const isNight = () => { const x = hmNow(); return x >= "00:30" && x < "04:30"; };
+  const TOPICS = { work: "робота", money: "гроші", poker: "покер", health: "здоровʼя", people: "люди", future: "майбутнє", none: "без причини" };
+  const TOPIC_ABOUT = { work: "роботу", money: "гроші", poker: "покер", health: "здоровʼя", people: "людей", future: "майбутнє" };
+  const NIGHT_KEEPERS = () => ["supreme", "seneschal", "chronicler"].concat((D().VOWS || []).map((v) => v.id));
+  const NL = {
+    open: ["Тихо, брате. Ніч — не час для битви, я тут на варті.", "Не спиться? Я посиджу поруч. Говоримо пошепки.", "Ніч довга, але вона мине. Я тут."],
+    anx: ["Тривога вночі завжди більша, ніж є насправді. Віддай її мені до ранку — я збережу.", "Вночі думки ростуть, як тіні від свічки. Запиши — і я покладу це на ранок."],
+    awake: ["Буває. Не дивись на годинник — він тільки підганяє. Телефон зараз відкладемо.", "Не воюй зі сном — він приходить, коли за ним не женуться."],
+    bye: ["Тоді спи. Я на варті до світанку.", "Добре. Екран донизу — і в темряву. Добраніч, брате."],
+    let: ["Правильно. Ніч перебільшує — ранок ставить на місце.", "Відпущено. Якщо повернеться — вирішимо вдень, на свіжу голову."]
+  };
+  let nbTimer = 0;
+  async function nightScene() {
+    const h = H(), t0 = today(), N = S.night[t0];
+    if (!h || (N && (N.done || Date.now() - (N.ts || 0) < 20 * 60e3))) return;
+    const giver = (N && N.keeper) || pick(NIGHT_KEEPERS());
+    S.night[t0] = Object.assign(N || { at: hmNow() }, { keeper: giver, ts: Date.now() }); saveS();
+    h.stage(giver);
+    if ((await h.say(pick(NL.open))) === "closed") return;
+    const i = await h.choose("Що тебе розбудило?", ["Тривога", "Щось муляє", "Просто не спиться", "Нічого, засинаю"]);
+    if (i === "closed") return;
+    const kind = ["anx", "bug", "awake", "fine"][i]; S.night[t0].kind = kind; S.night[t0].ts = Date.now(); saveS();
+    if (kind === "fine") { S.night[t0].done = 1; saveS(); await h.say(pick(NL.bye)); if (h.isOpen()) h.close(); return; }
+    if (kind === "awake") {
+      await h.say(pick(NL.awake));
+      const j = await h.choose("Подихаємо хвилину?", ["Так, подихаю", "Ні, просто лягаю"]);
+      if (h.isOpen()) h.close();
+      if (j === 0) nightSheet("breath"); else { S.night[t0].done = 1; saveS(); }
+      return;
+    }
+    await h.say(pick(NL.anx));
+    if (h.isOpen()) h.close();
+    nightSheet("park");
+  }
+  function nightSheet(step) { openSheet("night", null, today()); sh.step = step; renderSheet(); if (step === "breath") breathe(); }
+  /* дихання 4-7-8, чотири кола; коло — вдих 4 с, затримка 7 с, видих 8 с */
+  function breathe() {
+    clearInterval(nbTimer);
+    const PH = [["вдих через ніс", 4, "in"], ["затримай подих", 7, "hold"], ["видих через рот", 8, "out"]];
+    let round = 0, ph = 0, left = PH[0][1];
+    const show = () => { const o = $("nbOrb"), t = $("nbT"), n = $("nbN"); if (!o) return false; o.className = `nb__orb is-${PH[ph][2]}`; t.textContent = PH[ph][0]; n.textContent = left; return true; };
+    setTimeout(show, 30);
+    nbTimer = setInterval(() => {
+      if (!sh || sh.mode !== "night" || sh.step !== "breath") { clearInterval(nbTimer); return; }
+      left--;
+      if (left <= 0) { ph++; if (ph >= PH.length) { ph = 0; round++; } if (round >= 4) { clearInterval(nbTimer); nightRest(4); return; } left = PH[ph][1]; buzz("light"); }
+      show();
+    }, 1000);
+  }
+  function nightRest(rounds) {
+    const N = S.night[today()]; if (N) { N.breath = Math.max(N.breath || 0, rounds); N.done = 1; saveS(); }
+    if (sh && sh.mode === "night") { sh.step = "rest"; renderSheet(); }
+  }
+  /* ранок: храмовник повертає покладене на збереження */
+  async function nightMorning() {
+    const h = H(), t0 = today(), N = S.night[t0];
+    if (!h || isNight() || !N || !(N.kind === "anx" || N.kind === "bug") || N.dealt) return true;
+    h.stage(N.keeper || "supreme");
+    const what = N.text ? `«${N.text}»` : TOPIC_ABOUT[N.topic] ? `тривогу про ${TOPIC_ABOUT[N.topic]}` : "свою тривогу";
+    if ((await h.say(`Уночі${N.at ? `, о ${N.at},` : ""} ти віддав мені на збереження ${what}. Ранок тверезіший за ніч.`)) === "closed") return false;
+    const i = await h.choose("Що з нею зробимо?", ["Зробити справою на сьогодні", "Відпустити — це була ніч", "Дай доручення на день"]);
+    if (i === "closed") return false;
+    N.dealt = ["task", "let", "quest"][i]; saveS();
+    if (i === 0) {
+      const id = uid();
+      S.tasks[id] = { id, t: N.text ? `Розібратися: ${N.text}` : `Один крок щодо: ${TOPICS[N.topic] || "тривоги"}`, type: "do", diff: "normal", rep: { f: "none" }, start: t0, created: t0, mt: Date.now(), notes: "з нічної варти" };
+      saveS(); render();
+      return (await h.say("Записав у справи дня. Один маленький крок — і вона втратить половину ваги.")) !== "closed";
+    }
+    if (i === 1) return (await h.say(pick(NL.let))) !== "closed";
+    const q = draw("rare", N.topic === "money" ? "night-money" : "night");
+    if (!q) return true;
+    Q.list.push(q); Q.clock.rare = t0; saveQ();
+    return offerScene(q);
+  }
+  /* день після неспокійної ночі */
+  const roughNight = (k) => { const N = S.night[k]; return !!(N && N.kind && N.kind !== "fine"); };
+
   /* ================================================================ ЗАЛ ===== */
   /* тренування: позначка «тренування» (t.gym) або назва — зал, кардіо…; gym: false — вимкнено вручну */
   const GYM_RE = /(^|[^а-яіїєґ])зал([^а-яіїєґ]|$)|тренуван|кардіо|cardio|gym/i;
@@ -292,7 +374,7 @@
     base.ex.slice(0, 4).forEach((e) => {
       const sets = (e.sets || []).filter((x) => x.r), w = Math.max(0, ...sets.map((x) => x.w || 0)), minR = Math.min(...sets.map((x) => x.r));
       if (!sets.length) return;
-      if (w && minR >= 10) tips.push(`${e.n}: ${fmtN(w + 2.5)} кг`);
+      if (w && minR >= 10) tips.push(roughNight(k) ? `${e.n}: ${fmtN(w)} кг, як минулого разу` : `${e.n}: ${fmtN(w + 2.5)} кг`);
       else if (w && minR >= 6) tips.push(`${e.n}: ${fmtN(w)} кг, на повтор більше`);
       else if (w) tips.push(`${e.n}: ${fmtN(w)} кг, дотисни техніку`);
       else tips.push(`${e.n}: ${minR + 1}+ повторів`);
@@ -394,7 +476,7 @@
   const MS_XP = { 10: 60, 25: 120, 75: 250, 180: 500, 365: 1000, 500: 1300, 730: 1800, 1000: 2500 };
   function settleDerived() {
     const A = API(), t0 = today();
-    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er|rt):/.test(id)) delete X.e[id]; });
+    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er|rt|nw):/.test(id)) delete X.e[id]; });
     const vows = D().VOWS || [], starts = LS.get("ordo.starts", {});
     if (A.dayState) for (let k = XP_START_DAY; k < t0; k = add(k, 1)) vows.forEach((v) => {
       const s = A.dayState(v, k); if ((s === "c" || s === "w") && (!starts[v.id] || k >= starts[v.id])) X.e[`v:${v.id}:${k}`] = { d: k, xp: VOW_DAY, src: "vow", why: v.name };
@@ -423,6 +505,7 @@
       if (h && h.steps >= 10000) X.e[`st:${k}`] = { d: k, xp: 10, src: "body", why: "10 000 кроків" };
       const g = GYM.log[k]; if ((g && g.ex && g.ex.length) || Object.keys(GYM.w).some((x) => x.startsWith(k + "|") && GYM.w[x].fin)) X.e[`gy:${k}`] = { d: k, xp: 20, src: "body", why: "запис тренування" };
       if (early(k)) X.e[`er:${k}`] = { d: k, xp: 5, src: "body", why: "ранній підйом" };
+      if (S.night[k] && S.night[k].breath) X.e[`nw:${k}`] = { d: k, xp: 5, src: "body", why: "нічна варта" };
     }
     const F = faithIdx();          // шлях повернення: кожен вірний день із семи після зриву
     for (let k = XP_START_DAY; k < t0; k = add(k, 1)) {
@@ -666,6 +749,7 @@
     if (document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc")) return;
     busy = true;
     try {
+      if (isNight()) { if (X.knighted) await nightScene(); return; }           // уночі — лише варта, без доручень і подій
       if (!X.knighted) {
         if (TAB() !== "day") return;
         if (!(await knightScene())) { if (H().isOpen()) H().close(); return; }
@@ -677,6 +761,7 @@
         }
         render();
       }
+      if (!(await nightMorning())) return;
       dailyRoll();
       for (const q of Q.list.filter((x) => x.st === "offer")) { if (!(await offerScene(q))) break; }
       while (pendingDone.length) { const q = pendingDone.shift(); await doneScene(q); }
@@ -802,6 +887,13 @@
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) h += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
+    if (k === today() && roughNight(k) && !isNight()) {
+      const N = S.night[k], gymToday = its.some(({ t }) => isGym(t));
+      const tips = ["кава — до 12:00", "денний сон — до 20 хв і до 15:00", "за годину до сну — без екранів", "лягти до 23:00"].concat(gymToday ? ["у залі — без підвищення ваги"] : []);
+      h += `<div class="dy-ret dy-night"><span class="dy-ret__t">Після нічної варти</span>
+        <span class="dy-ret__s">${N.at ? `прокидався о ${N.at}` : "ніч була неспокійна"}${N.parked && !N.dealt ? " · тривога чекає на розмову" : ""}</span>
+        <ul class="dy-tips">${tips.map((x) => `<li>${x}</li>`).join("")}</ul></div>`;
+    }
     const cb = k === today() ? comeback() : null;
     if (cb) h += `<div class="dy-ret"><span class="dy-ret__t">Шлях повернення</span><span class="dy-ret__pips">${[1, 2, 3, 4, 5, 6, 7].map((i) => `<i class="${i <= cb.n ? "is-on" : ""}"></i>`).join("")}</span>
       <span class="dy-ret__s">${cb.today ? "почнеться завтра — кожен вірний день дасть +6" : `день ${cb.n + 1} з 7 · стрік почався знову, а вірні дні ніхто не забирає`}</span></div>`;
@@ -870,7 +962,8 @@
     requestAnimationFrame(() => sheetEl().classList.add("open"));
   }
   function closeSheet() {
-    gyFlush();
+    gyFlush(); clearInterval(nbTimer);
+    if (sh && sh.mode === "night") { const N = S.night[sh.k]; if (N && !N.done) { N.done = 1; saveS(); } }
     const wasGym = sh && sh.mode === "gym";
     const el = $("dSheet"); if (el) el.classList.remove("open");
     if (!document.querySelector(".sheet.open, .confirm.open")) { const sc = $("scrim"); if (sc) sc.classList.remove("open"); }
@@ -968,6 +1061,25 @@
         h += `<button class="btn btn--line" type="button" data-ds="gcopy">Скопіювати для тренера</button>
           <div class="dy-acts"><button class="btn btn--ghost" type="button" data-ds="gmore">Перенести / правити</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button></div>`;
       }
+    } else if (sh.mode === "night") {
+      const N = S.night[sh.k] || {};
+      if (sh.step === "breath") {
+        h += `<div class="gs-kicker">Нічна варта</div><div class="sheet__title dy-sht">Дихання 4 · 7 · 8</div>
+          <div class="nb"><div class="nb__orb" id="nbOrb"></div><div class="nb__t" id="nbT">вдих через ніс</div><div class="nb__n" id="nbN">4</div></div>
+          <p class="dy-note">Чотири кола. Видих повільний, через рот. Думки приходять — хай пливуть далі.</p>
+          <button class="btn btn--ghost" type="button" data-ds="nbend">Досить, лягаю</button>`;
+      } else if (sh.step === "rest") {
+        h += `<div class="gs-kicker">Нічна варта</div><div class="sheet__title dy-sht">${N.parked ? "Тривога під замком" : "Тепер — спати"}</div>
+          <p class="dy-note dy-note--t">${N.parked ? "Вранці я принесу її назад, і вирішимо на свіжу голову. Зараз з нею нічого не треба робити." : "Не дивись на годинник. Екран донизу."}</p>
+          <button class="btn btn--gold" type="button" data-ds="close">Добраніч</button>`;
+      } else {
+        h += `<div class="gs-kicker">Нічна варта${N.at ? ` · ${N.at}` : ""}</div><div class="sheet__title dy-sht">${N.kind === "bug" ? "Що муляє?" : "Про що тривога?"}</div>
+          <div class="dy-chips dy-chips--wrap" data-dk="ntopic">${Object.entries(TOPICS).map(([v, n]) => `<button type="button" data-dv="${v}" class="${N.topic === v ? "is-on" : ""}">${n}</button>`).join("")}</div>
+          <textarea class="dy-in dy-in--note" id="nTxt" rows="2" placeholder="одним реченням — можна й пропустити">${esc(N.text || "")}</textarea>
+          <p class="dy-note">Записане я покладу на ранок. Зараз з ним нічого не треба робити.</p>
+          <button class="btn btn--gold" type="button" data-ds="npark">Покласти на ранок</button>
+          <button class="btn btn--ghost" type="button" data-ds="nskip">Без запису — просто подихати</button>`;
+      }
     } else if (sh.mode === "fix") {
       const t = S.tasks[sh.id], r = rec(sh.k, sh.id);
       h += `<div class="gs-kicker">Виконано з поправкою</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
@@ -1033,6 +1145,10 @@
   function onSheet(e) {
     if (!sh) return;
     const ch = e.target.closest("[data-dv]");
+    if (ch && sh.mode === "night") {
+      const N = S.night[sh.k] = S.night[sh.k] || {}, tx = $("nTxt"); if (tx) N.text = tx.value.trim();
+      N.topic = ch.dataset.dv; saveS(); buzz("light"); renderSheet(); return;
+    }
     if (ch && sh.mode === "sleep") {
       const k = ch.parentElement.dataset.dk;
       if (k === "bed") { sh.bed = ch.dataset.dv; const b = $("slB"); if (b) b.value = sh.bed; }
@@ -1098,6 +1214,12 @@
     if (a === "goals") { closeSheet(); const A = API(); if (A.showTab) setTimeout(() => A.showTab("goals"), 300); return; }
     if (a === "gsave") { readGym(); const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now();
       if (g.ex.length) GYM.log[k] = g; else delete GYM.log[k]; saveG(); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
+    if (a === "npark" || a === "nskip") {
+      const N = S.night[k] = S.night[k] || {}, tx = $("nTxt");
+      if (a === "npark") { N.text = tx ? tx.value.trim() : N.text || ""; N.parked = 1; }
+      saveS(); sh.step = "breath"; renderSheet(); breathe(); return;
+    }
+    if (a === "nbend") { clearInterval(nbTimer); nightRest(1); return; }
     if (a === "gdone" || a === "gundo") {
       gyFlush(); readGym();
       const t = S.tasks[id], wk = wKey(k, id), w = GYM.w[wk] = GYM.w[wk] || { start: Date.now() }, gt = $("gyText");
@@ -1219,6 +1341,7 @@
       steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
       faith: Object.assign(faith(), { comeback: comeback() }),
       weight: { last: weightOn(t0, "last"), avg7: weightOn(t0, "avg7") },
+      nights: Object.keys(S.night).filter((k) => k >= since(14)).sort().map((k) => { const N = S.night[k]; return { d: k, at: N.at, kind: N.kind || "", topic: N.topic || "", text: (N.text || "").slice(0, 140), dealt: N.dealt || "" }; }),
       poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
       health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
@@ -1275,7 +1398,7 @@
   /* перше відкриття дня = підйом; до 8:00 — питаємо, як спав (після ритуалу, коли нічого не відкрито) */
   function stamp() {
     const n = new Date(), hm = `${p2(n.getHours())}:${p2(n.getMinutes())}`, t0 = today();
-    if (!S.wake[t0] && hm >= DAWN) { S.wake[t0] = hm; saveS(); }
+    if (!S.wake[t0] && hm >= DAWN && !isNight()) { S.wake[t0] = hm; saveS(); }
     if (early(t0) && !S.sleep[t0]) morning(Date.now());
   }
   function morning(t0) {
@@ -1286,6 +1409,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); },
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

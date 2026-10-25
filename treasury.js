@@ -25,7 +25,8 @@
   const MN = ["січень", "лютий", "березень", "квітень", "травень", "червень", "липень", "серпень", "вересень", "жовтень", "листопад", "грудень"];
   const ML = ["січні", "лютому", "березні", "квітні", "травні", "червні", "липні", "серпні", "вересні", "жовтні", "листопаді", "грудні"];
   const MG = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"];
-  const money = (k) => `${Math.round(Math.abs(k) / 100).toLocaleString("uk-UA")} ₴`;
+  const CUR = { 980: "₴", 840: "$", 978: "€" };
+  const money = (k, cur) => `${Math.round(Math.abs(k) / 100).toLocaleString("uk-UA")} ${CUR[cur || 980] || ""}`.trim();
 
   let B = LS.get("ordo.k.bank", null);                      // зведення (лише на пристрої)
   let W = LS.get("ordo.bank", null) || {};                   // рішення сторожі (синхронізується)
@@ -113,6 +114,18 @@
         <b>${MN[+mk.slice(5) - 1]} ${mk.slice(0, 4)}</b><button type="button" data-tr="1" ${idx >= ms.length - 1 ? "disabled" : ""} aria-label="Наступний місяць">›</button></div>
       <div class="tr-big"><span>витрачено</span><b>${money(M.spent)}</b>${P && P.spent ? `<em>у ${ML[+ms[idx - 1].slice(5) - 1]} — ${money(P.spent)}</em>` : ""}</div>
       <div class="tr-row"><span>надійшло <b>${money(M.income)}</b></span>${M.cb ? `<span>кешбек <b>${money(M.cb)}</b></span>` : ""}<span>покупок <b>${M.n}</b></span></div>`;
+    const accs = B.accs || [];
+    if (accs.length) {
+      h += `<div class="tr-accs">${accs.filter((a) => a.kind === "card").map((a) => `<span class="tr-acc"><em>картка ${esc(a.label)}</em><b>${money(a.bal, a.cur)}</b></span>`).join("")}</div>`;
+      accs.filter((a) => a.kind === "jar").forEach((a) => {
+        const J = (B.jars || {})[a.label] || { months: {}, recent: [] }, JM = J.months[mk] || { in: 0, out: 0 };
+        const p = a.goal ? Math.min(1, a.bal / a.goal) : 0;
+        h += `<div class="tr-jar"><div class="tr-jar__h"><span>скарбничка</span><b>${esc(a.label)}</b><strong>${money(a.bal, a.cur)}</strong></div>
+          ${a.goal ? `<div class="gl-bar"><i style="width:${Math.round(p * 100)}%"></i></div><em class="tr-jar__g">${Math.round(p * 100)}% від мети ${money(a.goal, a.cur)}</em>` : ""}
+          <div class="tr-row"><span>цього місяця покладено <b>${money(JM.in, a.cur)}</b></span>${JM.out ? `<span>знято <b>${money(JM.out, a.cur)}</b></span>` : ""}</div>
+          ${J.recent.length ? `<ul class="tr-top">${J.recent.slice(0, 4).map((t) => { const d = new Date(t.t * 1000); return `<li><span>${d.getDate()} ${MG[d.getMonth()]} · ${esc(t.d)}</span><b>${t.a > 0 ? "+" : "−"}${money(t.a, a.cur)}</b></li>`; }).join("")}</ul>` : ""}</div>`;
+      });
+    }
     if (K) h += `<div class="md md--voice tr-voice"><div class="md__fig"${K.art ? ` data-card="${c.who}"` : ""}>${K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K.name)}</div><p class="md__say">${esc(c.text)}</p></div></div>`;
     const risk = BK().risk || [];
     h += `<ul class="tr-cats">${cats.map(([k, v]) => `<li class="tr-c${risk.includes(k) ? " tr-c--risk" : k === BK().warm ? " tr-c--warm" : ""}"><span class="tr-c__n">${esc(B.cats[k] || k)}</span><span class="tr-c__v">${money(v)}</span><i style="width:${Math.max(2, Math.round(100 * v / mx))}%"></i></li>`).join("")}</ul>`;
@@ -122,6 +135,8 @@
     if (sv.length) h += `<div class="st-h st-h--sub">Збережено обітницями</div><ul class="tr-save">${sv.map((x) => `<li><svg><use href="#i-${x.v.icon}"/></svg><span>${esc(x.v.name)}</span><b>≈ ${money(x.saved)}</b></li>`).join("")}<li class="tr-save__all"><span>Разом</span><b>≈ ${money(sv.reduce((a, x) => a + x.saved, 0))}</b></li></ul>`;
     const wl = (B.watch || []).slice(-6).reverse();
     if (wl.length) h += `<div class="st-h st-h--sub">Сторожа</div><ul class="tr-watch">${wl.map((t) => { const d = new Date(t.t * 1000), s = W.seen[t.id]; return `<li class="${s ? "is-" + s : "is-new"}"><span>${d.getDate()} ${MG[d.getMonth()]} · ${esc(t.d)}</span><b>${money(t.a)}</b><em>${s === "ok" ? "гідно" : s === "breach" ? "зрив" : s === "later" ? "відкладено" : "не розглянуто"}</em></li>`; }).join("")}</ul>`;
+    const cards = accs.filter((a) => a.kind === "card").map((a) => a.label);
+    if (cards.length) h += `<p class="tr-at">враховано ${cards.length > 1 ? "картки" : "картку"} ${cards.join(" і ")}; перекази між своїми рахунками й поповнення скарбничок — не витрати</p>`;
     return h + `<p class="tr-at">виписка від ${new Date(B.at).toLocaleString("uk-UA", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</p></section>`;
   }
   document.addEventListener("click", (e) => {

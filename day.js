@@ -56,7 +56,7 @@
   let ACH = LS.get("ordo.ach", {}) || {};
   let PK = LS.get("ordo.k.poker", null);                    // роздачі й сесії з бази HM3 (з компа через приватний репозиторій)
   let HL = LS.get("ordo.k.health", null);                   // кроки й сон зі «Здоровʼя» (лише на пристрої; джерело — приватний репозиторій)
-  let GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {};
+  let GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {}; GYM.w = GYM.w || {};   // w: записи тренувань «день|ціль» → { text, at, fin }
   const saveG = () => LS.set("ordo.gym", GYM);
   const saveS = () => LS.set("ordo.day", S), saveQ = () => LS.set("ordo.quests", Q), saveX = () => LS.set("ordo.xp", X), saveA = () => LS.set("ordo.ach", ACH);
 
@@ -264,11 +264,26 @@
   }
 
   /* ================================================================ ЗАЛ ===== */
-  const isGym = (t) => !!(t && (t.gym || /(^|[^а-яіїєґ])зал([^а-яіїєґ]|$)|тренуван|gym/i.test(t.t || "")));
-  function sessions() { return Object.keys(GYM.log).sort().map((k) => Object.assign({ k }, GYM.log[k])).filter((x) => x.ex && x.ex.length); }
+  /* тренування: позначка «тренування» (t.gym) або назва — зал, кардіо…; gym: false — вимкнено вручну */
+  const GYM_RE = /(^|[^а-яіїєґ])зал([^а-яіїєґ]|$)|тренуван|кардіо|cardio|gym/i;
+  const isGym = (t) => !!(t && t.gym !== false && (t.gym || GYM_RE.test(t.t || "")));
+  const isLift = (t) => !!(t && /(^|[^а-яіїєґ])зал([^а-яіїєґ]|$)|gym|силов/i.test(t.t || ""));     // зал — ще й таблиця підходів для порад
+  const wKey = (k, id) => `${k}|${id}`;
+  const clock = (ms) => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+  /* завершені тренування по днях: таблиця підходів (зал) + тексти, написані по ходу */
+  function sessions() {
+    const days = new Set(Object.keys(GYM.log).filter((k) => GYM.log[k].ex && GYM.log[k].ex.length));
+    Object.keys(GYM.w).forEach((x) => { if (GYM.w[x].fin && (GYM.w[x].text || "").trim()) days.add(x.split("|")[0]); });
+    return [...days].sort().map((k) => {
+      const L = GYM.log[k] || {};
+      const text = Object.keys(GYM.w).filter((x) => x.startsWith(k + "|") && GYM.w[x].fin && (GYM.w[x].text || "").trim())
+        .map((x) => { const t = S.tasks[x.split("|")[1]]; return (t ? `${t.t}: ` : "") + GYM.w[x].text.trim(); }).join("\n");
+      return { k, ex: L.ex || [], note: L.note || "", text };
+    });
+  }
   /* порада на наступний зал: прогресія ваги/повторів і черговість вправ */
   function gymAdvice(k) {
-    const ss = sessions().filter((x) => x.k < k); if (!ss.length) return null;
+    const ss = sessions().filter((x) => x.k < k && x.ex.length); if (!ss.length) return null;
     const last = ss[ss.length - 1], prev = ss[ss.length - 2];
     const names = (x) => x.ex.map((e) => e.n.toLowerCase());
     let rot = null;
@@ -290,14 +305,14 @@
   /* текст для живого тренера в чаті: останні тренування з підходами й нотатками */
   function gymText(draft) {
     const ss = sessions().filter((x) => !draft || x.k !== draft.k);
-    if (draft && draft.ex.some((e) => e.n && e.sets.some((z) => z.r))) ss.push(draft);
+    if (draft && ((draft.text || "").trim() || draft.ex.some((e) => e.n && e.sets.some((z) => z.r)))) ss.push(draft);
     ss.sort((a, b) => a.k < b.k ? -1 : 1);
     const set = (z) => z.w ? `${z.r}×${fmtN(z.w)}` : `${z.r}`;
     const out = ss.slice(-8).map((x) => [`${human(x.k)} (${WDL[wd(x.k)]}):`]
       .concat(x.ex.filter((e) => e.n).map((e) => `— ${e.n}: ${(e.sets || []).filter((z) => z.r).map(set).join(", ")}`))
-      .concat(x.note ? [`Нотатка: ${x.note}`] : []).join("\n"));
+      .concat(x.text ? [x.text] : []).concat(x.note ? [`Нотатка: ${x.note}`] : []).join("\n"));
     const adv = gymAdvice(add(today(), 1));
-    return `Мої останні тренування (повтори×кг):\n\n${out.join("\n\n")}` + (adv && adv.tips.length ? `\n\nДодаток радить на наступне: ${adv.tips.join("; ")}.` : "") +
+    return `Мої останні тренування:\n\n${out.join("\n\n")}` + (adv && adv.tips.length ? `\n\nДодаток радить на наступне: ${adv.tips.join("; ")}.` : "") +
       `\n\nПодивись на прогрес, що б ти змінив і на що звернути увагу?`;
   }
 
@@ -406,7 +421,7 @@
       const h = hDay(k);
       if (h && h.sleepMin >= 420) X.e[`sl:${k}`] = { d: k, xp: 10, src: "body", why: "сон 7+ годин" };
       if (h && h.steps >= 10000) X.e[`st:${k}`] = { d: k, xp: 10, src: "body", why: "10 000 кроків" };
-      const g = GYM.log[k]; if (g && g.ex && g.ex.length) X.e[`gy:${k}`] = { d: k, xp: 20, src: "body", why: "журнал залу" };
+      const g = GYM.log[k]; if ((g && g.ex && g.ex.length) || Object.keys(GYM.w).some((x) => x.startsWith(k + "|") && GYM.w[x].fin)) X.e[`gy:${k}`] = { d: k, xp: 20, src: "body", why: "запис тренування" };
       if (early(k)) X.e[`er:${k}`] = { d: k, xp: 5, src: "body", why: "ранній підйом" };
     }
     const F = faithIdx();          // шлях повернення: кожен вірний день із семи після зриву
@@ -722,6 +737,8 @@
     const bits = [];
     if (t.time) bits.push(t.time);
     const rt = repText(t); if (rt) bits.push(`<span class="dy-rep">↻ ${rt}</span>`);
+    const wr = isGym(t) && GYM.w[wKey(k, t.id)];
+    if (wr && (wr.text || "").trim()) bits.push(wr.fin ? "записано" : "✎ запис триває");
     if (r && r.from) bits.push(`перенесено з ${human(r.from)}`);
     if (r && r.st === "moved" && r.to) bits.push(`перенесено на ${human(r.to)}`);
     if (r && r.note) bits.push(`<i>${esc(r.note)}</i>`);
@@ -805,6 +822,7 @@
   /* ============================================================ ДІЇ ======== */
   function mark(id, k) {
     const t = S.tasks[id]; if (!t) return;
+    if (isGym(t) && k <= today()) { openSheet("gym", id, k); return; }           // тренування закривається кнопкою «Готово» в записі
     const before = totalXP(), r = rec(k, id), st = stOf(t, r, k);
     if (st === "done" || st === "fix") { setRec(k, id, { st: null, note: null }); buzz("light"); }
     else { setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); if (isGym(t)) setTimeout(() => openSheet("gym", id, k), 500); }
@@ -852,9 +870,12 @@
     requestAnimationFrame(() => sheetEl().classList.add("open"));
   }
   function closeSheet() {
+    gyFlush();
+    const wasGym = sh && sh.mode === "gym";
     const el = $("dSheet"); if (el) el.classList.remove("open");
     if (!document.querySelector(".sheet.open, .confirm.open")) { const sc = $("scrim"); if (sc) sc.classList.remove("open"); }
     sh = null;
+    if (wasGym) render();                         // «✎ запис триває» у списку
   }
   const REPS = [["none", "Ніколи"], ["day", "Щодня"], ["wd", "У будні"], ["we", "У вихідні"], ["week", "Щотижня"], ["month", "Щомісяця"], ["mlast", "Останній день місяця"], ["year", "Щороку"]];
   function renderSheet() {
@@ -881,7 +902,7 @@
         ${srcOf(d) === "bank" ? `<div class="dy-f"><label>Категорії</label><div class="dy-chips dy-chips--wrap" data-dk="bcat">${Object.entries(T() ? T().cats() : {}).filter(([c]) => c !== "own").map(([c, n]) => `<button type="button" data-dv="${c}" class="${(d.bank && d.bank.cats || []).includes(c) ? "is-on" : ""}">${esc(n)}</button>`).join("") || `<span class="dy-note">чекаю першу виписку банку</span>`}</div></div>
           <div class="dy-f dy-f--row"><label>Ліміт на день</label><input class="dy-in dy-in--n" id="dsBL" inputmode="decimal" value="${d.bank && d.bank.limit ? d.bank.limit / 100 : 0}"><span class="dy-unit">грн · 0 — без витрат</span></div>` : ""}
         <div class="dy-f"><label>Позначки</label><div class="dy-chips" data-dk="flags">
-          <button type="button" data-dv="gym" class="${d.gym ? "is-on" : ""}">зал</button></div></div>
+          <button type="button" data-dv="gym" class="${isGym(d) ? "is-on" : ""}">тренування</button></div></div>
         <button class="btn btn--gold" type="button" data-ds="save">${sh.id ? "Зберегти" : "Додати"}</button>
         ${sh.id ? `<button class="btn btn--reset" type="button" data-ds="del">Видалити ціль</button>` : ""}
         <button class="btn btn--ghost" type="button" data-ds="close">Скасувати</button>`;
@@ -903,7 +924,7 @@
       h += `<div class="dy-acts dy-acts--3"><button type="button" class="btn btn--ghost" data-ds="move">Перенести</button>
         <button type="button" class="btn btn--ghost" data-ds="${st === "cancel" ? "uncancel" : "cancel"}">${st === "cancel" ? "Повернути" : "Скасувати"}</button>
         <button type="button" class="btn btn--ghost" data-ds="edit">Правити</button></div>`;
-      if (isGym(t) && !fut) h += `<button type="button" class="btn btn--line" data-ds="gym">${GYM.log[k] ? "Журнал тренування — правити" : "Записати, що зроблено в залі"}</button>`;
+      if (isGym(t) && !fut) h += `<button type="button" class="btn btn--line" data-ds="gym">Запис тренування</button>`;
       if (xp) h += `<p class="dy-note">За цю справу: +${xp} досвіду${ch ? ` (серія ${ch} дає +${Math.round(Math.min(0.3, ch * 0.03) * 100)}%)` : ""}</p>`;
       if (r && r.note) h += `<p class="dy-note">Поправка: ${esc(r.note)}</p>`;
     } else if (sh.mode === "sleep") {
@@ -916,21 +937,37 @@
         <div class="dy-f"><label>Самопочуття</label><div class="dy-chips" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => `<button type="button" data-dv="${v}" class="${String(sh.q || sl.q || "") === v ? "is-on" : ""}">${n}</button>`).join("")}</div></div>
         <button class="btn btn--gold" type="button" data-ds="slsave">Записати</button><button class="btn btn--ghost" type="button" data-ds="slskip">Не зараз</button>`;
     } else if (sh.mode === "gym") {
-      if (!sh.gym) {
-        const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k), adv = gymAdvice(sh.k);
-        const tpl = ex ? ex : { ex: (adv && ss.length ? (ss.length > 1 && !ss[ss.length - 1].ex.some((e) => ss[ss.length - 2].ex.some((f) => f.n.toLowerCase() === e.n.toLowerCase())) ? ss[ss.length - 2] : ss[ss.length - 1]).ex : [{ n: "", sets: [{}] }]).map((e) => ({ n: e.n, sets: (e.sets || [{}]).map((x) => ({ r: x.r, w: x.w, hint: true })) })) };
-        sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" })); sh.gymTpl = gymSig(sh.gym);
-      }
-      const g = sh.gym, known = [...new Set(sessions().flatMap((x) => x.ex.map((e) => e.n)))];
-      h += `<div class="gs-kicker">Журнал залу · ${human(sh.k)}</div><div class="sheet__title dy-sht">Що зроблено?</div>
-        <p class="dy-note">Підходи: повтори × вага. Значення з минулого разу підставлено — виправ, що змінилось.</p>
+      const t = S.tasks[sh.id], wk = wKey(sh.k, sh.id), w = GYM.w[wk] || {}, r = rec(sh.k, sh.id), done = !!(t && isWin(stOf(t, r, sh.k)));
+      const lift = !!(t && isLift(t)) || !!GYM.log[sh.k];
+      h += `<div class="gs-kicker">Тренування · ${rel(sh.k)}, ${human(sh.k)}</div><div class="sheet__title dy-sht">${esc(t ? t.t : "Тренування")}</div>`;
+      if (sh.fin) {
+        h += `<p class="dy-note dy-note--t">Записано. ${(w.text || "").trim() ? "Звіт у журналі, писар його побачить." : ""}</p>
+          ${(w.text || "").trim() ? `<div class="gy-report">${esc(w.text.trim()).replace(/\n/g, "<br>")}</div>` : ""}
+          <button class="btn btn--gold" type="button" data-ds="gcopy">Скопіювати для тренера</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
+      } else {
+        h += `<p class="dy-note">Пиши по ходу: вправа, підходи, відчуття. Кожна літера зберігається сама — можна закривати й повертатися.</p>
+          <textarea class="dy-in gy-text" id="gyText" rows="9" placeholder="напр.: жим 60×8, 60×8, 62.5×6 · плече ок">${esc(w.text || "")}</textarea>
+          <div class="gy-saved" id="gySaved">${w.at ? `збережено о ${clock(w.at)}` : ""}</div>`;
+        if (lift && (sh.table || GYM.log[sh.k])) {
+          if (!sh.gym) {
+            const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k && x.ex.length), adv = gymAdvice(sh.k);
+            const tpl = ex ? ex : { ex: (adv && ss.length ? (ss.length > 1 && !ss[ss.length - 1].ex.some((e) => ss[ss.length - 2].ex.some((f) => f.n.toLowerCase() === e.n.toLowerCase())) ? ss[ss.length - 2] : ss[ss.length - 1]).ex : [{ n: "", sets: [{}] }]).map((e) => ({ n: e.n, sets: (e.sets || [{}]).map((x) => ({ r: x.r, w: x.w, hint: true })) })) };
+            sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" })); sh.gymTpl = gymSig(sh.gym);
+          }
+          const g = sh.gym, known = [...new Set(sessions().flatMap((x) => x.ex.map((e) => e.n)))];
+          h += `<p class="dy-note">Підходи: повтори × вага. Значення з минулого разу підставлено — виправ, що змінилось.</p>
         <datalist id="gyKnown">${known.map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
         ${g.ex.map((e, i) => `<div class="gy-ex" data-i="${i}"><div class="gy-ex__h"><input class="dy-in gy-n" list="gyKnown" placeholder="Вправа" value="${esc(e.n)}"><button type="button" class="gy-x" data-ds="gdel" data-i="${i}" aria-label="Прибрати">×</button></div>
           <div class="gy-sets">${e.sets.map((x, j) => `<span class="gy-set"><input class="dy-in gy-r" inputmode="numeric" placeholder="повт" value="${x.r == null ? "" : x.r}"><i>×</i><input class="dy-in gy-w" inputmode="decimal" placeholder="кг" value="${x.w == null ? "" : x.w}"></span>`).join("")}
           <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button></div></div>`).join("")}
         <button type="button" class="gl-new" data-ds="gadd"><svg><use href="#i-plus"/></svg>Вправа</button>
-        <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="нотатка: самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>
-        <button class="btn btn--gold" type="button" data-ds="gsave">Записати тренування · +20</button><button class="btn btn--line" type="button" data-ds="gcopy">Скопіювати для тренера</button><button class="btn btn--ghost" type="button" data-ds="close">Пізніше</button>`;
+        <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="нотатка: самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>`;
+        } else if (lift) h += `<button type="button" class="btn btn--ghost" data-ds="gtable">+ підходи таблицею (для порад на наступний зал)</button>`;
+        h += done ? `<button class="btn btn--gold" type="button" data-ds="gdone">Зберегти</button><button class="btn btn--line" type="button" data-ds="gundo">Зняти відмітку</button>`
+          : `<button class="btn btn--gold" type="button" data-ds="gdone">Готово — тренування завершено</button>`;
+        h += `<button class="btn btn--line" type="button" data-ds="gcopy">Скопіювати для тренера</button>
+          <div class="dy-acts"><button class="btn btn--ghost" type="button" data-ds="gmore">Перенести / правити</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button></div>`;
+      }
     } else if (sh.mode === "fix") {
       const t = S.tasks[sh.id], r = rec(sh.k, sh.id);
       h += `<div class="gs-kicker">Виконано з поправкою</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
@@ -949,7 +986,17 @@
         <button class="btn btn--ghost" type="button" data-ds="back">Назад</button>`;
     }
     el.innerHTML = h;
+    const gt = $("gyText"); if (gt) gt.oninput = () => gyAutosave(gt.value);
   }
+  /* запис тренування зберігається з кожною літерою (з невеликою затримкою) */
+  let gyT = 0;
+  function gyAutosave(v) {
+    if (!sh || sh.mode !== "gym") return;
+    const wk = wKey(sh.k, sh.id), w = GYM.w[wk] = GYM.w[wk] || { start: Date.now() };
+    w.text = v; w.at = Date.now();
+    clearTimeout(gyT); gyT = setTimeout(() => { gyT = 0; saveG(); const s = $("gySaved"); if (s) s.textContent = `збережено о ${clock(w.at)}`; }, 400);
+  }
+  const gyFlush = () => { if (gyT) { clearTimeout(gyT); gyT = 0; saveG(); } };
   const el0 = () => $("dSheet");
   function readGym() {
     if (!sh || !sh.gym) return;
@@ -999,7 +1046,7 @@
       if (k === "rep") { d.rep = { f: v, n: 1 }; if (v === "week") d.rep.days = [wd(d.start)]; }
       if (k === "days") { const s = new Set(d.rep.days || []); const n = +v; s.has(n) ? s.delete(n) : s.add(n); d.rep.days = [...s].sort(); if (!d.rep.days.length) d.rep.days = [n]; }
       if (k === "diff") d.diff = v;
-      if (k === "flags" && v === "gym") d.gym = !d.gym;
+      if (k === "flags" && v === "gym") d.gym = !isGym(d);
       if (k === "src") {
         d.src = v; d.health = v === "steps" ? "steps" : null;
         if (v === "steps") { d.type = "count"; d.unit = d.unit || "кроків"; d.target = d.target || 10000; }
@@ -1051,8 +1098,23 @@
     if (a === "goals") { closeSheet(); const A = API(); if (A.showTab) setTimeout(() => A.showTab("goals"), 300); return; }
     if (a === "gsave") { readGym(); const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now();
       if (g.ex.length) GYM.log[k] = g; else delete GYM.log[k]; saveG(); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
+    if (a === "gdone" || a === "gundo") {
+      gyFlush(); readGym();
+      const t = S.tasks[id], wk = wKey(k, id), w = GYM.w[wk] = GYM.w[wk] || { start: Date.now() }, gt = $("gyText");
+      if (gt) { w.text = gt.value; w.at = Date.now(); }
+      if (sh.gym) { const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now(); if (g.ex.length) GYM.log[k] = g; else if (GYM.log[k] && sh.table) delete GYM.log[k]; }
+      const wasDone = !!(t && isWin(stOf(t, rec(k, id), k)));
+      if (a === "gundo") { w.fin = null; setRec(k, id, { st: null, note: null }); saveG(); buzz("light"); after(before); renderSheet(); return; }
+      w.fin = w.fin || Date.now(); saveG();
+      if (!wasDone) { setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); }
+      after(before); sh.fin = true; renderSheet(); return;
+    }
+    if (a === "gtable") { sh.table = true; renderSheet(); return; }
+    if (a === "gmore") { gyFlush(); openSheet("item", id, k); return; }
     if (a === "gcopy") {
-      readGym(); const txt = gymText(GYM.log[k] || gymSig(sh.gym) !== sh.gymTpl ? Object.assign({ k }, JSON.parse(JSON.stringify(sh.gym))) : null);
+      gyFlush(); readGym();
+      const wt = (GYM.w[wKey(k, id)] || {}).text || "", tb = sh.gym && (GYM.log[k] || gymSig(sh.gym) !== sh.gymTpl) ? JSON.parse(JSON.stringify(sh.gym)) : { ex: [], note: "" };
+      const t0 = S.tasks[id], txt = gymText(Object.assign({ k }, tb, { text: wt.trim() ? `${t0 ? t0.t + ": " : ""}${wt.trim()}` : "" }));
       const ask = () => prompt("Скопіюй і встав у чат:", txt);
       if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => { b.textContent = "Скопійовано — встав у чат із тренером"; buzz("light"); }, ask); else ask();
       return;
@@ -1079,7 +1141,7 @@
     const qd = e.target.closest("[data-dqdone]"); if (qd) { qDone(qd.dataset.dqdone); return; }
     const qp = e.target.closest("[data-dqplus]"); if (qp) { qPlus(qp.dataset.dqplus); return; }
     const nw = e.target.closest("[data-dnew]"); if (nw) { openSheet("edit", null, view); return; }
-    const op = e.target.closest("[data-dopen]"); if (op) { openSheet("item", op.dataset.dopen, view); return; }
+    const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }
   /* квест: шторка з подробицями */
@@ -1153,7 +1215,7 @@
       quests: Q.list.slice(-25).map((q) => ({ pid: q.pid, rar: q.rar, giver: q.giver, t: q.t, st: q.st, from: q.from || q.offerOn, until: q.until, cur: q.cur, target: q.target })),
       achievements: Object.keys(ACH),
       goals: { month: goals(G.m && G.m[mk]), year: goals(G.y && G.y[yk]) },
-      gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "" })),
+      gym: sessions().slice(-6).map((x) => ({ d: x.k, ex: x.ex.map((e) => `${e.n} ${e.sets.map((z) => `${z.r || "?"}×${z.w || 0}`).join(",")}`), note: x.note || "", text: (x.text || "").slice(0, 500) })),
       steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
       faith: Object.assign(faith(), { comeback: comeback() }),
       weight: { last: weightOn(t0, "last"), avg7: weightOn(t0, "avg7") },

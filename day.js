@@ -128,7 +128,7 @@
   /* ===================================================== ДЖЕРЕЛА ДАНИХ ===== */
   /* звідки ціль бере дані: steps — «Здоровʼя», poker — HM3, mind — Calm, bank — виписка, "" — вручну.
      Старі цілі без поля src — за колишніми ознаками (позначка кроків, одиниця «роздач», назва з «медит») */
-  const SRC = { "": "вручну", steps: "кроки", poker: "роздачі", mind: "медитації", weight: "вага", journal: "сповідь", bank: "скарбниця" };
+  const SRC = { "": "вручну", steps: "кроки", poker: "роздачі", mind: "медитації", weight: "вага", journal: "сповідь", duo: "Duolingo", bank: "скарбниця" };
   function srcOf(t) {
     if (!t) return "";
     if (t.src != null) return t.src;
@@ -136,6 +136,7 @@
     if (t.type === "count" && /роздач/i.test(t.unit || "")) return "poker";
     if (/медит|meditat|calm/i.test(t.t || "")) return "mind";
     if (/journal|щоденник|сповід/i.test(t.t || "")) return "journal";
+    if (/duolingo|дуолінго/i.test(t.t || "")) return "duo";
     if (t.type !== "count" && /зважит|ваг[аиу]\b|weigh/i.test(t.t || "")) return "weight";
     return "";
   }
@@ -168,6 +169,15 @@
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
       if (!(hDay(k) || {}).weight) continue;
       items(k).forEach(({ t, r }) => { if (srcOf(t) === "weight" && (!r || r.st !== "done") && !(r && (r.st === "moved" || r.st === "cancel"))) { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; } });
+    }
+    /* Duolingo: «Зробити» — є урок за день; «Число» — XP за день */
+    for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
+      const du = (hDay(k) || {}).duo; if (!du) continue;
+      items(k).forEach(({ t, r }) => {
+        if (srcOf(t) !== "duo" || (r && (r.st === "moved" || r.st === "cancel"))) return;
+        if (t.type === "count") { if ((du.today || 0) > ((r && r.cur) || 0)) { setRec(k, t.id, { cur: du.today, auto: 1 }); ch = true; } }
+        else if (du.ext && (!r || r.st !== "done")) { setRec(k, t.id, { st: "done", auto: 1 }); ch = true; }
+      });
     }
     /* медитації з Calm («Усвідомлені хвилини»): ціль про медитацію відмічається сама */
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
@@ -962,7 +972,7 @@
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
     const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
-    if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
+    if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
@@ -1094,7 +1104,7 @@
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
         <div class="dy-f"><label>Вага</label><div class="dy-chips" data-dk="diff">${Object.keys(DIFF).map((v) => `<button type="button" data-dv="${v}" class="${(d.diff || "normal") === v ? "is-on" : ""}">${DIFF[v]} · ${BASE[v]}</button>`).join("")}</div></div>
         <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
-        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", journal: "Відмічається сама, щойно віддаси сповідь дня.", weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
+        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", journal: "Відмічається сама, щойно віддаси сповідь дня.", duo: "«Зробити» — щойно за день є урок у Duolingo; «Число» з одиницею XP — XP за день (квести самі не видно, XP — найближча заміна).", weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
         ${srcOf(d) === "bank" ? `<div class="dy-f"><label>Категорії</label><div class="dy-chips dy-chips--wrap" data-dk="bcat">${Object.entries(T() ? T().cats() : {}).filter(([c]) => c !== "own").map(([c, n]) => `<button type="button" data-dv="${c}" class="${(d.bank && d.bank.cats || []).includes(c) ? "is-on" : ""}">${esc(n)}</button>`).join("") || `<span class="dy-note">чекаю першу виписку банку</span>`}</div></div>
           <div class="dy-f dy-f--row"><label>Ліміт на день</label><input class="dy-in dy-in--n" id="dsBL" inputmode="decimal" value="${d.bank && d.bank.limit ? d.bank.limit / 100 : 0}"><span class="dy-unit">грн · 0 — без витрат</span></div>` : ""}
         <div class="dy-f"><label>Позначки</label><div class="dy-chips" data-dk="flags">

@@ -335,7 +335,7 @@
     if (q.type === "budget") { const sp = qSpent(q); return q.st === "done" ? 1 : sp == null ? 0 : q.limit ? Math.max(0, 1 - sp / q.limit) : sp > 0 ? 0 : 1; }
     return q.type === "count" && q.target ? Math.min(1, (q.cur || 0) / q.target) : q.st === "done" ? 1 : 0;
   }
-  /* квест-лічильник з одиницею, як у денного лічильника (роздач, склянок…), рахується з денних відміток */
+  /* квест-лічильник з тією ж одиницею, що й денний лічильник, рахується з денних відміток */
   function autoCount() {
     Q.list.forEach((q) => {
       if (q.st !== "active" || q.type !== "count" || !q.unit || /крок/i.test(q.unit)) return;

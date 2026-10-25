@@ -890,7 +890,8 @@
     const wr = isGym(t) && GYM.w[wKey(k, t.id)];
     if (wr && (wr.text || "").trim()) bits.push(wr.fin ? "записано" : "✎ запис триває");
     if (r && r.from) bits.push(`перенесено з ${human(r.from)}`);
-    if (r && r.st === "moved" && r.to) bits.push(`перенесено на ${human(r.to)}`);
+    if (r && r.st === "moved" && r.to) bits.push(r.early ? `зроблено наперед ${human(r.to)}` : `перенесено на ${human(r.to)}`);
+    if (r && r.st === "done" && r.early) bits.push(`зроблено наперед ${human(r.early)}`);
     if (r && r.note) bits.push(`<i>${esc(r.note)}</i>`);
     else if (t.notes && t.notes.length <= 40) bits.push(`<i>${esc(t.notes)}</i>`);
     return bits.join(" · ");
@@ -901,7 +902,7 @@
     const cur = (r && r.cur) || 0, pr = cnt && t.target ? Math.min(1, cur / t.target) : 0;
     const xp = xpTask(t, r || {}, k);
     const mark = cnt ? `<span class="dy-mark dy-mark--n" data-dopen="${t.id}">${Math.round(pr * 100)}<small>%</small></span>`
-      : `<button class="dy-mark" type="button" ${ro ? "disabled" : `data-dmark="${t.id}"`} aria-label="Виконано"></button>`;
+      : `<button class="dy-mark" type="button" data-dmark="${t.id}" aria-label="${ro ? "Зробити наперед" : "Виконано"}"></button>`;
     return `<li class="dy-it st-${st}${t.quest ? " dy-it--q" : ""}" data-dopen="${t.id}">${mark}
       <div class="dy-body"><span class="dy-t">${esc(t.t)}</span>
         ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em></span>` : ""}
@@ -977,8 +978,22 @@
   }
 
   /* ============================================================ ДІЇ ======== */
+  /* зробити наперед: якщо ціль сьогодні не припадає — переїжджає на сьогодні виконаною (рахується одразу, і в привʼязаних цілях);
+     якщо сьогодні вона й так є — майбутній день просто позначається виконаним наперед */
+  function earlyDone(id, k) {
+    const t = S.tasks[id], t0 = today(), r = rec(k, id), before = totalXP(); if (!t || k <= t0) return;
+    if (r && (r.st === "done" || (r.st === "moved" && r.early))) {                    // скасувати «наперед»
+      if (r.st === "moved") { setRec(t0, id, { from: null, st: null }); }
+      setRec(k, id, { st: null, to: null, early: null }); buzz("light"); after(before); return;
+    }
+    if (items(t0).some((x) => x.t.id === id)) setRec(k, id, { st: "done", early: t0 });
+    else { setRec(k, id, { st: "moved", to: t0, early: 1 }); setRec(t0, id, { from: k, st: isGym(t) || srcOf(t) === "journal" ? null : "done" }); }
+    fx("yes"); buzz("medium"); after(before);
+    if (isGym(t) && !(rec(t0, id) || {}).st) setTimeout(() => openSheet("gym", id, t0), 400);   // тренування — запис і «Готово» вже сьогодні
+  }
   function mark(id, k) {
     const t = S.tasks[id]; if (!t) return;
+    if (k > today()) { earlyDone(id, k); return; }
     if (isGym(t) && k <= today()) { openSheet("gym", id, k); return; }           // тренування закривається кнопкою «Готово» в записі
     if (srcOf(t) === "journal" && k <= today()) { openJournal(k); return; }       // сповідь закриває ціль сама
     const before = totalXP(), r = rec(k, id), st = stOf(t, r, k);
@@ -1079,6 +1094,10 @@
         if (cnt) h += `<button type="button" class="btn btn--gold" data-ds="cur">Записати</button><button type="button" class="btn btn--line" data-ds="part">Закрити частково</button>`;
         else h += st === "done" || st === "fix" ? `<button type="button" class="btn btn--line" data-ds="undo">Зняти відмітку</button>` : `<button type="button" class="btn btn--gold" data-ds="done">Виконано</button>`;
         h += `<button type="button" class="btn btn--line" data-ds="fixq">З поправкою</button></div>`;
+      } else {
+        const early = r && (r.early || (r.st === "moved" && r.early));
+        h += `<div class="dy-acts"><button type="button" class="btn ${early ? "btn--line" : "btn--gold"}" data-ds="early">${early ? "Скасувати «наперед»" : "Зробити наперед"}</button></div>
+          ${early ? "" : `<p class="dy-note">${items(today()).some((x) => x.t.id === t.id) ? "Сьогодні ця ціль теж є — цей день позначиться виконаним наперед." : "Ціль переїде на сьогодні виконаною — і одразу зарахується, зокрема в привʼязаних цілях місяця й року."}</p>`}`;
       }
       h += `<div class="dy-acts dy-acts--3"><button type="button" class="btn btn--ghost" data-ds="move">Перенести</button>
         <button type="button" class="btn btn--ghost" data-ds="${st === "cancel" ? "uncancel" : "cancel"}">${st === "cancel" ? "Повернути" : "Скасувати"}</button>
@@ -1313,6 +1332,7 @@
       applyJournal(); if (first) fx("yes"); buzz("medium"); sh.edit = false;
       after(before); writerSync(true); confessStatus(); renderSheet(); return;
     }
+    if (a === "early") { closeSheet(); earlyDone(id, k); return; }
     if (a === "jedit") { sh.edit = true; renderSheet(); return; }
     if (a === "npark" || a === "nskip") {
       const N = S.night[k] = S.night[k] || {}, tx = $("nTxt");

@@ -388,14 +388,38 @@
       if (window.ORDO_API && window.ORDO_API.pendingCall) window.ORDO_API.pendingCall();
     } catch (e) {}
   }
+  /* пульс: коли востаннє відпрацювала кожна ланка (писар, скарбниця, глашатай, здоровʼя, покер) */
+  let herald = null, heraldAt = 0;
+  function pulseHTML() {
+    const now = Date.now(), t = day(), y = day(new Date(now - 864e5)), hr = new Date().getHours() * 60 + new Date().getMinutes();
+    const ago = (iso) => { if (!iso) return null; const m = Math.round((now - Date.parse(iso)) / 6e4); return m < 60 ? `${m} хв тому` : m < 48 * 60 ? `${Math.round(m / 60)} год тому` : `${Math.round(m / 1440)} дн. тому`; };
+    const age = (iso) => iso ? (now - Date.parse(iso)) / 36e5 : Infinity;
+    const row = (name, ok, txt, warn) => `<li class="vt-p ${ok ? "is-ok" : warn ? "is-warn" : "is-err"}"><b>${name}</b><span>${txt}</span></li>`;
+    const drop = LS.get("ordo.k.drop", null), bank = LS.get("ordo.k.bank", null), hl = LS.get("ordo.k.health", null), pk = LS.get("ordo.k.poker", null);
+    const d = herald && herald.done ? herald.done : null;
+    const mDue = hr >= 13 * 60, eDue = hr >= 22 * 60 + 30;
+    const hOk = d && (!mDue || d[`${t}:morning`]) && (eDue ? d[`${t}:evening`] : d[`${y}:evening`]);
+    return `<div class="vt-h">Пульс Ордену</div><ul class="vt-pulse">
+      ${row("Писар", age(drop && drop.at) < 30, drop && drop.at ? `останній запис ${ago(drop.at)}` : "ще не писав", age(drop && drop.at) < 54)}
+      ${row("Скарбниця", age(bank && bank.at) < 8, bank && bank.at ? `виписка ${ago(bank.at)}` : "виписки ще немає", age(bank && bank.at) < 26)}
+      ${row("Глашатай", !!hOk, !d ? "перевіряю…" : `ранок ${d[`${t}:morning`] ? "✓" : mDue ? "✗" : "—"} · вечір ${eDue ? (d[`${t}:evening`] ? "✓" : "✗") : (d[`${y}:evening`] ? "✓ учора" : "✗ учора")}`, !d)}
+      ${row("Здоровʼя", age(hl && hl.at) < 30, hl && hl.at ? `дані ${ago(hl.at)}` : "даних ще немає", age(hl && hl.at) < 54)}
+      ${row("Покер", true, pk && pk.at ? `дані ${ago(pk.at)}` : "даних ще немає")}
+    </ul>`;
+  }
+  async function loadHerald() {
+    if (Date.now() - heraldAt < 10 * 60e3) return; heraldAt = Date.now();
+    try { const txt = await gh("push/state.json", { raw: true }); herald = txt ? JSON.parse(txt) : null; if (statusEl) renderVault(); } catch (e) {}
+  }
   function renderVault() {
-    const box = $("vaultBody"); if (!box) return;
+    const box = $("vaultBody"); if (!box) return; loadHerald();
     const last = LS.get("ordo.bk.last", {}), err = LS.get("ordo.bk.err", null);
     const line = busy ? `<span class="vt-st">зберігаю…</span>`
       : err ? `<span class="vt-st is-err">${err.code === 401 ? "токен не підходить — онови його" : "не вдалося зберегти — спробую пізніше"}</span>`
       : last.at ? `<span class="vt-st is-ok">синхронізовано ${when(last.at)}</span>` : `<span class="vt-st">копій ще не було</span>`;
     box.innerHTML = `<p class="vt-lead">Твої дані автоматично синхронізуються між пристроями через приватне сховище — зашифровані твоїм ключем Ордену.</p>
       <div class="vt-row">${line}</div>
+      ${pulseHTML()}
       <button class="btn btn--gold" type="button" data-vt="now">Синхронізувати зараз</button>
       <button class="btn btn--line" type="button" data-vt="list">Відновити з копії…</button>
       <div id="vtList"></div>

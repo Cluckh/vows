@@ -1488,3 +1488,13 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .tr-jar .tr-row{justify-content:flex-start;margin:4px 0 2px}
 
 .btn--gold,.btn--gold *{text-shadow:none}
+
+/* — пульс Ордену в сховищі — */
+.vt-h{margin:14px 0 6px;font-family:var(--f-display);font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.vt-pulse{list-style:none;margin:0 0 14px}
+.vt-p{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--edge-soft);font-family:var(--f-serif);font-size:15px}
+.vt-p b{font-weight:500;color:var(--bone)}
+.vt-p span{color:var(--ash);text-align:right}
+.vt-p.is-ok b::before{content:"● ";color:#6fae7a}
+.vt-p.is-warn b::before{content:"● ";color:var(--gold)}
+.vt-p.is-err b::before{content:"● ";color:var(--ember-2)}

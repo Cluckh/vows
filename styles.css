@@ -197,7 +197,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   letter-spacing:.03em;color:var(--bone)}
 .oath__sub{display:block;font-family:var(--f-ui);font-size:11.5px;letter-spacing:.04em;color:var(--ash-2);margin-top:4px}
 .oath__sub b{color:var(--steel);font-weight:600}
-.oath__faith{display:block;margin-top:2px;color:var(--gold);opacity:.85}
+.oath__faith{color:var(--ash-2);opacity:.75;white-space:nowrap}
 .oath__count{text-align:right;line-height:1}
 .oath:has(.oath__kp){grid-template-columns:auto 1fr auto auto;gap:12px;padding-right:0;padding-left:2px}
 /* шолом хранителя праворуч від лічильника: тихий, поки не потрібен */

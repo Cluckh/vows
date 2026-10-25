@@ -479,7 +479,9 @@
     Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er|rt|nw):/.test(id)) delete X.e[id]; });
     const vows = D().VOWS || [], starts = LS.get("ordo.starts", {});
     if (A.dayState) for (let k = XP_START_DAY; k < t0; k = add(k, 1)) vows.forEach((v) => {
-      const s = A.dayState(v, k); if ((s === "c" || s === "w") && (!starts[v.id] || k >= starts[v.id])) X.e[`v:${v.id}:${k}`] = { d: k, xp: VOW_DAY, src: "vow", why: v.name };
+      /* день стріку важить більше, що довше серія йде підряд: +1 за кожні 30 днів (до +6); дні до зриву досвіду не дають */
+      const s = A.dayState(v, k), st = starts[v.id] || v.start;
+      if ((s === "c" || s === "w") && (!st || k >= st)) X.e[`v:${v.id}:${k}`] = { d: k, xp: VOW_DAY + Math.min(6, Math.floor((st ? diff(st, k) : 0) / 30)), src: "vow", why: v.name };
     });
     if (A.streak) vows.forEach((v) => {
       const st = starts[v.id] || v.start, n = A.streak(v);
@@ -510,7 +512,7 @@
     const F = faithIdx();          // шлях повернення: кожен вірний день із семи після зриву
     for (let k = XP_START_DAY; k < t0; k = add(k, 1)) {
       if (!faithful(F, k)) continue;
-      for (let i = 1; i <= 7; i++) if (F.all.has(add(k, -i))) { X.e[`rt:${k}`] = { d: k, xp: 6, src: "vow", why: `шлях повернення, день ${i}` }; break; }
+      for (let i = 1; i <= 7; i++) if (F.all.has(add(k, -i))) { X.e[`rt:${k}`] = { d: k, xp: 3, src: "vow", why: `шлях повернення, день ${i}` }; break; }
     }
   }
   /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані */
@@ -896,7 +898,7 @@
     }
     const cb = k === today() ? comeback() : null;
     if (cb) h += `<div class="dy-ret"><span class="dy-ret__t">Шлях повернення</span><span class="dy-ret__pips">${[1, 2, 3, 4, 5, 6, 7].map((i) => `<i class="${i <= cb.n ? "is-on" : ""}"></i>`).join("")}</span>
-      <span class="dy-ret__s">${cb.today ? "почнеться завтра — кожен вірний день дасть +6" : `день ${cb.n + 1} з 7 · стрік почався знову, а вірні дні ніхто не забирає`}</span></div>`;
+      <span class="dy-ret__s">${cb.today ? "новий стрік почнеться завтра — тримай перший день" : `день ${cb.n + 1} з 7 · новий стрік уже росте`}</span></div>`;
     const gymT = its.find(({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel");
     const adv = gymT && k >= today() ? gymAdvice(k) : null;
     if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];

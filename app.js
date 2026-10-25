@@ -476,8 +476,8 @@ window.ORDO_START = function () {
       } else {
         sub = nm ? `ціль ${nm} · лишилось ${nm - s} ${daysWord(nm - s)}` : "усі віхи взято";
       }
-      const f30 = faith30(v);
-      if (f30.fell) sub += `<span class="oath__faith">вірних ${f30.n} з ${f30.all}</span>`;
+      const f30 = faith30(v);                      // підказка, не головне: лише поки стрік молодий після зриву
+      if (f30.fell && s < 30 && f30.n - s >= 3) sub += ` <span class="oath__faith">· вірних ${f30.n}/${f30.all}</span>`;
       const li = document.createElement("li");
       const btn = document.createElement("div");
       btn.className = "oath" + (frozen ? " oath--frozen" : ""); btn.setAttribute("role", "button"); btn.tabIndex = 0; btn.dataset.id = v.id;

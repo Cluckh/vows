@@ -1031,7 +1031,7 @@ window.ORDO_START = function () {
   }
   /* звідки місячна чи річна ціль бере число: вручну, з привʼязаних денних цілей, зі «Здоровʼя» (кроки, медитації, вага) чи з HM3.
      Старі цілі без поля src — за назвою */
-  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації" },
+  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації", faith: "дні вірності" },
                  measure: { "": "вручну", steps: "кроки (середнє)", poker: "роздачі (середнє)", weight: "вага", jar: "скарбничка" } };
   function goalSrc(it) {
     if (it.src != null) return it.src;
@@ -1045,6 +1045,7 @@ window.ORDO_START = function () {
     const DY = window.ORDO_DAY, t = tyOf(it), src = goalSrc(it); if (!DY || !src) return null;
     const [a, b] = periodOf(key);
     if (src === "link") return t === "count" ? (it.linkBase || 0) + DY.linkCount(it.link || [], a, b) : null;
+    if (src === "faith") return t === "count" && DY.faithCount ? DY.faithCount(a, b) : null;
     if (src === "weight") return t === "measure" ? DY.weightOn(b < todayKey() ? b : todayKey(), it.wmode || "avg7") : null;
     if (src === "jar") { const T = window.ORDO_TREASURY, acc = T && T.accs && T.accs().find((x) => x.label === it.jar); return t === "measure" && acc ? Math.round(acc.bal) / 100 : null; }
     const f = { steps: DY.periodSteps, poker: DY.periodHands, mind: DY.periodMind }[src], ps = f && f(key);
@@ -1350,7 +1351,7 @@ window.ORDO_START = function () {
       if (src === "jar") { const T = window.ORDO_TREASURY, accs = T && T.accs ? T.accs() : [];
         h += `<div class="cmp__ops gs-src">${accs.map((x) => `<button type="button" data-gjar="${esc(x.label)}" class="${it.jar === x.label ? "is-on" : ""}">${esc(x.label)} · ${T.money(x.bal, x.cur)}</button>`).join("") || `<span class="cmp__hint">чекаю виписку банку</span>`}</div>`; }
       if (src === "weight") h += `<div class="cmp__ops gs-src">${[["avg7", "середня за 7 днів"], ["last", "останнє зважування"]].map(([v, n]) => `<button type="button" data-gwm="${v}" class="${(it.wmode || "avg7") === v ? "is-on" : ""}">${n}</button>`).join("")}</div>`;
-      if (src && src !== "link") h += `<p class="cmp__hint">${src === "jar" ? "Баланс рахунку чи банки з виписки підставляється сам (4 рази на день)." : src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
+      if (src && src !== "link") h += `<p class="cmp__hint">${src === "jar" ? "Баланс рахунку чи банки з виписки підставляється сам (4 рази на день)." : src === "faith" ? "Дні без жодного зриву за період — рахуються самі, коли день минув." : src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
     }
     if (!locked) {
       if (t === "once") h += `<button class="btn ${it.done ? "btn--ghost" : "btn--gold"}" type="button" data-gs="once">${it.done ? "Зняти позначку" : "Виконано"}</button>`;

@@ -203,8 +203,21 @@
     return u && u.steps >= sum ? { steps: u.steps, avg: u.avg, at: u.at } : { steps: sum, avg: Math.round(sum / n), at: null };
   }
 
+  /* разова ціль, яку не встиг зробити, сама переїжджає на сьогодні (як «перенести»; повторювані — ні, вони прийдуть знову) */
+  function carryOver() {
+    const t0 = today(); let ch = false;
+    for (let k = add(t0, -14); k < t0; k = add(k, 1)) items(k).forEach(({ t, r }) => {
+      if ((t.rep && t.rep.f !== "none") || t.del || t.quest) return;
+      const st = stOf(t, r, k); if (st !== "miss" && st !== "part" && st !== "open") return;
+      if (S.log[t0] && S.log[t0][t.id]) return;
+      setRec(k, t.id, { st: "moved", to: t0, auto: 1 }); setRec(t0, t.id, { from: (r && r.from) || k, st: null }); ch = true;
+    });
+    return ch;
+  }
+
   /* ======================================================= ЗВʼЯЗКИ ЦІЛЕЙ ===== */
   /* повторювані денні цілі, які можна привʼязати до місячної чи річної */
+  const faithCount = (from, to) => { const F = faithIdx(), end = to < today() ? to : add(today(), -1); let n = 0; for (let k = from; k <= end; k = add(k, 1)) if (faithful(F, k)) n++; return n; };
   const linkables = () => Object.values(S.tasks).filter((t) => !t.del && t.rep && t.rep.f !== "none" && (!t.end || t.end >= today()))
     .map((t) => ({ id: t.id, t: t.t, type: t.type, unit: t.unit || "" }));
   /* що дали привʼязані цілі за період: «Зробити» — дні виконання, «Число» — сума відміток */
@@ -1396,11 +1409,11 @@
       S.seeded = seed.v; saveS();
     }
     lastLevel = levelOf(totalXP());
-    applyHealth(); applyPoker(); applyBank(); settle(); lastLevel = levelOf(totalXP());
+    carryOver(); applyHealth(); applyPoker(); applyBank(); settle(); lastLevel = levelOf(totalXP());
     render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
-    setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); settle(); render(); } }, 60000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) { stamp(); loadHealth(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
+    setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); settle(); render(); } }, 60000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { carryOver(); stamp(); loadHealth(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);
   }
   /* перше відкриття дня = підйом; до 8:00 — питаємо, як спав (після ритуалу, коли нічого не відкрито) */
@@ -1417,6 +1430,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); },
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

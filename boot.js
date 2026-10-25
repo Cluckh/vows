@@ -146,6 +146,31 @@
       });
     });
     out["ordo.goals"] = JSON.stringify(g);
+    /* День: цілі — новіша правка; відмітки — новіша за часом; квести — новіший стан; досвід і нагороди — обʼєднання */
+    if (L["ordo.day"] || R["ordo.day"]) {
+      const a = P(L, "ordo.day", {}), b = P(R, "ordo.day", {}), tasks = Object.assign({}, b.tasks, a.tasks), log = {};
+      Object.keys(b.tasks || {}).forEach((id) => { const x = (a.tasks || {})[id], y = b.tasks[id]; if (x && (y.mt || 0) > (x.mt || 0)) tasks[id] = y; });
+      new Set(Object.keys(a.log || {}).concat(Object.keys(b.log || {}))).forEach((k) => {
+        const A2 = (a.log || {})[k] || {}, B2 = (b.log || {})[k] || {}; log[k] = Object.assign({}, B2, A2);
+        Object.keys(B2).forEach((id) => { if (A2[id] && (B2[id].at || 0) > (A2[id].at || 0)) log[k][id] = B2[id]; });
+      });
+      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log }));
+    }
+    if (L["ordo.quests"] || R["ordo.quests"]) {
+      const a = P(L, "ordo.quests", {}), b = P(R, "ordo.quests", {}), by = {};
+      [].concat(b.list || [], a.list || []).forEach((q) => { const o = by[q.id]; if (!o || (q.at || 0) >= (o.at || 0)) by[q.id] = q; });
+      const clock = Object.assign({}, b.clock, a.clock); Object.keys(b.clock || {}).forEach((k) => { if (String(b.clock[k]) > String(clock[k] || "")) clock[k] = b.clock[k]; });
+      out["ordo.quests"] = JSON.stringify({ list: Object.values(by), clock, trig: [...new Set([].concat(a.trig || [], b.trig || []))] });
+    }
+    if (L["ordo.xp"] || R["ordo.xp"]) {
+      const a = P(L, "ordo.xp", {}), b = P(R, "ordo.xp", {});
+      out["ordo.xp"] = JSON.stringify(Object.assign({}, b, a, { e: Object.assign({}, b.e, a.e), knighted: a.knighted || b.knighted }));
+    }
+    if (L["ordo.ach"] || R["ordo.ach"]) {
+      const a = P(L, "ordo.ach", {}), b = P(R, "ordo.ach", {}), m = Object.assign({}, b, a);
+      Object.keys(b).forEach((k) => { if (a[k] && b[k] < a[k]) m[k] = b[k]; });
+      out["ordo.ach"] = JSON.stringify(m);
+    }
     Object.keys(out).forEach((k) => { if (out[k] == null) delete out[k]; });
     return out;
   }

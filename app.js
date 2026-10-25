@@ -294,7 +294,7 @@ window.ORDO_START = function () {
        (списки обітниць, цілей, Літопис, шторки, введення цілей), накладок немає —
        вібрація лишається на нерухомих кнопках: вкладки, кнопки під табло, вікна
        підтвердження, ревю «Виконав / Не виконав». */
-    const SCROLLS = "#oaths, #goalsBody, #statsBody, .sheet, #riteEntry, .kc";
+    const SCROLLS = "#oaths, #goalsBody, #statsBody, #dayBody, .sheet, #riteEntry, .kc";
     const skip = (el) => /^(INPUT|TEXTAREA|SELECT|LABEL)$/.test(el.tagName) || el.classList.contains("hx-ovl") || !!el.closest(SCROLLS);
     function dress(el) {
       if (skip(el) || el.querySelector(":scope > .hx-ovl")) return;
@@ -661,6 +661,7 @@ window.ORDO_START = function () {
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("is-on", v.dataset.view === name));
     if (name === "stats") renderStats();
     if (name === "goals") renderGoals();
+    if (name === "day" && window.ORDO_DAY) window.ORDO_DAY.shown();
     window.scrollTo(0, 0);
     FX.play("tab", true); FX.buzz("light");
   }
@@ -759,7 +760,7 @@ window.ORDO_START = function () {
     const seg = `<div class="st-seg" role="tablist">
       <button type="button" data-mode="month" class="${statsMode === "month" ? "is-on" : ""}">Місяць</button>
       <button type="button" data-mode="year" class="${statsMode === "year" ? "is-on" : ""}">Рік</button></div>`;
-    box.innerHTML = chronicler() + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
+    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
     on("stPrev", "click", () => { if (statsMode === "year") statsYearOff--; else statsOffset--; renderStats(); FX.buzz("light"); });
     on("stNext", "click", () => {
       if (statsMode === "year") { if (statsYearOff < 0) statsYearOff++; } else if (statsOffset < 0) statsOffset++;
@@ -1839,7 +1840,7 @@ window.ORDO_START = function () {
 
   /* вкладки свайпом: справа наліво — наступна, зліва направо — попередня */
   {
-    const ORDER = ["board", "stats", "goals"], frame = document.querySelector(".frame");
+    const ORDER = ["board", "day", "stats", "goals"], frame = document.querySelector(".frame");
     let t = null;
     const viewEl = () => document.querySelector(".view.is-on");
     const blocked = (el) => !!el.closest('input, textarea, select, [data-noswipe], .hall, .kc, .rite, .sheet, .confirm') ||
@@ -2011,5 +2012,7 @@ window.ORDO_START = function () {
     if (e.data.type === "ordo-call") pendingCall();
     if (e.data.type === "ordo-open" && e.data.url) openCall(e.data.url);            // старий service worker
   });
-  window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); } };
+  window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); },
+    dayState, tab: () => TAB, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy };
+  if (window.ORDO_DAY) window.ORDO_DAY.init();
 };

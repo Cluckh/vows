@@ -259,6 +259,7 @@
     curWho = entry(who.id) ? who.id : "";
     $("hallPlate").innerHTML = `<b>${esc(who.name || k.name || "")}${curWho ? `<i class="hall__info" aria-hidden="true">i</i>` : ""}</b><span>${esc(who.title || k.title || "")}</span>${(who.bio || k.bio) ? `<em>${esc(who.bio || k.bio)}</em>` : ""}`;
     hall.classList.toggle("hall--supreme", who.id === "supreme");
+    if (who.glow) hall.dataset.glow = who.glow; else delete hall.dataset.glow;      // сяйво рідкості квесту
     if (!hall.classList.contains("open")) {
       hall.classList.add("open"); document.body.classList.add("in-hall");
       const A = API(); if (A.FX) { A.FX.play(who.id === "supreme" ? "date" : "sign", true); A.FX.buzz("medium"); }
@@ -591,5 +592,15 @@
     if (isOpen()) close();
   }
 
-  window.ORDO_HALL = { figure, panic, callKeeper, fall, morningSupreme, council, verdict, summon, letter, card, isOpen, close, fresh, gainAt };
+  /* сцена для інших модулів (День, квести): храмовник за id, далі say / ask / runDialog */
+  function stage(id, extra) {
+    const v = (D().VOWS || []).find((x) => x.id === id);
+    const who = id === "seneschal" ? Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {})
+      : id === "chronicler" ? Object.assign({ id: "chronicler", head: "hood" }, D().CHRONICLER || {})
+      : v ? { id, icon: v.icon } : SUPREME;
+    show(Object.assign({}, who, extra || {}));
+  }
+  const choose = (text, options, cls) => ask(text, options, cls || (options.length > 2 ? "hall__acts--list" : "hall__acts--row"));
+
+  window.ORDO_HALL = { stage, say, choose, runDialog, figure, panic, callKeeper, fall, morningSupreme, council, verdict, summon, letter, card, isOpen, close, fresh, gainAt };
 })();

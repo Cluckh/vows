@@ -464,6 +464,46 @@
   /* день після неспокійної ночі */
   const roughNight = (k) => { const N = S.night[k]; return !!(N && N.kind && N.kind !== "fine"); };
 
+  /* ============================================================ СТОРОЖ ===== */
+  /* стежить лише за джерелами, що вже колись працювали: замовкло довше звичайного — кажемо, що саме і як полагодити */
+  function watch() {
+    const now = Date.now(), t0 = today(), hr = new Date().getHours(), awake = hr >= 10 && !isNight(), raw = (k) => (HL && HL.days && HL.days[k]) || {};
+    const ago = (ms) => { const m = Math.max(1, Math.round(ms / 6e4)); return m < 90 ? `${m} хв` : m < 2880 ? `${Math.round(m / 60)} год` : `${Math.round(m / 1440)} дн.`; };
+    const back = (n) => { const a = []; for (let i = 0; i < n; i++) a.push(add(t0, -i)); return a; };
+    const out = [], put = (id, name, armed, bad, what, fix) => out.push({ id, name, st: !armed ? "off" : bad ? "bad" : "ok", what, fix });
+    const hAt = HL && HL.at ? Date.parse(HL.at) : 0;
+    put("health", "Здоровʼя з телефона", !!hAt, awake && now - hAt > 6 * 3600e3, hAt ? `останні дані ${ago(now - hAt)} тому` : "ще не приходило",
+      "Перевір, що команда «Орден - Кроки/Медитації» увімкнена й не просить підтвердження. Відкрий «Здоровʼя» — тригер сам відправить кроки.");
+    const st0 = raw(t0).steps;
+    put("steps", "Кроки", back(14).filter((k) => raw(k).steps != null).length >= 2, hr >= 13 && st0 == null, st0 != null ? `сьогодні ${fmtN(st0)}` : "сьогодні ще не приходили",
+      "Відкрий «Здоровʼя» або натисни «Оновити з телефона».");
+    const wl = back(14).find((k) => raw(k).weight);
+    put("weight", "Вага", back(8).filter((k) => raw(k).weight).length >= 3, !back(3).some((k) => raw(k).weight), wl ? `остання — ${human(wl)}` : "ще не приходила",
+      "Якщо зважувався — перевір, що в команді вага передається як Текст. Якщо ні — просто зважся.");
+    const sl = back(14).find((k) => raw(k).sleepMin);
+    put("sleep", "Сон зі «Здоровʼя»", back(14).filter((k) => raw(k).sleepMin).length >= 2, hr >= 11 && !raw(t0).sleepMin && !raw(add(t0, -1)).sleepMin, sl ? `остання ніч — ${human(sl)}` : "ще не приходив",
+      "Перевір автоматизацію, що зранку шле сон (bed / wake).");
+    const stuck = []; [add(t0, -1), t0].forEach((k) => Object.entries(raw(k).apps || {}).forEach(([n, a]) => { if (a.openAt && now - a.openAt > 3 * 3600e3) stuck.push(`${n} з ${clock(a.openAt)}`); }));
+    put("apps", "Час у програмах", back(14).some((k) => Object.keys(raw(k).apps || {}).length), stuck.length > 0, stuck.length ? `відкрито без закриття: ${stuck.join(", ")}` : "відкриття й закриття доходять",
+      "Не спрацювала автоматизація «Закрито» — перевір сіру команду цієї програми (тригер і «Введення: Текст»).");
+    const B = LS.get("ordo.k.bank", null), bAt = B && B.at ? Date.parse(B.at) : 0;
+    put("bank", "Виписка монобанку", !!bAt, awake && now - bAt > 8 * 3600e3, bAt ? `оновлена ${ago(now - bAt)} тому` : "ще не приходила",
+      "У Скарбниці натисни «↻ оновити виписку». Не допоможе — можливо, протух токен монобанку; скажи Claude.");
+    const pend = Object.values((LS.get("ordo.gold", {}) || {}).out || {}).filter((o) => o.kind === "white" && o.st === "pending").sort((a, b) => a.at - b.at)[0];
+    if (pend) put("white", "Переказ на білу картку", true, now - pend.at > 40 * 6e4, `${fmtN(pend.amt)} ₴ чекають ${ago(now - pend.at)}`,
+      "Переконайся, що переказ справді пішов на білу картку (…9467) з власної картки, і онови виписку. Доба без поповнення — золото повернеться само.");
+    const pAt = PK && PK.at ? Date.parse(PK.at) : 0;
+    put("poker", "Роздачі з HM3", Object.keys((PK && PK.days) || {}).filter((k) => k >= add(t0, -14)).length >= 2, now - pAt > 4 * 864e5, pAt ? `останні ${ago(now - pAt)} тому` : "ще не приходили",
+      "Якщо грав — перевір, що на компі працює вивантаження з HM3. Якщо не грав — усе гаразд.");
+    const dAt2 = DROP && DROP.at ? Date.parse(DROP.at) : 0;
+    put("writer", "Нічний писар", !!dAt2, now - dAt2 > 30 * 3600e3, dAt2 ? `приходив ${ago(now - dAt2)} тому` : "ще не приходив",
+      "Нічне завдання писаря не відпрацювало — скажи Claude, він гляне, що сталось.");
+    const errs = (LS.get("ordo.k.errs", []) || []).filter((e) => now - Date.parse(e.at) < 864e5);
+    put("errors", "Помилки Ордену", true, errs.length > 0, errs.length ? `за добу ${errs.length}: ${errs[errs.length - 1].msg}` : "без помилок за добу",
+      "Скинь Claude скріншот цього вікна — він знайде, що зламалось.");
+    return out;
+  }
+
   /* ================================================================ ЗАЛ ===== */
   /* тренування: позначка «тренування» (t.gym) або назва — зал, кардіо…; gym: false — вимкнено вручну */
   const GYM_RE = /(^|[^а-яіїєґ])зал([^а-яіїєґ]|$)|тренуван|кардіо|cardio|gym/i;
@@ -1138,6 +1178,8 @@
     if (!strip.includes(k)) strip.push(k);
     h += `<div class="dy-strip">${strip.map((d) => `<button type="button" data-dday="${d}" class="${d === k ? "is-on" : ""}${d === t0d ? " is-today" : ""}"><span>${WD[wd(d)]}</span><b>${dt(d).getDate()}</b></button>`).join("")}</div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
+    const W = k === today() ? watch() : [], bad = W.filter((x) => x.st === "bad");
+    if (bad.length) h += `<button type="button" class="dy-watch" data-dwatch="1"><svg><use href="#i-bell"/></svg><span><b>Сторож:</b> ${esc(bad[0].name.toLowerCase())} — ${esc(bad[0].what)}${bad.length > 1 ? ` · ще ${bad.length - 1}` : ""}</span><i>›</i></button>`;
     const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
     const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
     const apm = Object.entries(hd.apps || {}).filter(([, a]) => a.min >= 1);
@@ -1171,6 +1213,7 @@
     if (shut.length) h += `<ul class="dy-list dy-list--shut">${shut.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
     h += `<button class="gl-new" type="button" data-dnew="1"><svg><use href="#i-plus"/></svg>Нова ціль</button></section>`;
     if (dayXP) h += `<button type="button" class="dy-sum" data-dxp="${k}">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""} <span class="dy-sum__more">за що ›</span></button>`;
+    if (k === today() && !bad.length) h += `<button type="button" class="dy-watch-ok" data-dwatch="1">сторож: усе на місці</button>`;
     patch(box, [segR, segA, segQ, h]);
   }
   /* екран дня — чотири шматки (звання, день, квести, справи); оновлюється лише те, що змінилось:
@@ -1363,6 +1406,14 @@
         h += `<button class="btn btn--line" type="button" data-ds="gcopy">Скопіювати для тренера</button>
           <div class="dy-acts"><button class="btn btn--ghost" type="button" data-ds="gmore">Перенести / правити</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button></div>`;
       }
+    } else if (sh.mode === "watch") {
+      const W = watch(), on = W.filter((x) => x.st !== "off"), off = W.filter((x) => x.st === "off"), bad = on.filter((x) => x.st === "bad");
+      h += `<div class="gs-kicker">Сторож · ${clock(Date.now())}</div><div class="sheet__title dy-sht">${bad.length ? "Щось замовкло" : "Усе на місці"}</div>
+        <p class="dy-note">Стежу лише за тим, що вже колись приходило. Замовкне довше звичайного — скажу тут і зверху на екрані дня.</p>
+        <ul class="wt-list">${on.sort((a, b) => (b.st === "bad") - (a.st === "bad")).map((x) => `<li class="wt--${x.st}"><i></i><div><b>${esc(x.name)}</b><span>${esc(x.what)}</span>${x.st === "bad" ? `<p>${esc(x.fix)}</p>` : ""}</div></li>`).join("")}</ul>
+        ${off.length ? `<p class="dy-note wt-off">Ще не підключено: ${off.map((x) => esc(x.name)).join(", ")}.</p>` : ""}
+        ${W.some((x) => x.id === "errors" && x.st === "bad") ? `<button class="btn btn--line" type="button" data-ds="wclear">Позначити помилки прочитаними</button>` : ""}
+        <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "journal") {
       const J = S.journal[sh.k] || {}, sent = !!J.sent;
       h += `<div class="gs-kicker">Сповідь · ${rel(sh.k)}, ${human(sh.k)}</div><div class="sheet__title dy-sht">${sent && !sh.edit ? "Сповідь прийнято" : "Як минув день?"}</div>`;
@@ -1533,6 +1584,7 @@
     const b = e.target.closest("[data-ds]"); if (!b) return;
     const a = b.dataset.ds, k = sh.k, id = sh.id, before = totalXP();
     if (a === "close") { closeSheet(); return; }
+    if (a === "wclear") { LS.set("ordo.k.errs", []); renderSheet(); render(); return; }
     if (a === "back") { sh.mode = "item"; renderSheet(); return; }
     if (a === "save") {
       readDraft(); const d = sh.draft;
@@ -1648,6 +1700,7 @@
     const nw = e.target.closest("[data-dnew]"); if (nw) { openSheet("edit", null, view); return; }
     const xb = e.target.closest("[data-dxp]"); if (xb) { openSheet("xp", null, xb.dataset.dxp); return; }
     if (e.target.closest("[data-dsleep]") && (view || today()) === today()) { openSheet("sleep", null, today()); return; }
+    if (e.target.closest("[data-dwatch]")) { openSheet("watch", null, today()); return; }
     const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; if (srcOf(t) === "journal" && (view || today()) <= today()) { openJournal(view); return; } openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }

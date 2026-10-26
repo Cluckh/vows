@@ -1633,3 +1633,16 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .sl-row .dy-chips button{padding:6px 11px;font-size:14px}
 .dy-sl-ask{color:var(--gold);cursor:pointer}
 .dy-body-line [data-dsleep]{cursor:pointer}
+/* сторож: смужка зверху дня, коли щось замовкло; список перевірок у шторці */
+.dy-watch{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 14px;padding:10px 14px;border-radius:14px;border:1px solid rgba(226,101,74,.55);background:rgba(226,101,74,.1);color:var(--bone);font-family:var(--f-serif);font-size:15px;text-align:left}
+.dy-watch svg{width:20px;height:20px;flex:none;color:#e2654a}
+.dy-watch span{flex:1;min-width:0}.dy-watch b{color:#e2654a;font-weight:600}.dy-watch i{font-style:normal;color:var(--ash)}
+.dy-watch-ok{display:block;margin:18px auto 4px;font-family:var(--f-serif);font-style:italic;font-size:13.5px;color:var(--ash);opacity:.6}
+.wt-list{list-style:none;margin:6px 0 14px;padding:0;display:grid;gap:12px}
+.wt-list li{display:flex;gap:12px;align-items:flex-start}
+.wt-list li>i{flex:none;width:10px;height:10px;margin-top:7px;border-radius:50%;background:#86c79a;box-shadow:0 0 8px rgba(134,199,154,.5)}
+.wt-list li.wt--bad>i{background:#e2654a;box-shadow:0 0 8px rgba(226,101,74,.6)}
+.wt-list b{display:block;font-family:var(--f-serif);font-size:16px;font-weight:500;color:var(--bone)}
+.wt-list span{display:block;font-family:var(--f-serif);font-size:14.5px;color:var(--ash)}
+.wt-list p{margin:6px 0 0;font-family:var(--f-serif);font-size:14.5px;color:var(--bone);opacity:.85}
+.wt-off{opacity:.7}

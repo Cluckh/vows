@@ -1593,3 +1593,13 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-it.rar-common .dy-t,.gl-it.rar-common .gl-t,.gs-title.rar-common{color:var(--rc)}
 .gl-it.rar-rare .gl-t,.gl-it.rar-legend .gl-t,.gl-it.rar-myth .gl-t,.gl-it.rar-common .gl-t{color:var(--rc)}
 .gl-it.gl-it--no .gl-t{color:var(--ash);text-shadow:none}
+button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cursor:pointer}
+.dy-sum__more{color:var(--gold);font-style:italic;margin-left:4px}
+.xp-tot{text-align:center;font-family:var(--f-serif);font-size:17px;color:var(--ash);margin:4px 0 10px}
+.xp-tot b{font-family:var(--f-display);font-size:24px;color:var(--bone);margin-right:4px}
+.xp-tot .gd-coin{width:18px;height:18px;margin:0 3px 0 6px}
+.xp-list li{display:grid;grid-template-columns:1fr auto 64px;gap:10px;align-items:baseline}
+.xp-list li b{color:var(--bone);font-weight:500}
+.xp-list li em{font-style:normal;color:var(--gold);text-align:right;display:inline-flex;align-items:center;justify-content:flex-end;gap:3px}
+.xp-list .gd-coin{width:14px;height:14px}
+.dsheet .st-h--sub em{font-style:normal;color:var(--gold);margin-left:6px;letter-spacing:0}

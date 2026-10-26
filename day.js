@@ -576,10 +576,7 @@
       return Math.round(base * m);
     }
     if (st === "fix") return Math.round(base * 0.7);
-    if (t.type === "count" && t.target && r && r.cur > 0 && st !== "moved" && st !== "cancel") {
-      const q = Math.min(1, r.cur / t.target); return Math.round(base * q * (q >= 0.5 ? 0.9 : 0.6));
-    }
-    return 0;
+    return 0;                                         // число не дотягнуто — справу не виконано (все або нічого)
   }
   function putXP(id, xp, src, why, d) {
     if (xp > 0) X.e[id] = { d: d || today(), xp, src, why };
@@ -845,6 +842,22 @@
     Q.clock.roll = t0;
     if (Q.list.some((q) => q.st === "offer")) { saveQ(); return; }
     const since = (r) => Q.clock[r] ? diff(Q.clock[r], t0) : 99;
+    /* видно, що не встигаєш: минуло 60%+ строку, а зроблено менше ніж 60% від потрібного темпу — храмовник (через раз) пропонує
+       полегшене доручення замість цього: мета 70%, той самий строк, зроблене зараховано, нагорода на рідкість нижча. Один раз на квест */
+    if (!again) for (const q of Q.list.filter((x) => x.st === "active" && x.type === "count" && x.target && !x.retry && !x.replaces && !x.easeAt && x.until && x.from)) {
+      const total = diff(q.from, q.until) + 1, fr = diff(q.from, t0) / total, prog = (q.cur || 0) / q.target;
+      if (total < 3 || fr < 0.6 || prog >= fr * 0.6) continue;
+      q.easeAt = t0;
+      if (roll("ease" + q.id) >= 0.5) { saveQ(); continue; }
+      const rar = q.rar === "myth" ? "legend" : "rare", tg = Math.max(1, Math.ceil(q.target * 0.7));
+      Q.list.push({ id: q.id + "e", pid: q.pid + "~e", rar, giver: q.giver, t: `Полегшене: ${q.t}`, scope: "day", days: 1,
+        desc: `Замість ${fmtN(q.target)} — ${fmtN(tg)} ${q.unit || ""} до ${human(q.until)}. Зроблене зараховано, нагорода скромніша.`,
+        type: "count", target: tg, unit: q.unit || "", xp: ECON.quest[rar][0], cats: null, limitPct: 0, limit: 0, vow: q.vow || null, app: q.app || null, appMax: q.appMax != null ? q.appMax : null, weight: null,
+        offer: "Бачу, брате, цей шлях зараз задовгий. Не кидай — візьми коротший: менша мета, той самий строк. Зроблене не пропаде.",
+        accept: "Мудро. Краще дійти до ближчої вершини, ніж зірватися з далекої.", decline: "Добре. Тоді йди до повної мети — я вірю.", done: "Дійшов. Не так далеко, як планував, — але дійшов.",
+        st: "offer", offerOn: t0, cur: q.cur || 0, replaces: q.id, from0: q.from, until0: q.until });
+      saveQ(); return;
+    }
     /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу */
     const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !Q.list.some((q) => q.pid === p.id));
     if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
@@ -884,6 +897,10 @@
       const nxt = ((pool().find((p) => p.id === q.pid) || {}).tags || []).includes("return");          // «з наступних днів»: день зриву не рахується
       q.st = "active"; q.from = nxt ? add(today(), 1) : today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now();
       if (q.retry) { q.from = q.from0 || q.from; q.until = add(today(), 1); }          // друга спроба: зроблене рахується з початку, ще 2 дні
+      if (q.replaces) {                                                               // полегшене: замінює важчий квест, той самий строк
+        const o = Q.list.find((x) => x.id === q.replaces); if (o && o.st === "active") { o.st = "eased"; o.end = today(); o.at = Date.now(); }
+        q.from = q.from0 || q.from; q.until = q.until0 || q.until;
+      }
       if (q.type === "budget" && q.limitPct && T()) { const days = diff(q.from, q.until) + 1; q.limit = Math.round(q.limitPct * (T().avgWeek(q.cats) || 0) * days / 7 / 100) * 100; }
       saveQ();
       fx("yes"); buzz("medium");
@@ -1113,7 +1130,7 @@
     h += `<ul class="dy-list">${open.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
     if (shut.length) h += `<ul class="dy-list dy-list--shut">${shut.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
     h += `<button class="gl-new" type="button" data-dnew="1"><svg><use href="#i-plus"/></svg>Нова ціль</button></section>`;
-    if (dayXP) h += `<p class="dy-sum">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""}</p>`;
+    if (dayXP) h += `<button type="button" class="dy-sum" data-dxp="${k}">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""} <span class="dy-sum__more">за що ›</span></button>`;
     patch(box, [segR, segA, segQ, h]);
   }
   /* екран дня — чотири шматки (звання, день, квести, справи); оновлюється лише те, що змінилось:
@@ -1241,7 +1258,7 @@
       if (cnt) h += `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dsC" inputmode="decimal" value="${(r && r.cur) || 0}"><span class="dy-unit">/ ${fmtN(t.target)} ${esc(t.unit || "")}</span></div>`;
       if (!fut) {
         h += `<div class="dy-acts">`;
-        if (cnt) h += `<button type="button" class="btn btn--gold" data-ds="cur">Записати</button><button type="button" class="btn btn--line" data-ds="part">Закрити частково</button>`;
+        if (cnt) h += `<button type="button" class="btn btn--gold" data-ds="cur">Записати</button>`;
         else h += st === "done" || st === "fix" ? `<button type="button" class="btn btn--line" data-ds="undo">Зняти відмітку</button>` : `<button type="button" class="btn btn--gold" data-ds="done">Виконано</button>`;
         h += `<button type="button" class="btn btn--line" data-ds="fixq">З поправкою</button></div>`;
       } else {
@@ -1314,6 +1331,19 @@
       const past = Object.keys(S.journal).filter((d) => d !== sh.k && jSent(d)).sort().reverse().slice(0, 7);
       if (past.length) h += `<div class="gs-h">Попередні сповіді</div><ul class="j-past">${past.map((d) => `<li data-jday="${d}"><b>${human(d)}</b><span>${esc(((S.journal[d].text || "").trim().split("\n")[0] || "").slice(0, 70))}</span></li>`).join("")}</ul>`;
       h += `<button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
+    } else if (sh.mode === "xp") {                    // розшифровка: за що нараховано досвід (і золото) того дня
+      const k = sh.k, GD = window.ORDO_GOLD, coin = GD ? GD.coin() : "";
+      const CAT = [["t", "Справи дня"], ["q", "Квести"], ["g", "Цілі"], ["gm", "Цілі"], ["v", "Обітниці"], ["vm", "Віхи обітниць"], ["rt", "Шлях повернення"], ["pd", "Ідеальний день"], ["gy", "Тіло й дух"], ["st", "Тіло й дух"], ["sl", "Тіло й дух"], ["er", "Тіло й дух"], ["nw", "Тіло й дух"], ["jr", "Тіло й дух"], ["a", "Нагороди"]];
+      const cat = (id) => (CAT.find(([p]) => id.split(":")[0] === p) || [0, "Інше"])[1];
+      const lbl = (id, e) => id.startsWith("v:") ? `${e.why} — чистий день` : id.startsWith("pd:") ? "усі справи дня виконано" : e.why || id;
+      const rows = Object.entries(X.e).filter(([, e]) => e.d === k).map(([id, e]) => ({ id, e, c: cat(id), g: GD && GD.goldFor ? GD.goldFor(id) : 0 })).sort((a, b) => b.e.xp - a.e.xp);
+      const groups = [...new Set(rows.map((r) => r.c))].map((c) => ({ c, rows: rows.filter((r) => r.c === c) })).sort((a, b) => b.rows.reduce((s, r) => s + r.e.xp, 0) - a.rows.reduce((s, r) => s + r.e.xp, 0));
+      const sx = rows.reduce((a, r) => a + r.e.xp, 0), sg = rows.reduce((a, r) => a + r.g, 0);
+      h += `<div class="gs-kicker">${rel(k)}, ${human(k)}</div><div class="sheet__title dy-sht">За що досвід</div>
+        <div class="xp-tot"><b>+${fmtN(sx)}</b> досвіду${sg ? ` · ${coin}<b>+${fmtN(sg)}</b> золота` : ""}</div>
+        ${groups.map((g) => `<div class="st-h st-h--sub">${g.c} <em>+${fmtN(g.rows.reduce((s, r) => s + r.e.xp, 0))}</em></div><ul class="tr-top xp-list">${g.rows.map((r) => `<li><span>${esc(lbl(r.id, r.e))}</span><b>+${r.e.xp}</b>${r.g ? `<em>${coin}${r.g}</em>` : "<em></em>"}</li>`).join("")}</ul>`).join("")}
+        <p class="tr-at">справи: звичайна 8 · рідкісна 15 · легендарна 30 · міфічна 60, ланцюжок днів підряд — до +30%; «з поправкою» — 70%</p>
+        <button type="button" class="btn btn--ghost" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "night") {
       const N = S.night[sh.k] || {};
       if (sh.step === "breath") {
@@ -1556,6 +1586,7 @@
     const qd = e.target.closest("[data-dqdone]"); if (qd) { qDone(qd.dataset.dqdone); return; }
     const qp = e.target.closest("[data-dqplus]"); if (qp) { qPlus(qp.dataset.dqplus); return; }
     const nw = e.target.closest("[data-dnew]"); if (nw) { openSheet("edit", null, view); return; }
+    const xb = e.target.closest("[data-dxp]"); if (xb) { openSheet("xp", null, xb.dataset.dxp); return; }
     const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; if (srcOf(t) === "journal" && (view || today()) <= today()) { openJournal(view); return; } openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }

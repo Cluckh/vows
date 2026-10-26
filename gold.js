@@ -449,5 +449,7 @@
     if (r) { reveals.push(Object.assign(r, { why: "Дар храмовника" })); setTimeout(nextReveal, 800); }
   }
   setTimeout(loadArts, 5000);
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, gift, scene };
+  /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
+  const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, gift, scene, goldFor };
 })();

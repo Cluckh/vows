@@ -117,9 +117,9 @@
     return { id };
   }
   /* випадкова реліквія з тих, яких ще нема (без таємних — ті тільки за подвиги); рідкість не вища за maxR, частіше — саме maxR */
-  function randomRelic(maxR, seed) {
-    const order = ["common", "rare", "legend", "myth"], top = order.indexOf(maxR);
-    const pool = relics().filter((r) => !r.secret && !G.own[r.id] && order.indexOf(r.rar) <= top);
+  function randomRelic(maxR, seed, minR) {
+    const order = ["common", "rare", "legend", "myth"], top = order.indexOf(maxR), low = minR ? order.indexOf(minR) : 0;
+    const pool = relics().filter((r) => !r.secret && !G.own[r.id] && order.indexOf(r.rar) <= top && order.indexOf(r.rar) >= low);
     if (!pool.length) return null;
     const w = pool.map((r) => (order.indexOf(r.rar) === top ? 3 : 1)), tot = w.reduce((a, x) => a + x, 0);
     let x = (seed != null ? roll(seed) : Math.random()) * tot;
@@ -430,7 +430,7 @@
     if (cmd) {                                                   // Скриня Командора: без дрібного золота, реліквія частіше, скарб — удвічі ймовірніший
       if (x < 0.02) L = { kind: "gold", g: 1500, jack: true };
       else if (x < 0.20) L = { kind: "gold", g: 250 + Math.floor(rnd("g") * 251) };
-      else if (x < 0.70) { const rr = rnd("r"), R = rr < 0.03 ? "myth" : rr < 0.2 ? "legend" : rr < 0.6 ? "rare" : "common", rid = randomRelic(R); L = rid ? { kind: "relic", id: rid } : { kind: "gold", g: 300 }; }
+      else if (x < 0.70) { const rr = rnd("r"), R = rr < 0.05 ? "myth" : rr < 0.3 ? "legend" : "rare", rid = randomRelic(R, undefined, "rare"); L = rid ? { kind: "relic", id: rid } : { kind: "gold", g: 300 }; }   // реліквія — щонайменше рідкісна
       else if (x < 0.85) L = { kind: "token", t: rnd("t") < 0.5 ? "reroll" : "extend" };
       else L = { kind: "gold", g: 150 + Math.floor(rnd("g") * 151) };
     } else if (x < 0.01) L = { kind: "gold", g: 1500, jack: true };

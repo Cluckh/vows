@@ -145,6 +145,8 @@
   /* час у програмі: { n: назва, як у «Швидких командах», min: хвилин, lim: true — «не більше» (YouTube, Reddit) } */
   const appKey = (n) => String(n || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "").slice(0, 24);
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
+  /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
+  const qAuto = (q) => q.type === "budget" || !!q.app || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   const appMin = (k, n) => { const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
   /* старі цілі Duolingo («Зробити»/«Число» за назвою) — у «час у програмі», 10 хв на день */
@@ -723,6 +725,11 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      if (q.st === "active" && q.type === "count" && /^роздач$/i.test((q.unit || "").trim())) {       // зіграні роздачі — прямо з HM3
+        let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) n += (pDay(k) || {}).hands || 0;
+        if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
       if (q.st === "active" && q.type === "count" && /тренуван/i.test(q.unit || "")) {        // зал, кардіо — усе з позначкою «тренування»
         let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (items(k).some(({ t, r }) => isGym(t) && r && isWin(r.st))) n++;
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
@@ -823,7 +830,8 @@
     const i = await h.choose(questCard(q), ["Приймаю", "Не цього разу"], "hall__acts--row");
     if (i === "closed") return false;
     if (i === 0) {
-      q.st = "active"; q.from = today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now();
+      const nxt = ((pool().find((p) => p.id === q.pid) || {}).tags || []).includes("return");          // «з наступних днів»: день зриву не рахується
+      q.st = "active"; q.from = nxt ? add(today(), 1) : today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now();
       if (q.type === "budget" && q.limitPct && T()) { const days = diff(q.from, q.until) + 1; q.limit = Math.round(q.limitPct * (T().avgWeek(q.cats) || 0) * days / 7 / 100) * 100; }
       saveQ();
       fx("yes"); buzz("medium");
@@ -985,7 +993,7 @@
         ${q.type === "budget" ? budgetLine(q) : ""}
         ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}</em></span>` : ""}
         <span class="dy-q__due">${q.st === "done" ? `виконано · +${q.xp}` : due}${q.st === "active" ? ` · +${q.xp}` : ""}</span></div>
-      ${q.st === "active" && q.type !== "budget" && !/вірн|сповід/i.test(q.unit || "") ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
+      ${q.st === "active" && !qAuto(q) ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
   }
   function budgetLine(q) {
     const sp = qSpent(q), m = T() ? T().money : (x) => x;
@@ -1620,6 +1628,9 @@
       S.seeded = seed.v; saveS();
     }
     appMigrate();
+    /* квести повернення, прийняті до виправлення, рахували й день зриву — зсуваємо на день уперед */
+    Q.list.forEach((q) => { if (q.st === "active" && !q.shifted && !q.cur && q.from === (q.offerOn || q.from) && ((pool().find((p) => p.id === q.pid) || {}).tags || []).includes("return")) {
+      q.from = add(q.from, 1); q.until = add(q.until, 1); q.shifted = 1; q.at = Date.now(); saveQ(); } });
     lastLevel = levelOf(totalXP());
     carryOver(); applyHealth(); applyPoker(); applyBank(); applyJournal(); settle(); lastLevel = levelOf(totalXP());
     const cb2 = $("confessBtn"); if (cb2) cb2.addEventListener("click", () => openJournal(today())); confessStatus();

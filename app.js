@@ -1103,15 +1103,24 @@ window.ORDO_START = function () {
   }
   /* етапи з книжок: «300 сторінок» — сторінки з полиці (те, що було набрано до привʼязки, лишається базою);
      «Дочитати 2 томи Темні віки» — закривається, коли дочитано стільки книжок цієї серії */
-  const pagesPart = (p) => p.target && /сторін/i.test(p.t || ""), bookPart = (p) => !p.target && /дочит|прочит/i.test(p.t || "");
+  /* етапи з даними: числова частина бере джерело з назви, як ціль-лічильник («300 сторінок» — полиця, «100к кроків», «20к роздач»,
+     «10 медитацій», «20 сповідей», «25 днів вірності»); сторінки до привʼязки — база. «Дочитати 2 томи Темні віки» — з полиці книжок */
+  const PSRC = { pages: "сторінки з полиці", steps: "кроки", poker: "роздачі", mind: "медитації", journal: "сповіді", faith: "дні вірності" };
+  const partSrc = (p) => !p.target ? "" : p.src != null ? p.src : /сторін/i.test(p.t || "") ? "pages" : /крок/i.test(p.t || "") ? "steps" : /роздач/i.test(p.t || "") ? "poker"
+    : /медит|calm/i.test(p.t || "") ? "mind" : /сповід/i.test(p.t || "") ? "journal" : /вірн/i.test(p.t || "") ? "faith" : "";
+  const pagesPart = (p) => partSrc(p) === "pages", bookPart = (p) => !p.target && /дочит|прочит/i.test(p.t || "");
   function partsFill(it, key) {
     const DY = window.ORDO_DAY; if (tyOf(it) !== "stages" || !DY || !DY.periodPages) return;
     const [a, b] = periodOf(key);
     (it.parts || []).forEach((p) => {
-      if (pagesPart(p)) {
+      const src = partSrc(p);
+      if (src === "pages") {
         if (!p.pfrom) { p.pfrom = todayKey() > a ? todayKey() : a; p.pbase = p.cur || 0; }
         const v = (p.pbase || 0) + DY.periodPages(p.pfrom > a ? p.pfrom : a, b);
         if (v !== (p.cur || 0)) { p.cur = v; p.done = partDone(p) ? (p.done || todayKey()) : null; }
+      } else if (src) {
+        const v = goalValue({ t: p.t, type: "count", src }, key);
+        if (v != null && v > (p.cur || 0)) { p.cur = v; p.done = partDone(p) ? (p.done || todayKey()) : null; }
       } else if (bookPart(p) && DY.booksFor) { const r = DY.booksFor(p.t); if (r && r.ok && !p.done) { p.done = todayKey(); p.auto = 1; } }
     });
   }
@@ -1424,8 +1433,8 @@ window.ORDO_START = function () {
       if (t === "vows") h += `${vowChips(it.vows || null, "data-gvow")}<label class="gs-f">Стрік ≥<input type="text" inputmode="numeric" id="gsTarget" value="${it.target || ""}"></label>`;
       if (t === "stages") {
         h += `<ul class="gs-parts">${(it.parts || []).map((p) => `<li class="${partDone(p) ? "is-done" : ""}${p.target ? " is-num" : ""}" data-stepbox="${p.id}">
-          ${p.target ? `<span class="gs-part__t">${esc(p.t)}</span><input type="text" inputmode="decimal" data-pcur="${p.id}" value="${p.cur || ""}" placeholder="0"><span class="gs-part__of">/ ${fmtN(p.target)}</span>${plusBtn(p.id)}`
-                     : `<button type="button" class="gs-part__chk" data-ptog="${p.id}"></button><span class="gs-part__t">${esc(p.t)}</span>`}
+          ${p.target ? `<span class="gs-part__t">${esc(p.t)}${partSrc(p) ? `<small class="gs-part__src">сам: ${PSRC[partSrc(p)]}</small>` : ""}</span><input type="text" inputmode="decimal" data-pcur="${p.id}" value="${p.cur || ""}" placeholder="0"><span class="gs-part__of">/ ${fmtN(p.target)}</span>${plusBtn(p.id)}`
+                     : `<button type="button" class="gs-part__chk" data-ptog="${p.id}"></button><span class="gs-part__t">${esc(p.t)}${bookPart(p) ? (() => { const r = window.ORDO_DAY && window.ORDO_DAY.booksFor ? window.ORDO_DAY.booksFor(p.t) : null; return `<small class="gs-part__src">${r ? `сам: з полиці · дочитано ${r.done} з ${r.need}${r.now ? ` · зараз с. ${fmtN(r.now.page)}${r.now.pages ? `/${fmtN(r.now.pages)}` : ""}` : ""}` : "сам: додай книжку на полицю в справі читання"}</small>`; })() : ""}</span>`}
           <button type="button" class="gs-x" data-prm="${p.id}" aria-label="Прибрати частину"><svg><use href="#i-x"/></svg></button></li>`).join("")}</ul>
           <div class="gs-row gs-row--part"><input type="text" id="gsPartT" placeholder="нова частина"><input type="text" inputmode="decimal" id="gsPartN" placeholder="число?"><button class="btn btn--line" type="button" data-gs="addpart">+</button></div>`;
       }

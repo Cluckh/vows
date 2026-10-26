@@ -1655,3 +1655,4 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .bk-row{display:flex;gap:8px;margin:10px 0 4px}.bk-row .dy-in{flex:1;min-width:0}.bk-row .btn{flex:none;width:auto;padding-left:18px;padding-right:18px;margin:0}
 .bk .gs-h{margin-top:0}.bk>.dy-in{width:100%}
 .bk-line svg{width:15px;height:15px;color:var(--gold);vertical-align:-2px;margin-right:5px}
+.gs-part__src{display:block;margin-top:2px;font-family:var(--f-sans,inherit);font-size:12px;letter-spacing:.02em;color:var(--gold);opacity:.75}

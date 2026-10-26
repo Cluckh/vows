@@ -128,10 +128,11 @@
   function mergeData(L, R) {
     const P = (o, k, f) => { try { return o[k] != null ? JSON.parse(o[k]) : f; } catch (e) { return f; } };
     const out = Object.assign({}, R, L);
-    const seen = new Set(), log = [];
+    const del = [...new Set([].concat(P(R, "ordo.logdel", []), P(L, "ordo.logdel", [])))].slice(-1500), gone = new Set(del), seen = new Set(), log = [];
     [].concat(P(R, "ordo.log", []), P(L, "ordo.log", [])).forEach((e) => {
-      const id = [e.k, e.v, e.d, e.ts, e.gid || ""].join("|"); if (!seen.has(id)) { seen.add(id); log.push(e); }
+      const id = [e.k, e.v, e.d, e.ts, e.gid || ""].join("|"); if (!seen.has(id) && !gone.has(id)) { seen.add(id); log.push(e); }      // видалене на будь-якому пристрої не воскресає
     });
+    out["ordo.logdel"] = JSON.stringify(del);
     log.sort((a, b) => (a.ts || 0) - (b.ts || 0));
     out["ordo.log"] = JSON.stringify(log);
     const sL = P(L, "ordo.starts", {}), sR = P(R, "ordo.starts", {}), st = Object.assign({}, sR, sL);

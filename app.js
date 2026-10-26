@@ -346,7 +346,15 @@ window.ORDO_START = function () {
   /* літопис подій: mark (вікно), breach (зрив), edit (зміна дати) */
   let LOG = LS.get("ordo.log", []);
   if (!Array.isArray(LOG)) LOG = [];
-  const saveLog = () => { if (LOG.length > 3000) LOG = LOG.slice(-3000); LS.set("ordo.log", LOG); };
+  /* видалені з журналу записи — «надгробки» (ordo.logdel): інакше злиття з іншим пристроєм повертає їх назад */
+  const lid = (e) => [e.k, e.v, e.d, e.ts, e.gid || ""].join("|");
+  let LOGIDS = new Set(LOG.map(lid));
+  const saveLog = () => {
+    const now = new Set(LOG.map(lid)), gone = [...LOGIDS].filter((i) => !now.has(i));
+    if (gone.length) LS.set("ordo.logdel", LS.get("ordo.logdel", []).concat(gone).slice(-1500));
+    if (LOG.length > 3000) LOG = LOG.slice(-3000);
+    LOGIDS = new Set(LOG.map(lid)); LS.set("ordo.log", LOG);
+  };
   const logPush = (e) => { e.ts = Date.now(); LOG.push(e); saveLog(); };
 
   /* одноразові виправлення літопису (приходять у зашифрованому вмісті, D.PATCHES):

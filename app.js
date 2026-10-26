@@ -761,7 +761,7 @@ window.ORDO_START = function () {
   function seneschal() {
     const S = D.SENESCHAL; if (!S) return "";
     if (senSay && Date.now() - senSay.at < 10 * 60000) return medallion(S, { head: "plume", look: S.look }, senSay.t, "md--voice");
-    const M = monthKey(), P = G.m[M], left = daysIn(M) - new Date().getDate();
+    const M = monthKey(), P = G.m[M], left = daysIn(M) - new Date().getDate() + 1;            // ревю — зранку 1-го
     let t;
     if (!P || !P.items.length) t = S.none;
     else if (P.items.every((it) => complete(it))) t = S.all;
@@ -968,7 +968,7 @@ window.ORDO_START = function () {
      stages — етапи (частини-галочки або частини-лічильники); vows — найменший
      стрік серед обітниць ≥ N (закривається сама й назавжди).                */
   const GT = {
-    once:    { name: "Звичайна",  hint: "Одна відмітка, коли зроблено." },
+    once:    { name: "Разова",    hint: "Одна відмітка, коли зроблено." },
     count:   { name: "Лічильник", hint: "Накопичення до числа: «+» додає одиницю, у поле — скільки є зараз. Закриється сама." },
     measure: { name: "Мірило",    hint: "Оцінюється на кінець періоду: середнє, вага. Проміжні значення ціль не закривають." },
     stages:  { name: "Етапи",     hint: "Кілька частин; частина може мати своє число. Закрита, коли закриті всі." },
@@ -1234,14 +1234,14 @@ window.ORDO_START = function () {
     const box = $("goalsBody"); if (!box) return;
     settleAll();
     const now = new Date(), Y = String(now.getFullYear()), M = monthKey(now);
-    const sub = $("glSub"); if (sub) sub.textContent = "ставляться 1-го, відмічаються останнього числа";
+    const sub = $("glSub"); if (sub) sub.textContent = "ставляться й підсумовуються зранку 1-го";
     const pend = pendingTasks();
     const section = (kind, key) => {
       const P = peek(kind, key), reviewed = !!(P && P.res), items = P ? P.items : [];
       const due = pend.find((t) => t.t === "review" && t.kind === kind && t.key === key);
       const pct = reviewed ? pctOf(P) : 0;
       const award = reviewed ? tierFor(kind === "y" ? D.TITLES : D.MEDALS, pct) : null;
-      const when = kind === "y" ? "ревю 31 грудня" : `ревю ${daysIn(key)} ${MONTHS[+key.slice(5) - 1]}`;
+      const when = kind === "y" ? "ревю 1 січня" : `ревю 1 ${MONTHS[+key.slice(5) % 12]}`;
       const doneN = items.filter((it) => reviewed ? P.res[it.id] : complete(it)).length;
       let h = `<section class="gl-sec">
         <div class="gl-sec__head"><span class="gl-sec__kind">${kind === "y" ? "Цілі року" : "Цілі місяця"}</span><span class="gl-sec__name">${periodLabel(kind, key)}</span>

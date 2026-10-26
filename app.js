@@ -942,11 +942,11 @@ window.ORDO_START = function () {
     const now = new Date(), Y = String(now.getFullYear()), M = monthKey(now), tasks = [];
     Object.keys(G.m).sort().forEach((k) => {
       const P = G.m[k];
-      if (P.items.length && !P.res && (k < M || (k === M && isLastDayOfMonth()))) tasks.push({ t: "review", kind: "m", key: k });
+      if (P.items.length && !P.res && k < M) tasks.push({ t: "review", kind: "m", key: k });
     });
     Object.keys(G.y).sort().forEach((k) => {
       const P = G.y[k];
-      if (P.items.length && !P.res && (k < Y || (k === Y && now.getMonth() === 11 && now.getDate() === 31))) tasks.push({ t: "review", kind: "y", key: k });
+      if (P.items.length && !P.res && k < Y) tasks.push({ t: "review", kind: "y", key: k });
     });
     const py = peek("y", Y);
     if ((!py || (!py.items.length && !py.skip)) && now.getMonth() < 11) tasks.push({ t: "entry", kind: "y", key: Y });
@@ -1767,7 +1767,9 @@ window.ORDO_START = function () {
     const dn = $("dNote");
     if (dn) {
       const P = peek("m", monthKey(d));
-      const txt = d.getDate() === 1 ? `новий місяць — нові цілі` : isLastDayOfMonth() && P && P.items.length && !P.res ? "сьогодні ревю місяця" : "";
+      /* ревю — зранку 1-го, коли місяць прожито повністю (його останній день теж у підсумку) */
+      const pd = new Date(d.getFullYear(), d.getMonth() - 1, 1), PP = peek("m", monthKey(pd));
+      const txt = d.getDate() === 1 ? (PP && PP.items.length && !PP.res ? "ревю місяця й нові цілі" : "новий місяць — нові цілі") : isLastDayOfMonth() && P && P.items.length && !P.res ? "останній день місяця · ревю — завтра зранку" : "";
       dn.hidden = !txt; dn.textContent = txt;
     }
     const LQ = D.LEGENDARY_QUOTES || [], h = hashDay(todayKey());

@@ -1882,3 +1882,5 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .gd-shop li.is-lock{opacity:.55}
 .rl-slots--4,.rl-slots--5{grid-template-columns:repeat(3,1fr)}
 .gd-lock{width:16px;height:16px;color:var(--ash)}
+.rk-art img{object-fit:contain;transform:none;-webkit-mask-image:radial-gradient(circle,#000 72%,transparent 100%);mask-image:radial-gradient(circle,#000 72%,transparent 100%)}
+.rk-art{border-radius:0}

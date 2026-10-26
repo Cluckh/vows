@@ -81,9 +81,11 @@
     const lastK = gym.length ? gym[gym.length - 1] : A.seedTo || null;
     const lastT = typed.length ? typed[typed.length - 1] : null, lastB = [...typed].reverse().find((x) => x.type === "B");
     const doneToday = gym.includes(t0);
-    let type = ARM.next && ARM.next.from >= (lastK || "") && ARM.next.type ? ARM.next.type : lastT ? (lastT.type === "A" ? "B" : "A") : "A";
+    /* ручний вибір A/B діє, доки після нього не було залу (обрав уже після сьогоднішнього — на наступний) */
+    const N = ARM.next, g2 = N && N.from ? gym.filter((g) => g >= N.from) : [], manual = !!(N && N.type && (!g2.length || (N.after && g2.every((g) => g === N.from))));
+    let type = manual ? N.type : lastT ? (lastT.type === "A" ? "B" : "A") : "A";
     const reasons = [], warn = [];
-    if (ARM.next && ARM.next.type === type && ARM.next.from >= (lastK || "")) reasons.push("день обрано вручну");
+    if (manual) reasons.push("день обрано вручну");
     else if (lastT) reasons.push(`за чергою: минулого разу день ${lastT.type} (${human(lastT.k)})`);
     else reasons.push("минулий день A чи B не записано — почнемо з A (можна змінити)");
     let k = null, skipB = null;
@@ -336,7 +338,7 @@
     if (e.target.closest("[data-lib]")) { show("lib"); return; }
     const v = e.target.closest("#armoryBody"); if (!v) return;
     const ab = e.target.closest("[data-arab]");
-    if (ab) { ARM.next = { type: ab.dataset.arab, from: today(), at: Date.now() }; saveA(); fx(null); renderArmory(); return; }
+    if (ab) { const P0 = plan(); ARM.next = { type: ab.dataset.arab, from: today(), at: Date.now(), after: !!(P0 && P0.doneToday) }; saveA(); fx(null); renderArmory(); return; }
     const ex = e.target.closest("[data-arex]"); if (ex) { show("ex", ex.dataset.arex); return; }
     const st = e.target.closest('[data-ar="start"]');
     if (st) { const P = plan(), Y = DY(); if (P && Y && Y.gymOpen) Y.gymOpen(planSets(P)); return; }

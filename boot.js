@@ -180,7 +180,9 @@
     if (L["ordo.gold"] || R["ordo.gold"]) {            // золото: виведення й покупки — обʼєднуємо; «прийшло» сильніше за «скасовано», а те — за «в дорозі»
       const a = P(L, "ordo.gold", {}), b = P(R, "ordo.gold", {}), go = Object.assign({}, b.out, a.out), rk = { done: 3, cancel: 2, pending: 1 };
       Object.keys(b.out || {}).forEach((k) => { if (a.out && a.out[k] && (rk[b.out[k].st] || 0) > (rk[a.out[k].st] || 0)) go[k] = b.out[k]; });
-      out["ordo.gold"] = JSON.stringify(Object.assign({}, b, a, { out: go }));
+      const un = (k) => Object.assign({}, b[k], a[k]), own = un("own"); Object.keys(b.own || {}).forEach((k) => { if (a.own && a.own[k] && b.own[k].at < a.own[k].at) own[k] = b.own[k]; });
+      const eqs = (b.eqAt || 0) > (a.eqAt || 0) ? { eq: b.eq, eqAt: b.eqAt } : { eq: a.eq || b.eq || [], eqAt: a.eqAt || b.eqAt };
+      out["ordo.gold"] = JSON.stringify(Object.assign({}, b, a, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), own, starter: a.starter || b.starter }, eqs));
     }
     if (L["ordo.xp"] || R["ordo.xp"]) {
       const a = P(L, "ordo.xp", {}), b = P(R, "ordo.xp", {});

@@ -1528,3 +1528,45 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .gd-sheet .dy-chips{margin:4px 0 14px}
 .gd-sheet .dy-note .gd-coin{margin:0 3px}
 .gd-sheet a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:14px}
+.gd-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gd-acts .btn{margin:0}
+.gd-shop{list-style:none;padding:0;margin:6px 0 14px;display:grid;gap:10px}
+.gd-shop li{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--gold) 22%,transparent);border-radius:14px}
+.gd-shop li div{flex:1;display:grid;gap:2px}
+.gd-shop li b{font-family:var(--f-display);font-size:16px;color:var(--bone);letter-spacing:.03em}
+.gd-shop li span{font-family:var(--f-serif);font-size:14px;color:var(--ash)}
+.gd-shop .btn{width:auto;margin:0;padding:8px 14px;white-space:nowrap}
+.gd-chest{display:flex;justify-content:center;margin:18px 0 8px}
+.gd-chest svg{width:120px;height:120px;fill:none;stroke:var(--gold);stroke-width:1.6;stroke-linejoin:round}
+.gd-chest .ch-b,.gd-chest .ch-l{fill:color-mix(in srgb,var(--gold) 14%,transparent)}
+.gd-chest.is-shake svg{animation:gdShake .5s ease-in-out infinite}
+@keyframes gdShake{0%,100%{rotate:0deg}25%{rotate:-6deg}75%{rotate:6deg}}
+.gd-c{text-align:center}
+.gd-bless{text-align:center;font-size:64px;color:var(--gold);margin:10px 0 4px;text-shadow:0 0 30px color-mix(in srgb,var(--gold) 60%,transparent)}
+/* реліквії */
+.rl{--rc:var(--ash)}
+.rl--common{--rc:#b9b2a3}.rl--rare{--rc:var(--q-rare,#e6c14a)}.rl--legend{--rc:var(--q-legend,#ff8a2b)}.rl--myth{--rc:var(--q-myth,#b06cff)}
+.rl-n{font-style:normal;font-family:var(--f-serif);font-size:14px;color:var(--ash);letter-spacing:0;margin-left:8px;text-transform:none}
+.rl-gem{width:100%;height:100%}
+.rl-gem .rl-g1{fill:color-mix(in srgb,var(--rc) 22%,transparent);stroke:var(--rc);stroke-width:1.6;stroke-linejoin:round}
+.rl-gem .rl-g2{fill:none;stroke:color-mix(in srgb,var(--rc) 60%,transparent);stroke-width:1}
+.rl-img{width:100%;height:100%;object-fit:cover;border-radius:12px}
+.rl-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:6px 0 14px}
+.rl-slot{display:grid;justify-items:center;align-content:start;gap:6px;min-height:150px;padding:12px 8px;border:1px dashed color-mix(in srgb,var(--gold) 25%,transparent);border-radius:16px;background:none;color:inherit;text-align:center}
+.rl-slot.is-on{border:1px solid color-mix(in srgb,var(--rc) 60%,transparent);box-shadow:0 0 22px color-mix(in srgb,var(--rc) 18%,transparent);cursor:pointer}
+.rl-slot .rl-gem,.rl-slot .rl-img{width:58px;height:58px}
+.rl-slot b{font-family:var(--f-display);font-size:13.5px;color:var(--bone);line-height:1.2}
+.rl-slot span{font-family:var(--f-serif);font-size:12.5px;color:var(--ash);line-height:1.25}
+.rl-slot i{margin:auto;font-family:var(--f-serif);font-size:13px;color:var(--ash)}
+.rl-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.rl-cell{aspect-ratio:1;min-width:0;padding:5px;border:1px solid color-mix(in srgb,var(--rc) 45%,transparent);border-radius:12px;background:none;cursor:pointer}
+.rl-cell.is-eq{box-shadow:0 0 0 2px var(--rc) inset}
+.rl-cell.is-locked{border-style:dashed;border-color:color-mix(in srgb,var(--rc) 25%,transparent);display:grid;place-items:center;font-family:var(--f-display);color:color-mix(in srgb,var(--rc) 55%,transparent);font-size:18px}
+.rl-big{width:150px;height:150px;margin:10px auto 6px;display:grid;place-items:center;filter:drop-shadow(0 0 24px color-mix(in srgb,var(--rc) 45%,transparent))}
+.rl-big.is-new{animation:rlIn .9s cubic-bezier(.2,1.4,.4,1) both}
+.rl-big.is-locked{border:1px dashed color-mix(in srgb,var(--rc) 40%,transparent);border-radius:20px;font-family:var(--f-display);font-size:48px;color:color-mix(in srgb,var(--rc) 60%,transparent);filter:none}
+@keyframes rlIn{from{scale:.3;opacity:0;rotate:-20deg}to{scale:1;opacity:1;rotate:0deg}}
+.rl-k--common{color:#b9b2a3}.rl-k--rare{color:var(--q-rare,#e6c14a)}.rl-k--legend{color:var(--q-legend,#ff8a2b)}.rl-k--myth{color:var(--q-myth,#b06cff)}
+.rl-bonus{text-align:center;font-family:var(--f-serif);font-size:15.5px;color:var(--gold);margin:2px 0 8px}
+.rl-lore{font-style:italic}
+.gd-sheet .rl-big + .sheet__title,.gd-sheet .gd-big + .sheet__title,.gd-sheet .gd-bless + .sheet__title{text-align:center}

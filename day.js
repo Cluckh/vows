@@ -846,8 +846,12 @@
     const lines = (L.offer && L.offer[q.rar]) || [];
     const open = q.offer || pick(lines) || "Брате, маю для тебе доручення.";
     if ((await h.say(fill(open, { rar: RAR[q.rar].n.toLowerCase() }))) === "closed") return false;
-    const i = await h.choose(questCard(q), ["Приймаю", "Не цього разу"], "hall__acts--row");
+    const G = window.ORDO_GOLD, rr = G && G.can("reroll");                  // реліквія чи жетон перекидання — можна попросити інше доручення
+    const i = await h.choose(questCard(q), rr ? ["Приймаю", "Не цього разу", "Інше 🎲"] : ["Приймаю", "Не цього разу"], "hall__acts--row");
     if (i === "closed") return false;
+    if (i === 2) {
+      const nq = draw(q.rar); if (nq && G.use("reroll")) { q.st = "rerolled"; q.at = Date.now(); Q.list.push(nq); saveQ(); await h.say("Добре. Маю для тебе інше."); return offerScene(nq); }
+    }
     if (i === 0) {
       const nxt = ((pool().find((p) => p.id === q.pid) || {}).tags || []).includes("return");          // «з наступних днів»: день зриву не рахується
       q.st = "active"; q.from = nxt ? add(today(), 1) : today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now();
@@ -1534,6 +1538,7 @@
       ${q.desc ? `<p class="dy-note">${esc(q.desc)}</p>` : ""}
       <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : ""} · +${q.xp} досвіду</div>
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
+      ${q.st === "active" && q.until && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">Відстрочка +1 день ⏳</button>` : ""}
       ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
       <button class="btn btn--ghost" type="button" data-dqs="close">Закрити</button>`;
@@ -1543,6 +1548,7 @@
       if (a === "close") { closeSheet(); el.onclick = null; return; }
       if (a === "done") { closeSheet(); el.onclick = null; qDone(q.id); return; }
       if (a === "cur") { const c = numIn(($("dqC") || {}).value); if (c != null) { q.cur = Math.max(0, c); q.at = Date.now(); if (q.target && q.cur >= q.target) { closeSheet(); el.onclick = null; qDone(q.id); return; } saveQ(); } closeSheet(); el.onclick = null; render(); return; }
+      if (a === "ext") { if (window.ORDO_GOLD.use("extend")) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b>`); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
     };
     fx("open"); buzz("light");

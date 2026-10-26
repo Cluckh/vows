@@ -234,6 +234,15 @@
   let artBusy = false;
   const SCENES = ["chest", "shop", "treasury", "levelup", "night", "weekchest"];
   const scene = (n) => ART["scene:" + n] || null;
+  /* арт за запитом (ілюстрації моментів писаря): той самий кеш «ordo-art», що й для реліквій */
+  async function artFor(kind, id) {
+    const k = kind + ":" + id; if (ART[k]) return ART[k];
+    const V = window.ORDO_VAULT; if (!V || !V.readSealedBlob) return null;
+    const n = artName(kind, id), req = new Request(`${location.origin}/__art/${n}`);
+    let cache = null, blob = null; try { cache = await caches.open("ordo-art"); const r = await cache.match(req); if (r) blob = await r.blob(); } catch (e) {}
+    if (!blob) { try { blob = await V.readSealedBlob(`art/sealed/${n}.json`); } catch (e) {} if (blob && cache) { try { await cache.put(req, new Response(blob, { headers: { "Content-Type": blob.type } })); } catch (e) {} } }
+    return blob ? (ART[k] = URL.createObjectURL(blob)) : null;
+  }
   async function loadArts() {
     const V = window.ORDO_VAULT; if (artBusy || !V || !V.readSealedBlob) return;
     const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(SCENES.filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]));
@@ -456,5 +465,5 @@
   setTimeout(loadArts, 5000);
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, gift, scene, goldFor };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor };
 })();

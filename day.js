@@ -1244,7 +1244,7 @@
     if (today() < d0 || today() > until || (S.heard && S.heard[key])) return null;
     return { t: n.t, rar: rarOk(n.rar), key };
   }
-  function heard(id) { const n = newsFor(id); if (!n) return; S.heard = S.heard || {}; S.heard[n.key] = today(); saveS(); const A = API(); if (A.renderBoard) A.renderBoard(); }
+  function heard(id) { const n = newsFor(id); if (!n) return; S.heard = S.heard || {}; S.heard[n.key] = today(); saveS(); const A = API(); if (A.renderBoard) A.renderBoard(); teaserDots(); }
 
   /* моменти: сцени з умовою, які писар пише заздалегідь, а Орден запускає сам, коли умова справдилась
      at: open (при відкритті) · ritual (уранці до 12:00, після ранкового звіту) · confession (одразу після сповіді) · board (тизер на головному)
@@ -1276,21 +1276,49 @@
   async function playMoment(m) {
     const h = H(); if (!h || !m) return true;
     S.mom = S.mom || {}; S.mom[m.id] = today(); saveS();
-    h.stage(m.who || "supreme", m.glow ? { glow: m.glow } : {});
+    const art = m.art && window.ORDO_GOLD && window.ORDO_GOLD.artFor ? await window.ORDO_GOLD.artFor("moment", m.id) : null;      // легендарне й міфічне — з ілюстрацією
+    const gl = rarOk(m.rar) === "common" ? null : rarOk(m.rar);
+    h.stage(m.who || "supreme", Object.assign({}, gl ? { glow: gl } : {}, art ? { art, kind: "full" } : {}));
     const res = await h.runDialog({ n: m.n });
     if (m.gift && window.ORDO_GOLD) window.ORDO_GOLD.gift(m.gift, m.id);
-    const A = API(); if (A.renderBoard) A.renderBoard();
+    const A = API(); if (A.renderBoard) A.renderBoard(); render(); teaserDots();
     return res;
   }
   async function momentScene(at) {
     const list = at === "open" ? momentsAt("ritual").filter(() => new Date().getHours() < 12 && S.sleep[today()]).concat(momentsAt("open")) : momentsAt(at);
     return list.length ? playMoment(list[0]) : true;
   }
-  /* тизер на головному: «легендарна історія від брата Амвросія» — торкнись, і почнеться */
-  function teaserHTML() {
-    const m = momentsAt("board")[0]; if (!m) return "";
-    const w = whoOf(m.who || "supreme"), M = window.ORDO_MARK || ((y) => y), r = rarOk(m.rar);
-    return `<button type="button" class="tz rar-${r}" data-tz="${esc(m.id)}"><span class="tz__fig">${w && w.art ? `<img src="${esc(w.art)}" alt="">` : ""}</span><span class="tz__b"><b>${M(esc(m.title || "Храмовник хоче щось сказати"))}</b><em>${w ? esc(w.name) : ""} · торкнись</em></span></button>`;
+  /* тизер: «легендарна історія від брата Амвросія» — торкнись, і почнеться. Місця: board (Обітниці), day, goals, treasury, chronicle (Літопис).
+     Сенешаль і Літописець не мають кнопки виклику — їхнє «є що сказати» теж приходить тизером у їхніх вкладках */
+  const PLACE_NEWS = { goals: ["seneschal"], treasury: ["seneschal"], chronicle: ["chronicler"] };
+  function teaserItem(place) {
+    const m = momentsAt(place)[0];
+    const nw = (PLACE_NEWS[place] || []).map((id) => [id, newsFor(id)]).filter(([, n]) => n)[0];
+    if (nw && (!m || RANK[nw[1].rar] >= RANK[rarOk(m.rar)])) return { kind: "news", id: nw[0], who: nw[0], rar: nw[1].rar, title: nw[1].rar === "common" ? "Є слово для тебе" : `${cap1(RARW[nw[1].rar])} слово для тебе` };
+    return m ? { kind: "moment", id: m.id, who: m.who || "supreme", rar: rarOk(m.rar), title: m.title || "Храмовник хоче щось сказати" } : null;
+  }
+  const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  function teaserHTML(place) {
+    const x = teaserItem(place || "board"); if (!x) return "";
+    const w = whoOf(x.who), M = window.ORDO_MARK || ((y) => y);
+    return `<button type="button" class="tz rar-${x.rar}" data-tz="${x.kind}:${esc(x.id)}"><span class="tz__fig">${w && w.art ? `<img src="${esc(w.art)}" alt="">` : ""}</span><span class="tz__b"><b>${M(esc(x.title))}</b><em>${w ? esc(w.name) : ""} · торкнись</em></span></button>`;
+  }
+  /* крапки на вкладках: де чекає вість — колір найрідкіснішої */
+  function teaserDots() {
+    const map = { board: "board", day: "day", stats: "chronicle", goals: "goals", treasury: "treasury" };
+    Object.entries(map).forEach(([tab, place]) => {
+      const b = document.querySelector(`.tab[data-tab="${tab}"]`); if (!b) return;
+      let x = teaserItem(place); if (!x && tab === "board") { const ids = ["supreme"].concat((D().VOWS || []).map((v) => v.id)); const n = ids.map(newsFor).filter(Boolean).sort((a, c) => RANK[c.rar] - RANK[a.rar])[0]; if (n) x = { rar: n.rar }; }
+      if (!x && tab === "day") { const L = newsLines(); if (L.length && !LS.get("ordo.k.newsSeen", "").startsWith(dropDay() || "")) x = { rar: L[0].rar }; }
+      let d = b.querySelector(".tab__news"); if (!x) { if (d) d.remove(); return; }
+      if (!d) { d = document.createElement("i"); b.appendChild(d); } d.className = `tab__news rar-${x.rar}`;
+    });
+  }
+  async function playTeaser(key) {
+    const [kind, id] = String(key).split(":");
+    if (kind === "moment") return playMomentId(id);
+    const n = newsFor(id), h = H(); if (!n || !h) return;
+    heard(id); h.stage(id); await h.say(n.t); if (h.isOpen()) h.close(); teaserDots(); const A = API(); if (A.renderTreasury && A.tab && A.tab() === "treasury") A.renderTreasury();
   }
   const playMomentId = (id) => { const m = DROP && Array.isArray(DROP.moments) && DROP.moments.find((x) => x.id === id); return m ? playMoment(m) : null; };
   function budgetLine(q) {
@@ -1356,7 +1384,8 @@
     if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
       h += `<div class="md md--voice dy-adv"><div class="md__fig"${K && K.art ? ` data-card="${adv.giver}"` : ""}>${K && K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K ? K.name : "")} · порада на зал</div><p class="md__say">${esc(adv.head)}</p>${adv.tips.length ? `<ul class="dy-tips">${adv.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div></div>`; }
     const segA = h; h = "";
-    const segQ = (k === today() ? newsHTML() : "") + (live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "");
+    if (k === today() && TAB() === "day" && newsLines().length) LS.set("ordo.k.newsSeen", dropDay() || "");
+    const segQ = (k === today() ? teaserHTML("day") + newsHTML() : "") + (live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "");
     h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">${k === today() ? "Справи дня" : k < today() ? "Того дня" : "Заплановано"}</span><span class="gl-sec__meta">${its.length ? `${doneN}/${its.length}` : ""}</span></div>`;
     if (!its.length) h += `<p class="gl-empty">${k < today() ? "Того дня справ не було." : "Справ на цей день немає."}</p>`;
     h += `<ul class="dy-list">${open.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
@@ -1364,7 +1393,7 @@
     h += `<button class="gl-new" type="button" data-dnew="1"><svg><use href="#i-plus"/></svg>Нова ціль</button></section>`;
     if (dayXP) h += `<button type="button" class="dy-sum" data-dxp="${k}">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""} <span class="dy-sum__more">за що ›</span></button>`;
     if (k === today() && !bad.length) h += `<button type="button" class="dy-watch-ok" data-dwatch="1">сторож: усе на місці</button>`;
-    patch(box, [segR, segA, segQ, h]);
+    patch(box, [segR, segA, segQ, h]); teaserDots();
   }
   /* екран дня — чотири шматки (звання, день, квести, справи); оновлюється лише те, що змінилось:
      перемикання дня не перебудовує квести з портретами — на iPhone це найдорожче */
@@ -2040,6 +2069,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

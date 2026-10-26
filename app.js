@@ -493,7 +493,7 @@ window.ORDO_START = function () {
     const DY = window.ORDO_DAY, nf = (id) => (DY && DY.newsFor ? DY.newsFor(id) : null);
     const cb = $("crestBtn"); if (cb) { const n = nf("supreme"); cb.className = "crest__btn" + (n ? ` has-news rar-${n.rar}` : ""); }
     let tz = $("teaser"); if (!tz) { tz = document.createElement("div"); tz.id = "teaser"; ul.parentNode.insertBefore(tz, ul); }
-    tz.innerHTML = DY && DY.teaserHTML ? DY.teaserHTML() : "";
+    tz.innerHTML = DY && DY.teaserHTML ? DY.teaserHTML("board") : ""; if (DY && DY.teaserDots) DY.teaserDots();
     D.VOWS.forEach((v) => {
       const s = streak(v), nm = nextMilestone(s);
       const prog = nm ? Math.min(100, (s / nm) * 100) : 100;
@@ -611,7 +611,7 @@ window.ORDO_START = function () {
   on("shKeeper", "click", () => { const id = sheetVow; closeSheet(); if (window.ORDO_HALL) setTimeout(() => window.ORDO_HALL.callKeeper(id), 320); });
   /* щит на табло — поклик Верховного храмовника */
   on("crestBtn", "click", () => { if (window.ORDO_HALL) window.ORDO_HALL.panic(); });
-  document.addEventListener("click", (e) => { const t = e.target.closest && e.target.closest("[data-tz]"); if (!t || !window.ORDO_DAY || !window.ORDO_DAY.playMomentId) return; FX.buzz("light"); window.ORDO_DAY.playMomentId(t.dataset.tz); });
+  document.addEventListener("click", (e) => { const t = e.target.closest && e.target.closest("[data-tz]"); if (!t || !window.ORDO_DAY || !window.ORDO_DAY.playTeaser) return; FX.buzz("light"); window.ORDO_DAY.playTeaser(t.dataset.tz); });
 
   /* ======================================================= ВІДМІТКА ВІКНА === */
   let markVow = null, markN = 1;
@@ -801,9 +801,10 @@ window.ORDO_START = function () {
   }
 
   /* Скарбниця: золото Ордену, реліквії, крамниця — і книга банку */
+  const tzHTML = (place) => (window.ORDO_DAY && window.ORDO_DAY.teaserHTML ? window.ORDO_DAY.teaserHTML(place) : "");
   function renderTreasury() {
     const box = $("treasuryBody"); if (!box) return;
-    box.innerHTML = (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "");
+    box.innerHTML = tzHTML("treasury") + (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "");
   }
   function renderStats() {
     const box = $("statsBody"); if (!box) return;
@@ -811,7 +812,7 @@ window.ORDO_START = function () {
     const seg = `<div class="st-seg" role="tablist">
       <button type="button" data-mode="month" class="${statsMode === "month" ? "is-on" : ""}">Місяць</button>
       <button type="button" data-mode="year" class="${statsMode === "year" ? "is-on" : ""}">Рік</button></div>`;
-    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
+    box.innerHTML = tzHTML("chronicle") + chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
     on("stPrev", "click", () => { if (statsMode === "year") statsYearOff--; else statsOffset--; renderStats(); FX.buzz("light"); });
     on("stNext", "click", () => {
       if (statsMode === "year") { if (statsYearOff < 0) statsYearOff++; } else if (statsOffset < 0) statsOffset++;
@@ -1343,7 +1344,7 @@ window.ORDO_START = function () {
     h += `<section class="gl-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Медалі місяця</span></div><ul class="gl-ref">${tbl(D.MEDALS)}</ul>
       <div class="gl-sec__head gl-sec__head--sub"><span class="gl-sec__kind">Звання року</span></div><ul class="gl-ref">${tbl(D.TITLES)}</ul>
       <p class="gl-note">Нагороду визначає відсоток виконаних цілей. Тап по цілі — прогрес, значення й тип. Цілі можна правити до ревю; після — вони запечатуються.</p></section>`;
-    box.innerHTML = h;
+    box.innerHTML = tzHTML("goals") + h;
   }
 
   on("goalsBody", "click", (e) => {

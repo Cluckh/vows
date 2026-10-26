@@ -60,7 +60,8 @@
   if (purge(G)) save();
   /* жетони й скриня — іконками, не емодзі */
   const TKN = { reroll: "reroll", extend: "hourglass", chest: "chest", breath: "breath", rest: "moon", cmdchest: "chest" };
-  const tkIc = (kind, cls) => `<span class="gd-tk gd-tk--${kind}${cls ? " " + cls : ""}"><svg><use href="#i-${TKN[kind] || kind}"/></svg></span>`;
+  const tkIc = (kind, cls) => { const a = ART["shop:" + kind];                      // арт товару (якщо вже є), інакше — іконка
+    return a ? `<span class="gd-tk gd-tk--art gd-tk--${kind}${cls ? " " + cls : ""}"><img src="${a}" alt=""></span>` : `<span class="gd-tk gd-tk--${kind}${cls ? " " + cls : ""}"><svg><use href="#i-${TKN[kind] || kind}"/></svg></span>`; };
   const coin = (cls) => `<svg class="gd-coin${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6.5"/><path d="M12 8.5v7M9.5 12h5"/></svg>`;
   const gem = (r, cls) => `<svg class="rl-gem rl-gem--${r}${cls ? " " + cls : ""}" viewBox="0 0 48 48" aria-hidden="true"><path class="rl-g1" d="M24 4 41 16 34 42H14L7 16Z"/><path class="rl-g2" d="M7 16h34M24 4l-7 12 7 26 7-26-7-12M14 42l3-26M34 42l-3-26"/></svg>`;
   const relics = () => D().RELICS || [];
@@ -367,6 +368,7 @@
         <div class="dy-chips">${[100, 300, 500].filter((v) => v < b).map((v) => `<button type="button" data-gdv="${v}">${v}</button>`).join("")}<button type="button" data-gdv="${b}">усе · ${fmtN(b)}</button></div>
         <button type="button" class="btn btn--gold" id="gdOk" data-gd="ok" ${amt > 0 ? "" : "disabled"}>Вивести ${coin()}</button><button type="button" class="btn btn--ghost" data-gd="close">Скасувати</button>`;
     } else if (m === "shop") {
+      want(shopItems().map((it) => "shop:" + it.id));
       el.innerHTML = `${grip}<div class="gs-kicker">Крамниця Сенешаля</div>${ART["scene:shop"] ? `<img class="gd-scene" src="${ART["scene:shop"]}" alt="">` : ""}<div class="sheet__title dy-sht">«Чесно зароблене — чесно й витрачай»</div>
         <p class="dy-note">У тебе ${coin()}<b>${fmtN(b)}</b></p>
         <ul class="gd-shop">${shopItems().map((it) => { const lock = it.perk && rankIdx() < it.rank;

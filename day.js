@@ -2174,7 +2174,7 @@
       <div class="dy-g__qs"><span class="dy-q--rare"><b>${qn("rare")}</b>рідкісних</span><span class="dy-q--legend"><b>${qn("legend")}</b>легендарних</span><span class="dy-q--myth"><b>${qn("myth")}</b>міфічних</span></div>
       ${(() => { const f = faith(); return `<div class="dy-g__qs dy-g__faith"><span><b>${f.total}</b>днів вірності</span><span><b>${f.d30}/${f.n30}</b>за 30 днів</span><span><b>${f.best}</b>найдовше поспіль</span></div>`; })()}
       <div class="st-h st-h--sub">Нагороди</div><div class="dy-ach">`;
-    if (window.ORDO_GOLD && window.ORDO_GOLD.wantAch) window.ORDO_GOLD.wantAch(ACHS.map((a) => a.id));
+    if (window.ORDO_GOLD && window.ORDO_GOLD.wantAch) { window.ORDO_GOLD.wantAch(ACHS.map((a) => a.id)); if (window.ORDO_GOLD.want) window.ORDO_GOLD.want(RANKS.map((r, i) => "rank:" + i)); }
     const medal = (a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" data-ach="${a.id}" role="button" tabindex="0">${achFace(a)}<b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`;
     h += ACH_G.map(([g, name]) => { const L = ACHS.filter((a) => achG(a) === g), n = L.filter((a) => ACH[a.id]).length;
       return `<div class="dy-ach__g"><span>${esc(name)}</span><em>${n}/${L.length}</em></div>` + L.map(medal).join(""); }).join("");

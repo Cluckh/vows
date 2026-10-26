@@ -297,7 +297,8 @@
       }
       LS.set("ordo.k.artMiss", miss);
     } finally { artBusy = false; }
-    if (ch && want.some(([k]) => k !== "relic" && k !== "scene")) { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); try { window.dispatchEvent(new Event("ordo-art")); } catch (e) {} }
+    if (ch) { const A = API(); if (want.some(([k]) => k !== "relic" && k !== "scene") && A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); try { window.dispatchEvent(new Event("ordo-art")); } catch (e) {}
+      if (el && el.classList.contains("open") && mode === "shop") render("shop"); }
     if (ch) { refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); } }
   }
   const face = (r, cls) => ART[r.id] ? `<img class="rl-img${cls ? " " + cls : ""}" src="${ART[r.id]}" alt="">` : gem(r.rar, cls);

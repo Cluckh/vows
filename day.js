@@ -1201,6 +1201,22 @@
         <span class="dy-q__due">${q.st === "done" ? `виконано · +${q.xp}` : due}${q.st === "active" ? ` · +${q.xp}` : ""}</span></div>
       ${q.st === "active" && !qAuto(q) ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
   }
+  /* «Слово дня»: свіжі репліки писаря — у день видачі (і наступний, якщо писар пропустить ніч), а не навмання серед вічних фраз; тап — наступна */
+  const whoOf = (g) => g === "supreme" ? (D().KEEPERS || {}).supreme : g === "seneschal" ? D().SENESCHAL : g === "chronicler" ? D().CHRONICLER : (D().KEEPERS || {})[g];
+  function newsLines() {
+    if (!DROP || !DROP.at || !DROP.lines) return [];
+    const d0 = keyOf(new Date(DROP.at)); if (today() < d0 || today() > add(d0, 1)) return [];
+    const out = []; Object.entries(DROP.lines).forEach(([g, ls]) => (Array.isArray(ls) ? ls : []).forEach((t) => { if (t && typeof t === "string") out.push({ g, t }); }));
+    return out;
+  }
+  let newsI = 0;
+  function newsHTML() {
+    const L = newsLines(); if (!L.length) return "";
+    const i = newsI % L.length, x = L[i], w = whoOf(x.g), M = window.ORDO_MARK || ((y) => y);
+    return `<section class="dy-news" data-dnews="1"><div class="dy-news__fig">${w && w.art ? `<img src="${esc(w.art)}" alt="">` : ""}</div>
+      <div class="dy-news__b"><span class="dy-news__k">Слово дня${w ? ` · ${esc(w.name)}` : ""}${L.length > 1 ? ` <em>${i + 1}/${L.length}</em>` : ""}</span><p>${M(esc(x.t))}</p>
+      ${L.length > 1 ? `<span class="dy-news__dots">${L.map((_, j) => `<i class="${j === i ? "is-on" : ""}"></i>`).join("")}</span>` : ""}</div></section>`;
+  }
   function budgetLine(q) {
     const sp = qSpent(q), m = T() ? T().money : (x) => x;
     if (sp == null) return `<span class="dy-num"><em>чекаю виписку банку</em></span>`;
@@ -1264,7 +1280,7 @@
     if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
       h += `<div class="md md--voice dy-adv"><div class="md__fig"${K && K.art ? ` data-card="${adv.giver}"` : ""}>${K && K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K ? K.name : "")} · порада на зал</div><p class="md__say">${esc(adv.head)}</p>${adv.tips.length ? `<ul class="dy-tips">${adv.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div></div>`; }
     const segA = h; h = "";
-    const segQ = live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "";
+    const segQ = (k === today() ? newsHTML() : "") + (live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "");
     h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">${k === today() ? "Справи дня" : k < today() ? "Того дня" : "Заплановано"}</span><span class="gl-sec__meta">${its.length ? `${doneN}/${its.length}` : ""}</span></div>`;
     if (!its.length) h += `<p class="gl-empty">${k < today() ? "Того дня справ не було." : "Справ на цей день немає."}</p>`;
     h += `<ul class="dy-list">${open.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
@@ -1777,6 +1793,7 @@
     const xb = e.target.closest("[data-dxp]"); if (xb) { openSheet("xp", null, xb.dataset.dxp); return; }
     if (e.target.closest("[data-dsleep]") && (view || today()) === today()) { openSheet("sleep", null, today()); return; }
     if (e.target.closest("[data-dwatch]")) { openSheet("watch", null, today()); return; }
+    if (e.target.closest("[data-dnews]")) { newsI++; buzz("light"); render(); return; }
     const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; if (srcOf(t) === "journal" && (view || today()) <= today()) { openJournal(view); return; } openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }
@@ -1878,7 +1895,7 @@
   function applyDrop() {
     if (!DROP) return;
     const K = D().KEEPERS || {};
-    Object.entries(DROP.lines || {}).forEach(([id, ls]) => { const k = id === "seneschal" ? null : K[id]; if (k && Array.isArray(ls)) { k.lines = k.lines || []; ls.forEach((l) => { if (!k.lines.includes(l)) k.lines.push(l); }); } });
+    /* репліки писаря — лише «Слово дня» на екрані Дня; у вічні фрази храмовників не домішуємо, бо вони про конкретний день */
     if (Array.isArray(DROP.letters) && D().LETTERS) DROP.letters.forEach((l) => { if (!D().LETTERS.some((x) => x.id === l.id)) D().LETTERS.push(l); });
   }
   async function loadDrop() {

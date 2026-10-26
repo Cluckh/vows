@@ -1656,3 +1656,13 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .bk .gs-h{margin-top:0}.bk>.dy-in{width:100%}
 .bk-line svg{width:15px;height:15px;color:var(--gold);vertical-align:-2px;margin-right:5px}
 .gs-part__src{display:block;margin-top:2px;font-family:var(--f-sans,inherit);font-size:12px;letter-spacing:.02em;color:var(--gold);opacity:.75}
+/* слово дня: репліки писаря на сьогодні */
+.dy-news{display:flex;gap:12px;align-items:flex-start;margin:0 0 16px;padding:14px;border:1px solid var(--edge);border-radius:16px;background:linear-gradient(180deg,rgba(205,163,73,.07),rgba(205,163,73,.02));cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dy-news__fig{flex:none;width:46px;height:46px;border-radius:50%;overflow:hidden;border:1px solid var(--gold-dim);background:rgba(0,0,0,.3)}
+.dy-news__fig img{width:100%;height:100%;object-fit:cover;object-position:50% 18%}
+.dy-news__b{flex:1;min-width:0}
+.dy-news__k{display:block;font-family:var(--f-serif);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.dy-news__k em{font-style:normal;opacity:.6;letter-spacing:.05em}
+.dy-news p{margin:6px 0 0;font-family:var(--f-serif);font-style:italic;font-size:16px;line-height:1.45;color:var(--bone)}
+.dy-news__dots{display:flex;gap:5px;margin-top:10px}
+.dy-news__dots i{width:6px;height:6px;border-radius:50%;background:var(--edge)}.dy-news__dots i.is-on{background:var(--gold)}

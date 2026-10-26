@@ -840,7 +840,7 @@
     Q.list.forEach((q) => {
       if (q.type === "budget" && q.st === "active" && T() && T().ready()) {          // бюджет: суддя — виписка банку
         const sp = qSpent(q);
-        if (sp != null && sp > (q.limit || 0) && !q.limit) { q.st = "fail"; q.end = t0; }
+        if (sp != null && sp > (q.limit || 0) && !q.limit) { q.st = "fail"; q.end = t0; q.at = Date.now(); }
         else if (q.until < t0 && T().at() > q.until) { q.st = sp <= (q.limit || 0) ? "done" : "fail"; q.end = t0; q.at = Date.now(); }
         if (q.st !== "active") { q.spent = sp; if (q.st === "done") pendingDone.push(q); }
         else return;
@@ -850,7 +850,7 @@
          храмовник дає «Другу спробу»: ще 2 дні, планка 85%, зроблене зараховано, нагорода на рідкість нижча; третьої — нема */
       if (q.st === "active" && q.until < t0) {
         const prog = q.type === "count" && q.target ? (q.cur || 0) / q.target : 0;
-        q.st = "fail"; q.end = t0;
+        q.st = "fail"; q.end = t0; q.at = Date.now();
         if (q.type === "count" && !q.retry && prog >= 0.5 && prog < 1 && roll("retry" + q.id) < 0.35) {
           const rar = q.rar === "myth" ? "legend" : "rare", tg = Math.ceil(q.target * 0.85);
           Q.list.push({ id: q.id + "r", pid: q.pid + "~2", rar, giver: q.giver, t: `Друга спроба: ${q.t}`, scope: "day", days: 2,
@@ -1292,6 +1292,7 @@
   function closeSheet() {
     gyFlush(); jFlush(); clearInterval(nbTimer);
     if (sh && sh.mode === "night") { const N = S.night[sh.k]; if (N && !N.done) { N.done = 1; saveS(); } }
+    if (sh && sh.mode === "journal" && sh.edit && sh.mealWas !== undefined) { const J = S.journal[sh.k]; if (J && (J.meal || null) !== sh.mealWas) { J.meal = sh.mealWas; saveS(); } }     // трапезу в уже відданій сповіді міняє лише «Зберегти доповнення»
     const wasGym = sh && sh.mode === "gym";
     const el = $("dSheet"); if (el) el.classList.remove("open");
     if (!document.querySelector(".sheet.open, .confirm.open")) { const sc = $("scrim"); if (sc) sc.classList.remove("open"); }
@@ -1579,7 +1580,7 @@
       if (k === "bcat") { d.bank = d.bank || { cats: [], limit: 0 }; const c = new Set(d.bank.cats); c.has(v) ? c.delete(v) : c.add(v); d.bank.cats = [...c]; }
       buzz("light"); renderSheet(); return;
     }
-    const jd = e.target.closest("[data-jday]"); if (jd && sh.mode === "journal") { jFlush(); sh.k = jd.dataset.jday; sh.edit = false; renderSheet(); return; }
+    const jd = e.target.closest("[data-jday]"); if (jd && sh.mode === "journal") { jFlush(); if (sh.edit && sh.mealWas !== undefined && S.journal[sh.k]) { S.journal[sh.k].meal = sh.mealWas; saveS(); } sh.mealWas = undefined; sh.k = jd.dataset.jday; sh.edit = false; renderSheet(); return; }
     const mv = e.target.closest("[data-dmv]"); if (mv) { moveTo(mv.dataset.dmv); return; }
     const b = e.target.closest("[data-ds]"); if (!b) return;
     const a = b.dataset.ds, k = sh.k, id = sh.id, before = totalXP();
@@ -1599,7 +1600,7 @@
     if (a === "del") {
       const t = S.tasks[id]; if (!t) return;
       if (t.rep && t.rep.f !== "none" && t.start < today()) { t.end = add(today(), -1); t.mt = Date.now(); }        // історія лишається
-      else t.del = Date.now();
+      else { t.del = Date.now(); t.mt = t.del; }
       saveS(); buzz("medium"); closeSheet(); after(before); return;
     }
     if (a === "edit") { openSheet("edit", id, k); return; }
@@ -1610,12 +1611,12 @@
     if (a === "gym") { openSheet("gym", id, k); return; }
     if (a === "slsave" || a === "slskip") {
       const t0 = today();
-      if (a === "slskip") S.sleep[t0] = { skip: 1 };
+      if (a === "slskip") S.sleep[t0] = { skip: 1, at: Date.now() };
       else {
         const bed = ($("slB") || {}).value || sh.bed || "", wake = ($("slW") || {}).value || S.wake[t0] || "";
         const toMin = (x) => { const [hh, mm] = x.split(":").map(Number); return hh * 60 + mm; };
         let min = bed && wake ? toMin(wake) - toMin(bed) : 0; if (min <= 0) min += 1440;
-        S.sleep[t0] = { bed, wake, q: sh.q ? +sh.q : null, min: bed && wake && min < 16 * 60 ? min : null, siren: sh.siren ? 1 : 0, wakes: sh.wakes === "" ? null : +sh.wakes, dream: sh.dream || null };
+        S.sleep[t0] = { bed, wake, q: sh.q ? +sh.q : null, min: bed && wake && min < 16 * 60 ? min : null, siren: sh.siren ? 1 : 0, wakes: sh.wakes === "" ? null : +sh.wakes, dream: sh.dream || null, at: Date.now() };
         fx("yes"); buzz("medium");
       }
       saveS(); closeSheet(); after(before); setTimeout(scenes, 900); return;
@@ -1628,11 +1629,11 @@
       if (!(J.text || "").trim() && !J.mood && !J.meal) { const t2 = $("jText"); if (t2) t2.focus(); return; }
       const first = !J.sent; J.sent = J.sent || Date.now(); J.at = Date.now(); saveS();
       if (API().mealVow) API().mealVow(k, J.meal === "r");
-      applyJournal(); if (first) fx("yes"); buzz("medium"); sh.edit = false;
+      applyJournal(); if (first) fx("yes"); buzz("medium"); sh.edit = false; sh.mealWas = undefined;
       after(before); writerSync(true); confessStatus(); renderSheet(); return;
     }
     if (a === "early") { closeSheet(); earlyDone(id, k); return; }
-    if (a === "jedit") { sh.edit = true; renderSheet(); return; }
+    if (a === "jedit") { sh.edit = true; sh.mealWas = (S.journal[k] || {}).meal || null; renderSheet(); return; }
     if (a === "npark" || a === "nskip") {
       const N = S.night[k] = S.night[k] || {}, tx = $("nTxt");
       if (a === "npark") { N.text = tx ? tx.value.trim() : N.text || ""; N.parked = 1; }
@@ -1861,9 +1862,9 @@
   }
   function morning(t0) {
     const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };
-    if (S.sleep[today()] || Date.now() - t0 > 15 * 60e3) return;
+    if (S.sleep[today()] || Date.now() - t0 > 15 * 60e3 || LS.get("ordo.k.slAsk", "") === today()) return;
     if (busy()) { setTimeout(() => morning(t0), 1500); return; }
-    openSheet("sleep", null, today());
+    LS.set("ordo.k.slAsk", today()); openSheet("sleep", null, today());          // сам — раз на день; змахнув — далі через «ранковий звіт ›»
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 

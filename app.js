@@ -424,7 +424,7 @@ window.ORDO_START = function () {
     /* сьогоднішня відмітка вікна більше не заморожує — день став днем зриву */
     LOG = LOG.filter((e) => !(e.k === "mark" && e.v === v.id && e.d === t));
     logPush({ k: "breach", v: v.id, d: t, why, n, prev });
-    setStart(v.id, t);
+    if (!STARTS[v.id] || t >= STARTS[v.id]) setStart(v.id, t);              // зрив заднім числом не відкочує старт, що вже пізніший
   }
 
   /* трапеза дня зі сповіді: червона — вікно помірності на той день (вікон нема — зрив); передумав — знімається лише відмітка вікна */
@@ -960,7 +960,11 @@ window.ORDO_START = function () {
   let G = LS.get("ordo.goals", null);
   if (!G || typeof G !== "object") G = { y: {}, m: {} };
   G.y = G.y || {}; G.m = G.m || {};
-  const saveG = () => LS.set("ordo.goals", G);
+  /* кожна змінена ціль отримує mt — при злитті з іншим пристроєм перемагає новіша правка, а не «своя» */
+  const gSig = (it) => JSON.stringify(Object.assign({}, it, { mt: 0 })), GSIG = {};
+  const eachG = (f) => ["y", "m"].forEach((kind) => Object.values(G[kind] || {}).forEach((P) => ((P && P.items) || []).forEach(f)));
+  eachG((it) => { GSIG[it.id] = gSig(it); });
+  const saveG = () => { const now = Date.now(); eachG((it) => { const j = gSig(it); if (GSIG[it.id] !== j) { it.mt = now; GSIG[it.id] = j; } }); LS.set("ordo.goals", G); };
   const per = (kind, key) => { const box = G[kind]; if (!box[key]) box[key] = { items: [], res: null, skip: false }; return box[key]; };
   const peek = (kind, key) => G[kind][key] || null;
   const uid = () => Math.random().toString(36).slice(2, 9);

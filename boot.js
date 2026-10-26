@@ -146,8 +146,8 @@
       const A = gL[kind] || {}, B = gR[kind] || {};
       new Set(Object.keys(A).concat(Object.keys(B))).forEach((key) => {
         const a = A[key], b = B[key]; if (!a || !b) { g[kind][key] = a || b; return; }
-        const items = (a.items || []).slice(), ids = new Set(items.map((i) => i.id));
-        (b.items || []).forEach((i) => { if (!ids.has(i.id)) items.push(i); });
+        const items = (a.items || []).slice(), at = new Map(items.map((i, n) => [i.id, n]));
+        (b.items || []).forEach((i) => { if (!at.has(i.id)) items.push(i); else if ((i.mt || 0) > (items[at.get(i.id)].mt || 0)) items[at.get(i.id)] = i; });      // та сама ціль — новіша правка
         g[kind][key] = Object.assign({}, b, a, { items, res: a.res || b.res, skip: !!(a.skip && b.skip) });
       });
       Object.values(g[kind]).forEach((P2) => { if (P2 && P2.items) P2.items = P2.items.filter((i) => !g.gone[i.id]); });     // видалене на одному пристрої не воскресає
@@ -163,8 +163,10 @@
       });
       const wake = Object.assign({}, b.wake, a.wake); Object.keys(b.wake || {}).forEach((k) => { if (a.wake && a.wake[k] && b.wake[k] < a.wake[k]) wake[k] = b.wake[k]; });   // підйом — найраніше відкриття
       const journal = Object.assign({}, b.journal, a.journal); Object.keys(b.journal || {}).forEach((k) => { if (a.journal && a.journal[k] && (b.journal[k].at || 0) > (a.journal[k].at || 0)) journal[k] = b.journal[k]; });
+      const sleep = Object.assign({}, b.sleep, a.sleep), sv = (x) => (x && !x.skip ? 1e15 : 0) + ((x && x.at) || 0);       // ранковий звіт: заповнений сильніший за «не зараз», далі — новіший
+      Object.keys(b.sleep || {}).forEach((k) => { if (a.sleep && a.sleep[k] && sv(b.sleep[k]) > sv(a.sleep[k])) sleep[k] = b.sleep[k]; });
       const night = Object.assign({}, b.night, a.night); Object.keys(b.night || {}).forEach((k) => { if (a.night && a.night[k] && (b.night[k].ts || 0) > (a.night[k].ts || 0)) night[k] = b.night[k]; });
-      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep: Object.assign({}, b.sleep, a.sleep), ev: Object.assign({}, b.ev, a.ev) }));
+      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep, ev: Object.assign({}, b.ev, a.ev) }));
     }
     if (L["ordo.quests"] || R["ordo.quests"]) {
       const a = P(L, "ordo.quests", {}), b = P(R, "ordo.quests", {}), by = {};
@@ -255,7 +257,20 @@
   const backupNow = () => syncNow("force");
   /* підтягнуті дані показуємо перезапуском — але не посеред дії */
   let reloadPending = false;
-  function reloadWhenCalm() { if (document.hidden) location.reload(); else reloadPending = true; }      // на очах не перезавантажуємо — коли згорнеш
+  function reloadWhenCalm() { if (document.hidden) location.reload(); else { reloadPending = true; guardWrites(); } }      // на очах не перезавантажуємо — коли згорнеш
+  /* до перезапуску модулі тримають у памʼяті старий стан: кожен їхній запис зливаємо з щойно підтягнутим, а не затираємо його */
+  let guarded = false;
+  function guardWrites() {
+    if (guarded) return; guarded = true;
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (this === localStorage && reloadPending && DATA_KEY(k) && k !== "ordo.logdel") {
+        const cur = localStorage.getItem(k), del = localStorage.getItem("ordo.logdel");
+        if (cur != null && cur !== v) { try { const m = mergeData({ [k]: v, "ordo.logdel": del }, { [k]: cur, "ordo.logdel": del }); if (m[k] != null) v = m[k]; } catch (e) {} }
+      }
+      return set.call(this, k, v);
+    };
+  }
 
   /* ---------------------------------------------------------------- ворота */
   function gate(html) {

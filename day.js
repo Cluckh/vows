@@ -152,7 +152,7 @@
   const appKey = (n) => String(n || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "").slice(0, 24);
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
   /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
-  const qAuto = (q) => q.type === "budget" || !!q.app || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$/i.test((q.unit || "").trim());
+  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   const appMin = (k, n) => { const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
   /* старі цілі Duolingo («Зробити»/«Число» за назвою) — у «час у програмі», 10 хв на день */
@@ -733,6 +733,11 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      if (q.st === "active" && q.weight) {          // вага: { op: "<" | "<=", v: 84.5, mode: "avg7" | "last" } — зараховується, щойно «Здоровʼя» покаже потрібне
+        const w = weightOn(today(), q.weight.mode || "avg7"), ok = w != null && (q.weight.op === "<=" ? w <= q.weight.v : w < q.weight.v);
+        if (ok) { q.cur = 1; q.at = Date.now(); q.st = "done"; q.end = today(); pendingDone.push(q); }
+        return;
+      }
       if (q.st === "active" && q.type === "count" && q.app) {          // час у програмі: сума хвилин, або (appMax) дні, прожиті в межах ліміту
         if (!appTracked(q.app)) return;
         let n = 0; const end = q.appMax != null ? (q.until < today() ? q.until : add(today(), -1)) : (q.until < today() ? q.until : today());
@@ -801,7 +806,7 @@
     const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)]; rar = p.rar;
     return { id: uid(), pid: p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: p.xp || RAR[rar].xp,
-      cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null,
+      cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
       st: "offer", offerOn: today(), cur: 0 };
   }

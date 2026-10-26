@@ -1989,7 +1989,8 @@
       health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       books: { now: curBook() ? { t: curBook().t, page: bookPage(curBook().id), pages: curBook().pages } : null, done: Object.values(BK.list).filter((b) => b.end).map((b) => ({ t: b.t, end: b.end })), pages14: days14.map((k) => ({ d: k, p: pagesOn(k) })).filter((x) => x.p) },
-      seenEvents: Object.keys(S.ev || {})
+      seenEvents: Object.keys(S.ev || {}),
+      seenMoments: Object.keys(S.mom || {}), heardNews: Object.keys(S.heard || {}).map((k) => k.split(":")[0] + ":" + k.split(":")[1])
     };
   }
   let wAt = LS.get("ordo.k.writerAt", 0);

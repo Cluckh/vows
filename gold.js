@@ -23,8 +23,6 @@
 
   const START = "2026-10-26";                                  // з цього дня Орден платить золотом
   const START_T = Date.parse(START + "T00:00:00+02:00") / 1000;
-  const VM = { 7: 20, 14: 30, 30: 100, 60: 150, 90: 200, 100: 300, 180: 400, 365: 1000 };      // віхи обітниць
-  const QG = { rare: 30, legend: 120, myth: 400 };
   const RN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
   const DROP = { rare: 0.15, legend: 0.4, myth: 1 };          // шанс реліквії за виконаний квест
   const BLESS = 0.05;                                          // базовий шанс благословення
@@ -48,25 +46,29 @@
   const relic = (id) => relics().find((r) => r.id === id);
 
   /* ------------------------------------------------------------- нарахування */
-  function goldOf(id, e, Q) {
-    const p = id.split(":")[0];
-    if (p === "pd") return 20;                                 // ідеальний день
-    if (p === "gy") return 10;                                 // запис тренування
-    if (p === "st") return 5;                                  // 10 000 кроків
-    if (p === "jr") return 5;                                  // сповідь
-    if (p === "er") return 3;                                  // ранній підйом
-    if (p === "a") return 50;                                  // нагорода
-    if (p === "g") return e.xp >= 400 ? 250 : 60;              // ціль року / місяця
-    if (p === "gm") return Math.round(e.xp / 2);               // ревю: відсоток виконаного
-    if (p === "vm") { const m = +id.split(":")[2]; return VM[m] || Math.round(m * 1.5); }
-    if (p === "q") { const q = Q.list.find((x) => "q:" + x.id === id), b = QG[q && q.rar] || 30; return q && q.st === "part" ? Math.round(b * 0.4) : b; }
+  /* золото за запис книги досвіду — за таблицею window.ORDO_ECON (day.js) */
+  function goldOf(id, e, Q, S) {
+    const E = window.ORDO_ECON, p = id.split(":")[0];
+    if (!E) return 0;
+    if (e.gold != null) return e.gold;                                          // ціль місяця / року — ціна вже в записі
+    if (p === "t") {                                                             // справа дня: пропорційно досвіду (ланцюжок, «з поправкою», частково)
+      const t = S.tasks[id.split(":")[1]], r = ({ easy: "common", normal: "rare", hard: "legend" })[t && t.diff] || (t && E.task[t.diff] ? t.diff : "rare");
+      const [xp, g] = E.task[r]; return e.xp > 0 ? Math.max(1, Math.round(e.xp * g / xp)) : 0;
+    }
+    if (E.day[p]) return E.day[p][1];                                           // ідеальний день, зал, сповідь, кроки, підйом
+    if (p === "v") return E.vowDay[1];                                          // чистий день обітниці
+    if (p === "a") return E.ach[1];
+    if (p === "g") return e.xp >= 400 ? 300 : 80;                               // старі записи цілей без ціни
+    if (p === "gm") return Math.round(e.xp / 2);                                // ревю: відсоток виконаного
+    if (p === "vm") { const m = +id.split(":")[2], v = E.milestone[m]; return v ? v[1] : Math.round(m * 1.5); }
+    if (p === "q") { const q = Q.list.find((x) => "q:" + x.id === id), b = (E.quest[q && q.rar] || E.quest.rare)[1]; return q && q.st === "part" ? Math.round(b * 0.4) : b; }
     return 0;
   }
-  const CAT = { pd: "day", jr: "day", gy: "body", st: "body", er: "body", q: "quest", vm: "vow" };
+  const CAT = { pd: "day", jr: "day", t: "day", gy: "body", st: "body", er: "body", q: "quest", vm: "vow", v: "vow" };
   function ledger() {
     const Dy = DAY(); if (!Dy || !Dy._state) return [];
-    const { X, Q } = Dy._state();
-    return Object.entries(X.e || {}).filter(([, e]) => e.d >= START).map(([id, e]) => ({ id, d: e.d, why: e.why, g: goldOf(id, e, Q) })).filter((x) => x.g > 0);
+    const { X, Q, S } = Dy._state();
+    return Object.entries(X.e || {}).filter(([, e]) => e.d >= START).map(([id, e]) => ({ id, d: e.d, why: e.why, g: goldOf(id, e, Q, S) })).filter((x) => x.g > 0);
   }
   const sum = (o) => Object.values(o).reduce((a, x) => a + (typeof x === "number" ? x : x.amt || 0), 0);
   const earned = () => ledger().reduce((a, x) => a + x.g, 0) + sum(G.bon) + sum(G.inc);
@@ -140,6 +142,36 @@
       }
     });
     secrets().forEach((id) => { const r = grant(id, "таємний подвиг"); if (r) reveals.push(Object.assign(r, { why: relic(id).hint })); ch = true; });
+    /* церемонія рівня: за кожен новий рівень — золото (50 + 10 × рівень), за нове звання — ще й реліквія */
+    const lv = Dy.levelOf ? Dy.levelOf() : null;
+    if (lv) {
+      if (G.lv == null) { G.lv = lv.L; G.ri = lv.ri; ch = true; }
+      else if (lv.L > G.lv) {
+        for (let L = G.lv + 1; L <= lv.L; L++) {
+          const g = 50 + 10 * L; G.inc["lv:" + L] = { at: Date.now(), amt: g, why: `рівень ${L}` };
+          const up = { level: L, rank: L === lv.L ? lv.rank.name : "", g, newRank: L === lv.L && lv.ri > (G.ri || 0) };
+          if (up.newRank) { const id = randomRelic(lv.ri >= 6 ? "legend" : "rare", "rank" + lv.ri); if (id) { const r = grant(id, `звання «${lv.rank.name}»`); if (r && !r.dup) up.relic = id; } }
+          reveals.push(up);
+        }
+        G.lv = lv.L; G.ri = lv.ri; ch = true;
+      }
+    }
+    /* недільна скриня: 5+ ідеальних днів за тиждень (пн–нд) — відкривається в неділю або пізніше */
+    const pds = ledger().filter((x) => x.id.startsWith("pd:")).map((x) => x.d);
+    G.wk = G.wk || {};
+    for (let i = 0; i < 3; i++) {
+      const sun = new Date(); sun.setDate(sun.getDate() - ((sun.getDay() + 7) % 7) - 7 * i); const sk = `${sun.getFullYear()}-${p2(sun.getMonth() + 1)}-${p2(sun.getDate())}`;
+      const mon = new Date(sun); mon.setDate(sun.getDate() - 6); const mk = `${mon.getFullYear()}-${p2(mon.getMonth() + 1)}-${p2(mon.getDate())}`;
+      if (sk > today() || sk < START || G.wk[sk]) continue;
+      const n = pds.filter((d) => d >= mk && d <= sk).length; if (n < 5) continue;
+      G.wk[sk] = 1; ch = true;
+      const x = roll("wk" + sk), g = 100 + Math.round(roll("wkg" + sk) * 200 + (n - 5) * 50);
+      G.inc["wk:" + sk] = { at: Date.now(), amt: g, why: `недільна скриня · ${n} ідеальних днів` };
+      const loot = { weekChest: true, n, g };
+      if (x < 0.4) { const rr = roll("wkr" + sk), id = randomRelic(rr < 0.03 ? "myth" : rr < 0.2 ? "legend" : rr < 0.55 ? "rare" : "common", "wkp" + sk); if (id) { const r = grant(id, "недільна скриня"); if (r && !r.dup) loot.relic = id; } }
+      else if (x < 0.7) { const t = roll("wkt" + sk) < 0.5 ? "reroll" : "extend"; G.tk["wk:" + sk] = { kind: t, d: 1, at: Date.now() }; loot.token = t; }
+      reveals.push(loot);
+    }
     if (ch) save();
     return ch;
   }
@@ -197,9 +229,11 @@
   const ART = {};
   const artName = (kind, id) => { let h = 2166136261; const s = kind + ":" + id; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
   let artBusy = false;
+  const SCENES = ["chest", "shop", "treasury", "levelup", "night", "weekchest"];
+  const scene = (n) => ART["scene:" + n] || null;
   async function loadArts() {
     const V = window.ORDO_VAULT; if (artBusy || !V || !V.readSealedBlob) return;
-    const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(["chest", "shop"].filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]));
+    const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(SCENES.filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]));
     if (!want.length) return;
     artBusy = true; let ch = false;
     try {
@@ -225,12 +259,14 @@
     const b = balance(), L = ledger(), mk = today().slice(0, 7);
     const month = L.filter((x) => x.d.startsWith(mk)).reduce((a, x) => a + x.g, 0) + Object.entries(G.bon).filter(([k]) => { const id = k.replace(/^(rb|bl):/, ""); const x = L.find((y) => y.id === id); return x && x.d.startsWith(mk); }).reduce((a, [, v]) => a + v, 0);
     const W = T() && T().white && T().white(), pd = pending();
-    const feed = L.map((x) => ({ d: x.d, t: x.why, g: x.g + (G.bon["rb:" + x.id] || 0) + (G.bon["bl:" + x.id] || 0), bl: !!G.bon["bl:" + x.id] }))
+    const full = L.map((x) => ({ d: x.d, t: x.why, g: x.g + (G.bon["rb:" + x.id] || 0) + (G.bon["bl:" + x.id] || 0), bl: !!G.bon["bl:" + x.id] }));
+    const small = {}; full.filter((x) => x.g < 10 && !x.bl).forEach((x) => { const o = small[x.d] = small[x.d] || { d: x.d, t: "справи й обітниці дня", g: 0, n: 0 }; o.g += x.g; o.n++; });
+    const feed = full.filter((x) => x.g >= 10 || x.bl).concat(Object.values(small))
       .concat(Object.entries(G.inc).map(([, v]) => ({ d: new Date(v.at).toISOString().slice(0, 10), t: v.why, g: v.amt })))
       .sort((a, c) => (c.d > a.d ? 1 : c.d < a.d ? -1 : 0)).slice(0, 5);
     const outs = Object.values(G.out).filter((o) => o.st !== "cancel").sort((a, c) => c.at - a.at).slice(0, 4);
     const tkR = tokens("reroll"), tkE = tokens("extend");
-    let h = `<section class="st-sec gd"><div class="st-h">Золото Ордену</div>
+    let h = `<section class="st-sec gd"><div class="st-h">Золото Ордену</div>${scene("treasury") ? `<img class="gd-scene" src="${scene("treasury")}" alt="">` : ""}
       <div class="gd-big">${coin("gd-coin--big")}<b>${fmtN(b)}</b><span>золота</span></div>
       <div class="tr-row"><span>цього місяця зароблено <b>${fmtN(month)}</b></span>${W && W.bal != null ? `<span>біла картка <b>${fmtN(W.bal / 100)} ₴</b></span>` : ""}</div>
       ${pd.length ? `<p class="gd-wait">в дорозі на білу картку — <b>${fmtN(pd.reduce((a, p) => a + p.amt, 0))} ₴</b> · чекаю на поповнення у виписці</p>` : ""}
@@ -274,7 +310,7 @@
     if (m === "sent") {
       el.innerHTML = `${grip}<div class="gs-kicker">Золото Ордену</div><div class="sheet__title dy-sht">Переведи ${fmtN(amt)} ₴ на білу картку</div>
         <p class="dy-note dy-note--t">У монобанку: з чорної картки на білу <b>…9467</b>. Золото вже відкладено; щойно поповнення зʼявиться у виписці (зазвичай 1–2 хв), Сенешаль закриє виведення. Не прийде за добу — золото повернеться.</p>
-        <a class="btn btn--gold" href="monobank://">Відкрити монобанк</a><button type="button" class="btn btn--ghost" data-gd="close">Готово</button>`;
+        <a class="btn btn--gold" href="shortcuts://run-shortcut?name=${encodeURIComponent("Орден - Моно")}">Відкрити монобанк</a><button type="button" class="btn btn--ghost" data-gd="close">Готово</button>`;
     } else if (m === "out") {
       amt = Math.min(b, amt || Math.min(b, 500));
       el.innerHTML = `${grip}<div class="gs-kicker">Золото Ордену</div><div class="sheet__title dy-sht">Вивести на білу картку</div>
@@ -304,6 +340,19 @@
         <div class="sheet__title dy-sht">${r.secret ? "Таємна реліквія" : "Ще не знайдена"}</div><p class="dy-note dy-note--t">${r.secret ? esc(r.hint) : "Випадає за квести або зі скрині Сенешаля."}</p>
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
     } else if (m === "reveal") {
+      if (arg.level) { el.innerHTML = `${grip}<div class="gs-kicker">Церемонія Ордену</div>${scene("levelup") ? `<img class="gd-scene gd-scene--tall" src="${scene("levelup")}" alt="">` : ""}
+        <div class="lv-big">${arg.level}</div><div class="sheet__title dy-sht">${arg.newRank ? `Нове звання — «${esc(arg.rank)}»` : `Рівень ${arg.level}`}</div>
+        <p class="dy-note dy-note--t">${arg.newRank ? "Капітул вписує нове звання в книгу Ордену. Слово тримав — і слово тримає тебе." : "Орден відзначає ще одну сходинку."}</p>
+        <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — «${esc(relic(arg.relic).n)}»</p>` : ""}
+        <button type="button" class="btn btn--gold" data-gd="close">${arg.relic ? "Подивитися реліквію" : "Прийняти"}</button>`;
+        if (arg.relic) reveals.unshift({ id: arg.relic, why: `За звання «${arg.rank}»` });
+        return; }
+      if (arg.weekChest) { el.innerHTML = `${grip}<div class="gs-kicker">Недільна скриня</div>${scene("weekchest") ? `<img class="gd-scene gd-scene--tall" src="${scene("weekchest")}" alt="">` : ""}
+        <div class="sheet__title dy-sht">${arg.n} ідеальних днів за тиждень</div><p class="dy-note dy-note--t">Сенешаль сам приносить скриню: «За такий тиждень — заслужено».</p>
+        <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — «${esc(relic(arg.relic).n)}»</p>` : arg.token ? `<p class="rl-bonus">і жетон ${arg.token === "reroll" ? "перекидання" : "відстрочки"}</p>` : ""}
+        <button type="button" class="btn btn--gold" data-gd="close">${arg.relic ? "Подивитися реліквію" : "Забрати"}</button>`;
+        if (arg.relic) reveals.unshift({ id: arg.relic, why: "З недільної скрині" });
+        return; }
       if (arg.bless) el.innerHTML = `${grip}<div class="gs-kicker">Благословення</div><div class="gd-bless">✦</div><div class="sheet__title dy-sht">Золото ×2</div><p class="dy-note dy-note--t">«${esc(arg.why)}» — Орден подвоїв нагороду: <b>+${fmtN(arg.g)}</b> золота понад звичне.</p><button type="button" class="btn btn--gold" data-gd="close">Дякую</button>`;
       else if (arg.dup) el.innerHTML = `${grip}<div class="gs-kicker">Реліквія</div><div class="sheet__title dy-sht">${esc(relic(arg.id).n)} — уже є</div><p class="dy-note dy-note--t">Сенешаль переплавив дублікат: <b>+${fmtN(arg.g)}</b> золота.</p><button type="button" class="btn btn--gold" data-gd="close">Добре</button>`;
       else { const r = relic(arg.id); el.innerHTML = `${grip}<div class="gs-kicker rl-k--${r.rar}">нова ${RN[r.rar]} реліквія</div><div class="rl-big rl--${r.rar} is-new">${face(r, "rl-face")}</div>
@@ -359,6 +408,8 @@
     clearTimeout(revealT); if (!reveals.length) return;
     const intro = $("intro");
     if (document.hidden || document.querySelector(".sheet.open, .hall.open, .rite.open, .confirm.open") || (intro && !intro.hasAttribute("hidden"))) { revealT = setTimeout(nextReveal, 4000); return; }
+    const nx = reveals[0];
+    if (nx && nx.id && !nx.dup && !ART[nx.id] && !nx.waited) { nx.waited = 1; loadArts(); revealT = setTimeout(nextReveal, 2500); return; }   // спершу — справжній арт
     show("reveal", reveals.shift()); fx("date");
   }
   /* швидка звірка: попросити свіжу виписку одразу й перечитувати її кілька хвилин, поки поповнення не зʼявиться */
@@ -388,5 +439,5 @@
     if (r) { reveals.push(Object.assign(r, { why: "Дар храмовника" })); setTimeout(nextReveal, 800); }
   }
   setTimeout(loadArts, 5000);
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, gift };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, gift, scene };
 })();

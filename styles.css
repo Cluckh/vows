@@ -1573,3 +1573,12 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .gd-scene{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:16px;margin:8px 0 12px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .gd-chest img{width:180px;height:180px;object-fit:cover;border-radius:22px;box-shadow:0 0 40px color-mix(in srgb,var(--gold) 35%,transparent);animation:gdShake .5s ease-in-out infinite}
 .gd-chest img + svg{display:none}
+/* рідкість справ і цілей */
+.rar-common{--rc:#b9b2a3}.rar-rare{--rc:var(--q-rare)}.rar-legend{--rc:var(--q-legend)}.rar-myth{--rc:var(--q-myth)}
+.dy-it.rar-rare .dy-body,.dy-it.rar-legend .dy-body,.dy-it.rar-myth .dy-body,.gl-it.rar-rare,.gl-it.rar-legend,.gl-it.rar-myth{border-left:2px solid color-mix(in srgb,var(--rc) 75%,transparent);padding-left:10px}
+.gl-it.rar-legend,.gl-it.rar-myth,.dy-it.rar-myth .dy-body{box-shadow:-6px 0 14px -10px var(--rc)}
+.dy-rar button.is-on,.gs-rar button.is-on{border-color:var(--rc);color:var(--rc);background:color-mix(in srgb,var(--rc) 12%,transparent)}
+.dy-rar button,.gs-rar button{color:color-mix(in srgb,var(--rc) 70%,var(--ash))}
+.lv-big{text-align:center;font-family:var(--f-display);font-size:72px;line-height:1;color:var(--gold);text-shadow:0 0 30px color-mix(in srgb,var(--gold) 55%,transparent);margin:6px 0 2px;animation:rlIn .9s cubic-bezier(.2,1.4,.4,1) both}
+.gd-scene--tall{aspect-ratio:4/3}
+.gd-sheet .lv-big + .sheet__title{text-align:center}

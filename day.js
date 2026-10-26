@@ -539,8 +539,22 @@
     return null;
   }
 
-  const BASE = { easy: 8, normal: 15, hard: 30 };
-  const DIFF = { easy: "легка", normal: "звичайна", hard: "важка" };
+  /* ===== ЕКОНОМІКА ОРДЕНУ: одна таблиця досвіду й золота за все (її ж знає писар — WRITER.md) =====
+     рідкість: common — звичайна, rare — рідкісна (жовта), legend — легендарна (помаранчева), myth — міфічна (фіолетова) */
+  const ECON = window.ORDO_ECON = {
+    task: { common: [8, 2], rare: [15, 3], legend: [30, 6], myth: [60, 12] },              // справа дня: [досвід, золото] за виконання
+    month: { common: [60, 40], rare: [120, 80], legend: [240, 160], myth: [480, 320] },     // ціль місяця
+    year: { common: [200, 150], rare: [400, 300], legend: [800, 600], myth: [1600, 1200] }, // ціль року
+    quest: { rare: [80, 30], legend: [300, 120], myth: [1000, 400] },                       // квест (досвід — як задав писар)
+    day: { pd: [25, 20], gy: [20, 10], jr: [10, 5], st: [10, 5], er: [5, 3], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
+    vowDay: [4, 1],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
+    milestone: { 10: [60, 30], 25: [120, 60], 75: [250, 150], 180: [500, 350], 365: [1000, 1000], 500: [1300, 1200], 730: [1800, 1600], 1000: [2500, 2500] },
+    ach: [0, 50], review: { m: [2, 1], y: [6, 3] }                                           // нагорода; ревю — за кожен відсоток виконаного
+  };
+  const RARN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
+  const rarOf = (t) => ({ easy: "common", normal: "rare", hard: "legend" })[t && t.diff] || (t && ECON.task[t.diff] ? t.diff : "rare");
+  const BASE = new Proxy({}, { get: (o, k) => (ECON.task[k] || ECON.task[rarOf({ diff: k })])[0] });
+  const DIFF = RARN;
   /* скільки разів поспіль перед цим днем повторювана ціль була виконана */
   function chainBefore(t, k) {
     if (!t.rep || t.rep.f === "none") return 0;
@@ -554,7 +568,7 @@
     return c;
   }
   function xpTask(t, r, k) {
-    const st = stOf(t, r, k), base = BASE[t.diff || "normal"];
+    const st = stOf(t, r, k), base = ECON.task[rarOf(t)][0];
     const bonus = Math.min(0.3, 0.03 * chainBefore(t, k));
     if (st === "done") {
       let m = 1 + bonus;
@@ -588,7 +602,7 @@
 
   /* похідний досвід: обітниці щодня, віхи, цілі місяця/року, чисті дні — перераховується щоразу */
   const VOW_DAY = 4;
-  const MS_XP = { 10: 60, 25: 120, 75: 250, 180: 500, 365: 1000, 500: 1300, 730: 1800, 1000: 2500 };
+  const MS_XP = Object.fromEntries(Object.entries(ECON.milestone).map(([m, v]) => [m, v[0]]));
   function settleDerived() {
     const A = API(), t0 = today();
     Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er|rt|nw|jr):/.test(id)) delete X.e[id]; });
@@ -608,7 +622,7 @@
     const G = LS.get("ordo.goals", { y: {}, m: {} });
     ["m", "y"].forEach((kind) => Object.keys(G[kind] || {}).forEach((key) => {
       const P = G[kind][key];
-      (P.items || []).forEach((it) => { if (it.done && it.done >= XP_START_DAY) X.e[`g:${it.id}`] = { d: it.done, xp: kind === "y" ? 400 : 120, src: "goal", why: it.t }; });
+      (P.items || []).forEach((it) => { if (it.done && it.done >= XP_START_DAY) { const [xp, gold] = ECON[kind === "y" ? "year" : "month"][it.rar || "rare"]; X.e[`g:${it.id}`] = { d: it.done, xp, gold, src: "goal", why: it.t }; } });
       if (P.res && P.items && P.items.length) {
         const pct = Math.round(100 * P.items.filter((i) => P.res[i.id]).length / P.items.length);
         const when = kind === "y" ? `${key}-12-31` : endOfMonth(`${key}-01`);
@@ -995,7 +1009,7 @@
     const xp = xpTask(t, r || {}, k);
     const mark = cnt ? `<span class="dy-mark dy-mark--n" data-dopen="${t.id}">${Math.round(pr * 100)}<small>%</small></span>`
       : `<button class="dy-mark" type="button" data-dmark="${t.id}" aria-label="${ro ? "Зробити наперед" : "Виконано"}"></button>`;
-    return `<li class="dy-it st-${st}${t.quest ? " dy-it--q" : ""}" data-dopen="${t.id}">${mark}
+    return `<li class="dy-it st-${st} rar-${rarOf(t)}${t.quest ? " dy-it--q" : ""}" data-dopen="${t.id}">${mark}
       <div class="dy-body"><span class="dy-t">${esc(t.t)}</span>
         ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em></span>` : ""}
         ${(() => { if (srcOf(t) !== "app" || t.type === "count" || k > today()) return ""; const a = appOf(t), m = Math.floor(appMin(k, a.n));
@@ -1154,7 +1168,7 @@
   function openSheet(mode, id, k) {
     sheetEl().onclick = null;
     sh = { mode, id, k: k || view || today(), draft: null };
-    if (mode === "edit") { const t = id && S.tasks[id]; sh.draft = t ? JSON.parse(JSON.stringify(t)) : { t: "", type: "do", diff: "normal", rep: { f: "none" }, start: sh.k, time: "" }; }
+    if (mode === "edit") { const t = id && S.tasks[id]; sh.draft = t ? JSON.parse(JSON.stringify(t)) : { t: "", type: "do", diff: "rare", rep: { f: "none" }, start: sh.k, time: "" }; }
     renderSheet();
     fx("open"); buzz("light");
     const sc = $("scrim"); if (sc) sc.classList.add("open");
@@ -1188,7 +1202,7 @@
         <div class="dy-f dy-f--row"><label>${r.f === "none" ? "Дата" : "Починаючи з"}</label><input class="dy-in" id="dsD" type="date" value="${d.start}"></div>
         <div class="dy-f dy-f--row"><label>Час</label><input class="dy-in" id="dsH" type="time" value="${d.time || ""}"></div>
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
-        <div class="dy-f"><label>Вага</label><div class="dy-chips" data-dk="diff">${Object.keys(DIFF).map((v) => `<button type="button" data-dv="${v}" class="${(d.diff || "normal") === v ? "is-on" : ""}">${DIFF[v]} · ${BASE[v]}</button>`).join("")}</div></div>
+        <div class="dy-f"><label>Рідкість</label><div class="dy-chips dy-chips--wrap dy-rar" data-dk="diff">${Object.keys(ECON.task).map((v) => `<button type="button" data-dv="${v}" class="rar-${v}${rarOf(d) === v ? " is-on" : ""}">${RARN[v]} · ${ECON.task[v][0]} досв · ${ECON.task[v][1]} зол</button>`).join("")}</div></div>
         <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
         <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", journal: "Відмічається сама, щойно віддаси сповідь дня.", app: (d.app && d.app.lim ? "Зараховується наступного дня, якщо за день у програмі пробув не більше ліміту." : "Зараховується сама, щойно за день набереться потрібний час у програмі.") + ` Потрібні дві автоматизації «Коли програму … Відкрито / Закрито», що шлють <b>app: ${esc((d.app && d.app.n) || "назва")}</b> та <b>ev: open</b> / <b>close</b> (event_type health). «Число» — хвилини за день.`, weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
         ${srcOf(d) === "app" ? `<div class="dy-f dy-f--row"><label>Програма</label><input class="dy-in" id="dsAN" value="${esc(appOf(d).n)}" placeholder="duolingo, youtube…" autocomplete="off" autocapitalize="off"></div>
@@ -1206,7 +1220,7 @@
       const k = sh.k, r = rec(k, t.id), st = stOf(t, r, k), fut = k > today(), cnt = t.type === "count";
       const xp = xpTask(t, r || {}, k), ch = chainBefore(t, k);
       h += `<div class="gs-kicker">${rel(k)}, ${human(k)}</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
-        <div class="sheet__stat">${[repText(t), t.time, DIFF[t.diff || "normal"] + " · " + BASE[t.diff || "normal"]].filter(Boolean).join(" · ")}${ch ? ` · поспіль ${ch}` : ""}</div>
+        <div class="sheet__stat">${[repText(t), t.time, RARN[rarOf(t)] + " · " + ECON.task[rarOf(t)][0] + " досв"].filter(Boolean).join(" · ")}${ch ? ` · поспіль ${ch}` : ""}</div>
         ${t.notes ? `<p class="dy-note dy-note--t">${esc(t.notes)}</p>` : ""}
         ${t.link === "goals" ? `<button type="button" class="btn btn--line" data-ds="goals">Відкрити Цілі</button>` : ""}`;
       if (cnt) h += `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dsC" inputmode="decimal" value="${(r && r.cur) || 0}"><span class="dy-unit">/ ${fmtN(t.target)} ${esc(t.unit || "")}</span></div>`;
@@ -1298,7 +1312,8 @@
           <p class="dy-note dy-note--t">${N.parked ? "Вранці я принесу її назад, і вирішимо на свіжу голову. Зараз з нею нічого не треба робити." : "Не дивись на годинник. Екран донизу."}</p>
           <button class="btn btn--gold" type="button" data-ds="close">Добраніч</button>`;
       } else {
-        h += `<div class="gs-kicker">Нічна варта${N.at ? ` · ${N.at}` : ""}</div><div class="sheet__title dy-sht">${N.kind === "bug" ? "Що муляє?" : "Про що тривога?"}</div>
+        const ns = window.ORDO_GOLD && window.ORDO_GOLD.scene("night");
+        h += `<div class="gs-kicker">Нічна варта${N.at ? ` · ${N.at}` : ""}</div>${ns ? `<img class="gd-scene" src="${ns}" alt="">` : ""}<div class="sheet__title dy-sht">${N.kind === "bug" ? "Що муляє?" : "Про що тривога?"}</div>
           <div class="dy-chips dy-chips--wrap" data-dk="ntopic">${Object.entries(TOPICS).map(([v, n]) => `<button type="button" data-dv="${v}" class="${N.topic === v ? "is-on" : ""}">${n}</button>`).join("")}</div>
           <textarea class="dy-in dy-in--note" id="nTxt" rows="2" placeholder="одним реченням — можна й пропустити">${esc(N.text || "")}</textarea>
           <p class="dy-note">Записане я покладу на ранок. Зараз з ним нічого не треба робити.</p>
@@ -1659,6 +1674,7 @@
       S.seeded = seed.v; saveS();
     }
     appMigrate();
+    Object.values(S.tasks).forEach((t) => { const r = { easy: "common", normal: "rare", hard: "legend" }[t.diff]; if (r || !t.diff) { t.diff = r || "rare"; t.mt = Date.now(); saveS(); } });     // «вага» → рідкість
     /* «Monthly review» — разом із ревю місяця, зранку 1-го (раніше — останній день місяця) */
     const mr = S.tasks["rm-monthly-review"];
     if (mr && mr.rep && mr.rep.f === "mlast" && !(S.mig && S.mig.mr1)) { mr.rep = { f: "month", n: 1 }; mr.start = "2026-11-01"; mr.mt = Date.now(); S.mig = Object.assign({}, S.mig, { mr1: 1 }); saveS(); }

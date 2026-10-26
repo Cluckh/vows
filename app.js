@@ -1249,7 +1249,7 @@ window.ORDO_START = function () {
             ? `<button class="gl-mark gl-mark--btn" type="button" data-done="${kind}|${key}|${it.id}" aria-label="${it.done ? "Зняти позначку" : "Виконано достроково"}"></button>`
             : `<span class="gl-mark gl-mark--btn gl-mark--${t}"></span>`;
           const ms = t === "measure" && !reviewed ? msState(it) : null;
-          return `<li class="gl-it gl-it--${st} gl-ty-${t}${ms ? ` gl-ms-${ms}` : ""}" data-open="${kind}|${key}|${it.id}">${mark}
+          return `<li class="gl-it gl-it--${st} gl-ty-${t} rar-${it.rar || "rare"}${ms ? ` gl-ms-${ms}` : ""}" data-open="${kind}|${key}|${it.id}">${mark}
             <div class="gl-body"><span class="gl-t">${esc(it.t)}</span>${detailHTML(it, kind, key, reviewed)}</div>
             <span class="gl-ty">${GT[t].name}</span></li>`;
         }).join("") + `</ul>`;
@@ -1348,6 +1348,8 @@ window.ORDO_START = function () {
     let h = `<div class="gs-kicker">${locked ? "Запечатано · " : ""}${lbl}</div>
       <div class="gs-title">${esc(it.t)}</div>`;
     if (!locked) h += `<div class="cmp__types gs-types">${Object.keys(GT).map((k) => `<button type="button" data-gty="${k}" class="${k === t ? "is-on" : ""}">${GT[k].name}</button>`).join("")}</div>`;
+    if (!locked) { const E = window.ORDO_ECON, RN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" }, ek = gs.kind === "y" ? "year" : "month";
+      if (E) h += `<div class="gs-h">Рідкість</div><div class="cmp__ops gs-src gs-rar">${Object.keys(RN).map((r) => `<button type="button" data-grar="${r}" class="rar-${r}${(it.rar || "rare") === r ? " is-on" : ""}">${RN[r]} · ${E[ek][r][0]} досв · ${E[ek][r][1]} зол</button>`).join("")}</div>`; }
     const withPlus = !locked && t === "count";
     h += `<p class="cmp__hint">${GT[t].hint}</p><div class="gs-detail${withPlus ? " gs-detail--plus" : ""}" data-stepbox="cur"><div>${detailHTML(it, gs.kind, gs.key, true)}</div>${withPlus ? plusBtn("cur", true) : ""}</div>`;
     if (!locked && (t === "count" || t === "measure")) {
@@ -1423,6 +1425,8 @@ window.ORDO_START = function () {
       LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id && !it.done)); saveLog();
       gsAfter(it); return;
     }
+    const grr = e.target.closest("[data-grar]");
+    if (grr) { it.rar = grr.dataset.grar; gsAfter(it); return; }
     const gsrc = e.target.closest("[data-gsrc]");
     if (gsrc) { it.src = gsrc.dataset.gsrc; if (it.src === "link" && !it.link) relink(it, gs.key, []); stepsFill(it, gs.key); gsAfter(it); return; }
     const gl = e.target.closest("[data-glink]");

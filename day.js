@@ -740,7 +740,22 @@
     Object.values(S.tasks).forEach((t) => { if (t.rep && t.rep.f !== "none") chainBest = Math.max(chainBest, chainBefore(t, add(today(), 1))); });
     const qd = (rar) => Q.list.filter((q) => q.st === "done" && (!rar || q.rar === rar)).length;
     const f = faith();
-    return { f, jn: Object.keys(S.journal).filter(jSent).length, gym: sessions().length, done, early, pdBest, pdN: Object.keys(X.e).filter((i) => i.startsWith("pd:")).length, chainBest, qd, lv: levelOf(totalXP()).L };
+    /* новий контент: слова храмовників, трапеза, ранки, ніч, читання, кроки, блискавичні й ланцюжкові квести */
+    const ar = Object.values(S.arch || {}), meals = Object.keys(S.journal).sort().filter((k) => S.journal[k].sent && S.journal[k].meal);
+    let gRun = 0, gBest = 0, prev = null;
+    meals.forEach((k) => { const g = S.journal[k].meal === "g"; gRun = g ? (prev && add(prev, 1) === k ? gRun + 1 : 1) : 0; if (!g) prev = null; else prev = k; gBest = Math.max(gBest, gRun); });
+    const stepDays = (n) => Object.values((HL && HL.days) || {}).filter((d) => d.steps >= n).length;
+    const fresh = {
+      heard: ar.length, legendH: ar.filter((e) => e.rar === "legend").length, mythH: ar.filter((e) => e.rar === "myth").length,
+      gifts: Object.keys(X.e).filter((i) => i.startsWith("mo:")).length,
+      meals: meals.length, greenBest: gBest,
+      mornings: Object.values(S.sleep).filter((x) => x && !x.skip && (x.min || x.q || x.mood || x.wakes != null || x.dream)).length,
+      siren: Object.values(S.night).filter((x) => x && x.kind === "siren").length,
+      books: Object.values(BK.list).filter((b) => b.end).length, pages: periodPages("2000-01-01", "2999-12-31"),
+      st10: stepDays(10000), st15: stepDays(15000),
+      flash: Q.list.filter((q) => q.st === "done" && q.flash).length, chain: Q.list.filter((q) => q.st === "done" && (q.step || 1) >= 3).length
+    };
+    return Object.assign(fresh, { f, jn: Object.keys(S.journal).filter(jSent).length, gym: sessions().length, done, early, pdBest, pdN: Object.keys(X.e).filter((i) => i.startsWith("pd:")).length, chainBest, qd, lv: levelOf(totalXP()).L });
   }
   const ACHS = [
     { id: "first", tier: "bronze", n: "Перший крок", h: "Виконати першу денну ціль", ok: (c) => c.done >= 1, xp: 30 },
@@ -769,8 +784,41 @@
     { id: "gym10", tier: "silver", n: "Зброярня", h: "10 записаних тренувань", ok: (c) => c.gym >= 10, xp: 150 },
     { id: "gym50", tier: "gold", n: "Залізний брат", h: "50 записаних тренувань", ok: (c) => c.gym >= 50, xp: 400 },
     { id: "lv10", tier: "silver", n: "Лицар Хреста", h: "Дійти до 10-го рівня", ok: (c) => c.lv >= 10, xp: 0 },
-    { id: "lv16", tier: "gold", n: "Командор", h: "Дійти до 16-го рівня", ok: (c) => c.lv >= 16, xp: 0 }
+    { id: "lv16", tier: "gold", n: "Командор", h: "Дійти до 16-го рівня", ok: (c) => c.lv >= 16, xp: 0 },
+    /* слова храмовників */
+    { id: "mo1", g: "w", ic: "eye", tier: "bronze", n: "Вислухав", h: "Перша вість чи сцена від храмовника", ok: (c) => c.heard >= 1, xp: 20 },
+    { id: "mo15", g: "w", ic: "eye", tier: "silver", n: "Уважний брат", h: "15 вістей і сцен", ok: (c) => c.heard >= 15, xp: 100 },
+    { id: "mo50", g: "w", ic: "eye", tier: "gold", n: "Довірений", h: "50 вістей і сцен", ok: (c) => c.heard >= 50, xp: 300 },
+    { id: "mgift", g: "w", ic: "coin", tier: "gold", n: "Дари братів", h: "5 сцен, після яких храмовник щось подарував", ok: (c) => c.gifts >= 5, xp: 120 },
+    { id: "mleg", g: "w", ic: "scroll", tier: "legend", n: "Свідок легенди", h: "Почути легендарну історію", ok: (c) => c.legendH >= 1, xp: 60, rar: "legend" },
+    { id: "mmyth", g: "w", ic: "dream", tier: "myth", n: "Бачив видіння", h: "Побачити міфічну сцену", ok: (c) => c.mythH >= 1, xp: 150, rar: "myth" },
+    /* трапеза */
+    { id: "ml1", g: "m", ic: "meal-ok", tier: "bronze", n: "Чесний стіл", h: "Перша позначка трапези в сповіді", ok: (c) => c.meals >= 1, xp: 20 },
+    { id: "mlg7", g: "m", ic: "meal-ok", tier: "silver", n: "Тиждень по голоду", h: "7 зелених трапез поспіль", ok: (c) => c.greenBest >= 7, xp: 150 },
+    { id: "mlg30", g: "m", ic: "meal-ok", tier: "legend", n: "Стіл Амвросія", h: "30 зелених трапез поспіль", ok: (c) => c.greenBest >= 30, xp: 600, rar: "legend" },
+    { id: "ml60", g: "m", ic: "meal-snack", tier: "gold", n: "Літопис столу", h: "60 днів із позначеною трапезою", ok: (c) => c.meals >= 60, xp: 250 },
+    /* ранки й ніч */
+    { id: "sl7", g: "s", ic: "sun", tier: "bronze", n: "Сім ранків", h: "7 ранкових звітів про сон", ok: (c) => c.mornings >= 7, xp: 60 },
+    { id: "sl30", g: "s", ic: "sun", tier: "silver", n: "Сторож свого сну", h: "30 ранкових звітів", ok: (c) => c.mornings >= 30, xp: 200 },
+    { id: "sl100", g: "s", ic: "sun", tier: "gold", n: "Сто світанків", h: "100 ранкових звітів", ok: (c) => c.mornings >= 100, xp: 500 },
+    { id: "siren", g: "s", ic: "siren", tier: "silver", n: "Під небом тривоги", h: "Пройти з братами нічну тривогу", ok: (c) => c.siren >= 1, xp: 50 },
+    /* читання */
+    { id: "pg100", g: "r", ic: "book", tier: "bronze", n: "Сто сторінок", h: "100 сторінок на полиці", ok: (c) => c.pages >= 100, xp: 50 },
+    { id: "pg1k", g: "r", ic: "book", tier: "gold", n: "Тисяча сторінок", h: "1000 сторінок на полиці", ok: (c) => c.pages >= 1000, xp: 400 },
+    { id: "bk1", g: "r", ic: "book", tier: "silver", n: "Дочитано", h: "Дочитати першу книжку", ok: (c) => c.books >= 1, xp: 120 },
+    { id: "bk5", g: "r", ic: "book", tier: "legend", n: "Книжник", h: "Дочитати 5 книжок", ok: (c) => c.books >= 5, xp: 500, rar: "legend" },
+    /* кроки */
+    { id: "st10", g: "f", ic: "steps", tier: "bronze", n: "Десять тисяч", h: "День від 10 000 кроків", ok: (c) => c.st10 >= 1, xp: 30 },
+    { id: "st10x", g: "f", ic: "steps", tier: "silver", n: "Мандрівник", h: "10 днів від 10 000 кроків", ok: (c) => c.st10 >= 10, xp: 150 },
+    { id: "st15", g: "f", ic: "steps", tier: "gold", n: "Марш Северина", h: "День від 15 000 кроків", ok: (c) => c.st15 >= 1, xp: 80 },
+    /* нові квести */
+    { id: "qf", g: "q", ic: "bolt", tier: "gold", n: "Блискавка", h: "Встигнути блискавичний квест", ok: (c) => c.flash >= 1, xp: 50, rar: "rare" },
+    { id: "qf5", g: "q", ic: "bolt", tier: "legend", n: "Швидка рука", h: "5 блискавичних квестів", ok: (c) => c.flash >= 5, xp: 200, rar: "legend" },
+    { id: "qch", g: "q", ic: "scroll", tier: "gold", n: "Ланцюг подій", h: "Дійти до третього кроку ланцюжкового квесту", ok: (c) => c.chain >= 1, xp: 80 }
   ];
+  /* групи нагород у Літописі; старі без g — за префіксом */
+  const ACH_G = [["d", "Справи"], ["q", "Квести"], ["v", "Вірність"], ["b", "Сповідь, тіло, звання"], ["w", "Слова храмовників"], ["m", "Трапеза"], ["s", "Ранки й ночі"], ["r", "Читання"], ["f", "Кроки"]];
+  const achG = (a) => a.g || (/^(first|t\d|pd|early|ch)/.test(a.id) ? "d" : /^q/.test(a.id) ? "q" : /^(f\d|rise|fmon)/.test(a.id) ? "v" : "b");
   function settleAch() {
     const c = ctx(), fresh = [];
     ACHS.forEach((a) => { if (!ACH[a.id] && a.ok(c)) { ACH[a.id] = today(); fresh.push(a); } });
@@ -1977,7 +2025,10 @@
       <div class="dy-g__qs"><span class="dy-q--rare"><b>${qn("rare")}</b>рідкісних</span><span class="dy-q--legend"><b>${qn("legend")}</b>легендарних</span><span class="dy-q--myth"><b>${qn("myth")}</b>міфічних</span></div>
       ${(() => { const f = faith(); return `<div class="dy-g__qs dy-g__faith"><span><b>${f.total}</b>днів вірності</span><span><b>${f.d30}/${f.n30}</b>за 30 днів</span><span><b>${f.best}</b>найдовше поспіль</span></div>`; })()}
       <div class="st-h st-h--sub">Нагороди</div><div class="dy-ach">`;
-    h += ACHS.map((a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" title="${esc(a.h)}"><svg><use href="#medal"/></svg><b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`).join("");
+    const medal = (a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" title="${esc(a.h)}"><i class="dy-a__m"><svg><use href="#medal"/></svg>${a.ic ? `<svg class="dy-a__ic"><use href="#i-${a.ic}"/></svg>` : ""}</i><b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`;
+    h += ACH_G.map(([g, name]) => { const L = ACHS.filter((a) => achG(a) === g), n = L.filter((a) => ACH[a.id]).length;
+      return `<div class="dy-ach__g"><span>${esc(name)}</span><em>${n}/${L.length}</em></div>` + L.map(medal).join(""); }).join("");
+    if (vowMedals.length) h += `<div class="dy-ach__g"><span>Печатки обітниць</span><em>${vowMedals.length}</em></div>`;
     h += vowMedals.map((m) => `<div class="dy-a is-on dy-a--vow"><svg><use href="#i-${m.v.icon}"/></svg><b>${esc(m.v.name)} · ${m.n}</b><span>печатка обітниці</span></div>`).join("");
     h += `</div><div class="st-h st-h--sub">Шлях звань</div><ol class="dy-ranks">${RANKS.map((r, i) => `<li class="${i < lv.ri ? "is-past" : i === lv.ri ? "is-on" : ""}">${emblem(i)}<b>${esc(r.name)}</b><span>з ${r.lv}-го</span></li>`).join("")}</ol>`;
     const done = Q.list.filter((q) => q.st === "done").slice(-6).reverse();

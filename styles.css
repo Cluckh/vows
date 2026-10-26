@@ -1370,6 +1370,12 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-a.is-on{opacity:1}
 .dy-a.is-on svg{filter:drop-shadow(0 4px 10px rgba(0,0,0,.5))}
 .dy-a svg{width:34px;height:44px;display:block;margin:0 auto 4px;color:var(--gold)}
+.dy-a__m{position:relative;display:block;width:34px;margin:0 auto 4px}
+.dy-a__m>svg:first-child{margin:0}
+.dy-a .dy-a__ic{position:absolute;left:50%;top:21px;width:19px;height:19px;margin:0 0 0 -9.5px;padding:3px;border-radius:50%;background:var(--m2);color:var(--m3);box-shadow:0 0 0 1px var(--m3)}
+.dy-ach__g{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;margin:10px 2px -2px;padding-bottom:4px;border-bottom:1px solid rgba(231,199,119,.14);font-family:var(--f-display);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-2)}
+.dy-ach__g:first-child{margin-top:0}
+.dy-ach__g em{font-style:normal;font-family:var(--f-serif);letter-spacing:0;color:var(--ash)}
 .dy-a--vow svg{width:30px;height:30px;margin-bottom:8px;color:var(--gold-2)}
 .tier-legend{--m1:#ffd9b0;--m2:#ff8a2b;--m3:#7a3a0c;--rb:#5a1f0a;--rb2:#ff8a2b}
 .tier-myth{--m1:#eadbff;--m2:#b07cff;--m3:#3f2470;--rb:#2a1650;--rb2:#b07cff}

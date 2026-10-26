@@ -2013,7 +2013,7 @@ window.ORDO_START = function () {
 
   /* вкладки свайпом: справа наліво — наступна, зліва направо — попередня */
   {
-    const ORDER = ["board", "day", "stats", "goals"], frame = document.querySelector(".frame");
+    const ORDER = ["board", "day", "stats", "goals", "treasury"], frame = document.querySelector(".frame");
     let t = null;
     const viewEl = () => document.querySelector(".view.is-on");
     const blocked = (el) => !!el.closest('input, textarea, select, [data-noswipe], .hall, .kc, .rite, .sheet, .confirm') ||

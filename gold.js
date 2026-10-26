@@ -421,7 +421,7 @@
      тож поки є виведення в дорозі — просимо виписку кілька разів (не частіше ніж раз на ~90 с: ліміт API банку) і перечитуємо її між запитами.
      Також — одразу, щойно повертаєшся в Орден після монобанку, і кнопкою «Оновити». */
   let lastAsk = 0, syncing = false;
-  function askBank() { const V = window.ORDO_VAULT; if (!V || !V.dispatch || Date.now() - lastAsk < 85e3) return; lastAsk = Date.now(); LS.set("ordo.k.bankAsk", Date.now()); V.dispatch("bank"); }
+  function askBank() { const V = window.ORDO_VAULT; if (!V || !V.dispatch || Date.now() - lastAsk < 85e3) return; lastAsk = Date.now(); LS.set("ordo.k.bankAsk", Date.now()); V.dispatch("bank", pending().length ? { white: 1 } : null); }      // чекаємо поповнення — банк тягне лише білу картку
   async function readBank() {
     if (T() && T().load) await T().load(true);
     if (reconcile()) { refreshViews(); const d = Object.values(G.out).filter((o) => o.done && Date.now() - o.done < 60 * 60e3).sort((a, b) => b.done - a.done); if (d.length) toast(`${coin()}<b>${fmtN(d[0].amt)} ₴</b> на білій картці`); }

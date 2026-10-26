@@ -799,7 +799,21 @@
         else return;
       }
       if (q.type === "budget" && q.st === "active") return;
-      if (q.st === "active" && q.until < t0) { q.st = q.type === "count" && q.cur > 0 ? "part" : "fail"; q.end = t0; }
+      /* квест — обіцянка: або виконано, або ні (часткових нагород нема). Але зрідка, якщо пройдено хоча б половину,
+         храмовник дає «Другу спробу»: ще 2 дні, планка 85%, зроблене зараховано, нагорода на рідкість нижча; третьої — нема */
+      if (q.st === "active" && q.until < t0) {
+        const prog = q.type === "count" && q.target ? (q.cur || 0) / q.target : 0;
+        q.st = "fail"; q.end = t0;
+        if (q.type === "count" && !q.retry && prog >= 0.5 && prog < 1 && roll("retry" + q.id) < 0.35) {
+          const rar = q.rar === "myth" ? "legend" : "rare", tg = Math.ceil(q.target * 0.85);
+          Q.list.push({ id: q.id + "r", pid: q.pid + "~2", rar, giver: q.giver, t: `Друга спроба: ${q.t}`, scope: "day", days: 2,
+            desc: `Ще два дні — і планка нижча: ${fmtN(tg)} ${q.unit || ""} замість ${fmtN(q.target)}. Зроблене зараховано.`,
+            type: "count", target: tg, unit: q.unit || "", xp: ECON.quest[rar][0], cats: null, limitPct: 0, limit: 0, vow: q.vow || null, app: q.app || null, appMax: q.appMax != null ? q.appMax : null, weight: null,
+            offer: roll("ro" + q.id) < 0.5 ? "Не встиг — буває навіть із найкращими. Даю ще два дні й трохи нижчу планку. Зроблене не пропало." : "Брате, ти пройшов більше половини шляху. Не кидай на узбіччі: два дні — і доведи.",
+            accept: "Добре. Цього разу — до кінця.", decline: "Як знаєш. Не кожну битву треба добивати.", done: "Доведено. Друга спроба — теж перемога.",
+            st: "offer", offerOn: t0, cur: q.cur || 0, retry: 1, from0: q.from });
+        }
+      }
       if (q.st === "offer" && q.offerOn && diff(q.offerOn, t0) > 2) q.st = "lapsed";          // пропозиція згасла
       const id = `q:${q.id}`;
       if (q.st === "done") X.e[id] = { d: q.end || t0, xp: q.xp, src: "quest", why: q.t };
@@ -869,6 +883,7 @@
     if (i === 0) {
       const nxt = ((pool().find((p) => p.id === q.pid) || {}).tags || []).includes("return");          // «з наступних днів»: день зриву не рахується
       q.st = "active"; q.from = nxt ? add(today(), 1) : today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now();
+      if (q.retry) { q.from = q.from0 || q.from; q.until = add(today(), 1); }          // друга спроба: зроблене рахується з початку, ще 2 дні
       if (q.type === "budget" && q.limitPct && T()) { const days = diff(q.from, q.until) + 1; q.limit = Math.round(q.limitPct * (T().avgWeek(q.cats) || 0) * days / 7 / 100) * 100; }
       saveQ();
       fx("yes"); buzz("medium");

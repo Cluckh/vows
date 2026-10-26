@@ -386,7 +386,7 @@
       await type(text);
       if (!isOpen()) return;
       const box = $("hallActs");
-      box.className = "hall__acts" + (cls ? " " + cls : "") + (options.length >= 5 ? " hall__acts--many" : "");
+      box.className = "hall__acts" + (cls ? " " + cls : "") + (options.length >= 5 && !/--arch/.test(cls || "") ? " hall__acts--many" : "");
       box.innerHTML = options.map((o, i) => `<button type="button" data-i="${i}" style="--d:${i * 70}ms">${mark(esc(o))}</button>`).join("");
       const t0 = performance.now();                 // захист від випадкового «подвійного» тапу
       box.onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b || performance.now() - t0 < 450) return; box.onclick = null; closeResolve = null;
@@ -553,7 +553,7 @@
   async function archiveMenu(id, back) {
     const DY = window.ORDO_DAY, L = DY && DY.archiveFor ? DY.archiveFor(id).slice(0, 10) : []; if (!L.length) return true;
     for (;;) {
-      const i = await ask("Що з мого хочеш почути знову?", L.map((e) => `${e.d.slice(8, 10)}.${e.d.slice(5, 7)} · ${e.title}`).concat([back || "Назад"]), "hall__acts--list");
+      const i = await ask("Що з мого хочеш почути знову?", L.map((e) => `${e.d.slice(8, 10)}.${e.d.slice(5, 7)} · ${e.title}`).concat([back || "Назад"]), "hall__acts--list hall__acts--arch");
       if (i === "closed") return false; if (i >= L.length) return true;
       await DY.replayArchive(L[i].key); if (!isOpen()) return false;
       { const v = (D().VOWS || []).find((x) => x.id === id); show(v ? { id, icon: v.icon } : id === "supreme" ? SUPREME : id === "seneschal" ? Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {}) : Object.assign({ id: "chronicler", head: "hood" }, D().CHRONICLER || {})); }

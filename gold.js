@@ -454,10 +454,10 @@
       const c = el && el.classList.contains("open") && el.querySelector(".gd-chest");
       if (!c) { reveals.unshift({ loot: L, kicker: o.kicker }); return; }                // закрили посеред відкриття — здобич покажемо пізніше
       if (i < top) { i++; R.forEach((x) => c.classList.remove("rar-" + x)); c.classList.add("is-glow", "rar-" + R[i]); c.style.animation = "none"; void c.offsetWidth; c.style.animation = "";
-        const A = API(); if (A.FX && A.FX.buzz) A.FX.buzz(i >= 2 ? "medium" : "light"); chestT = setTimeout(step, i < top ? 620 : 950); return; }
+        const A = API(); if (A.FX && A.FX.buzz) A.FX.buzz(i >= 2 ? "medium" : "light"); chestT = setTimeout(step, i < top ? 1100 : 1700); return; }
       render("loot", Object.assign({}, L, { kicker: o.kicker })); fx(top >= 2 ? "date" : "yes");
     };
-    chestT = setTimeout(step, 450);
+    chestT = setTimeout(step, 900);
   }
   /* дарована скриня (квест, сцена писаря, випадкова розмова): один раз на ключ, на всіх пристроях */
   function freeChest(key, why, kicker) {
@@ -548,5 +548,5 @@
   setTimeout(loadArts, 5000);
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, art: artKey, want };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

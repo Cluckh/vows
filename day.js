@@ -783,7 +783,21 @@
       flash: Q.list.filter((q) => q.st === "done" && q.flash).length, chain: Q.list.filter((q) => q.st === "done" && (q.step || 1) >= 3).length
     };
     const R = window.ORDO_ARM && window.ORDO_ARM.counts ? window.ORDO_ARM.counts() : {};
-    Object.assign(fresh, { prs: R.prs || 0, gmon: R.gmon || 0, gymTotal: R.gymTotal || 0, cardioTotal: R.cardioTotal || 0, games: R.games || 0, booksL: R.books || 0, booksYear: R.booksYear || 0, knight: R.knight || 0 });
+    /* покер, екран, розум, тіло, цілі — все, що трекаємо */
+    const HD = (HL && HL.days) || {}, PD = (PK && PK.days) || {};
+    const pkHands = Math.max(Object.values(PD).reduce((a, d) => a + (d.hands || 0), 0), Object.keys((PK && PK.years) || {}).reduce((a, y) => a + ((PK.years[y] || {}).hands || 0), 0));
+    const pkBest = Math.max(0, ...Object.values(PD).map((d) => d.hands || 0));
+    const tracked = Object.keys(HD).filter((k) => HD[k].apps && Object.keys(HD[k].apps).length && k < today()).sort();
+    const feed = (k) => appMin(k, "youtube") + appMin(k, "reddit");
+    let calmRun = 0, calmBest = 0, prevK = null; tracked.forEach((k) => { const ok = feed(k) <= 30; calmRun = ok ? (prevK && add(prevK, 1) === k ? calmRun + 1 : 1) : 0; prevK = k; calmBest = Math.max(calmBest, calmRun); });
+    const duoDays = Object.keys(HD).filter((k) => appMin(k, "duolingo") >= 10).length;
+    const mindN = Object.values(HD).reduce((a, d) => a + (d.mind || 0), 0);
+    const wk = Object.keys(HD).filter((k) => HD[k].weight).sort(), wv = wk.map((k) => HD[k].weight);
+    const avg = (a) => a.reduce((x, y) => x + y, 0) / (a.length || 1), wDrop = wv.length >= 6 ? avg(wv.slice(0, 3)) - avg(wv.slice(-3)) : 0;
+    const sleep7 = Object.keys(HD).filter((k) => (hDay(k) || {}).sleepMin >= 420).length;
+    const GL = LS.get("ordo.goals", { m: {}, y: {} }); let goalsDone = 0; ["m", "y"].forEach((kd) => Object.values(GL[kd] || {}).forEach((P) => (P.items || []).forEach((i) => { if (i.done) goalsDone++; })));
+    const GD = window.ORDO_GOLD, whiteN = GD && GD.whiteDone ? GD.whiteDone() : 0;
+    Object.assign(fresh, { pkHands, pkBest, calmBest, calmDays: tracked.filter((k) => feed(k) <= 30).length, duoDays, mindN, weighN: wk.length, wDrop, sleep7, goalsDone, whiteN, prs: R.prs || 0, gmon: R.gmon || 0, gymTotal: R.gymTotal || 0, cardioTotal: R.cardioTotal || 0, games: R.games || 0, booksL: R.books || 0, booksYear: R.booksYear || 0, knight: R.knight || 0 });
     fresh.books = Math.max(fresh.books, R.books || 0);                // дочитані — з полиці й з бібліотеки (прочитане до Ордену)
     return Object.assign(fresh, { f, jn: Object.keys(S.journal).filter(jSent).length, gym: sessions().length, done, early, pdBest, pdN: Object.keys(X.e).filter((i) => i.startsWith("pd:")).length, chainBest, qd, lv: levelOf(totalXP()).L });
   }
@@ -856,7 +870,32 @@
     { id: "gm5", g: "l", ic: "medal", tier: "silver", n: "Зал трофеїв", h: "5 пройдених ігор", ok: (c) => c.games >= 5, xp: 100 },
     { id: "gm10", g: "l", ic: "medal", tier: "gold", n: "Колекціонер світів", h: "10 пройдених ігор", ok: (c) => c.games >= 10, xp: 250 },
     { id: "rd12", g: "l", ic: "book", tier: "legend", n: "Рік читача", h: "12 книжок за календарний рік", ok: (c) => c.booksYear >= 12, xp: 600, rar: "legend" },
-    { id: "kq", g: "l", ic: "book", tier: "gold", n: "Лицарська полиця", h: "Дочитати лицарську класику з черги (Айвенго, Роланд, Артур…)", ok: (c) => c.knight >= 1, xp: 200 }
+    { id: "kq", g: "l", ic: "book", tier: "gold", n: "Лицарська полиця", h: "Дочитати лицарську класику з черги (Айвенго, Роланд, Артур…)", ok: (c) => c.knight >= 1, xp: 200 },
+    /* покер */
+    { id: "pk10k", g: "p", ic: "dice", tier: "bronze", n: "Десять тисяч роздач", h: "10 000 роздач", ok: (c) => c.pkHands >= 10000, xp: 40 },
+    { id: "pk100k", g: "p", ic: "dice", tier: "gold", n: "Сто тисяч", h: "100 000 роздач", ok: (c) => c.pkHands >= 100000, xp: 300 },
+    { id: "pk500k", g: "p", ic: "dice", tier: "legend", n: "Пів мільйона", h: "500 000 роздач", ok: (c) => c.pkHands >= 500000, xp: 800, rar: "legend" },
+    { id: "pkday", g: "p", ic: "dice", tier: "silver", n: "Марафон за столом", h: "3 000 роздач за день", ok: (c) => c.pkBest >= 3000, xp: 80 },
+    /* екран і розум */
+    { id: "sc7", g: "e", ic: "eye", tier: "silver", n: "Тиха голова", h: "7 днів поспіль: YouTube і Reddit разом не більше 30 хв", ok: (c) => c.calmBest >= 7, xp: 150 },
+    { id: "sc30", g: "e", ic: "eye", tier: "gold", n: "Господар уваги", h: "30 днів з YouTube і Reddit не більше 30 хв", ok: (c) => c.calmDays >= 30, xp: 300 },
+    { id: "du30", g: "e", ic: "scroll", tier: "silver", n: "Сова-учень", h: "30 днів Duolingo від 10 хв", ok: (c) => c.duoDays >= 30, xp: 120 },
+    { id: "du100", g: "e", ic: "scroll", tier: "gold", n: "Поліглот Ордену", h: "100 днів Duolingo від 10 хв", ok: (c) => c.duoDays >= 100, xp: 400 },
+    { id: "md10", g: "e", ic: "moon", tier: "bronze", n: "Тиша всередині", h: "10 медитацій", ok: (c) => c.mindN >= 10, xp: 40 },
+    { id: "md50", g: "e", ic: "moon", tier: "silver", n: "Спокійне серце", h: "50 медитацій", ok: (c) => c.mindN >= 50, xp: 150 },
+    { id: "md100", g: "e", ic: "moon", tier: "gold", n: "Сто тиш", h: "100 медитацій", ok: (c) => c.mindN >= 100, xp: 350 },
+    /* тіло й сон */
+    { id: "wt10", g: "h", ic: "steps", tier: "bronze", n: "Ваги не брешуть", h: "10 зважувань", ok: (c) => c.weighN >= 10, xp: 40 },
+    { id: "wt3", g: "h", ic: "steps", tier: "gold", n: "Мінус три", h: "−3 кг: середнє останніх трьох зважувань проти перших трьох", ok: (c) => c.wDrop >= 3, xp: 300 },
+    { id: "wt6", g: "h", ic: "steps", tier: "legend", n: "Новий обладунок", h: "−6 кг від перших зважувань", ok: (c) => c.wDrop >= 6, xp: 700, rar: "legend" },
+    { id: "zz7", g: "h", ic: "moon", tier: "silver", n: "Сон воїна", h: "7 ночей від 7 годин сну", ok: (c) => c.sleep7 >= 7, xp: 100 },
+    { id: "zz30", g: "h", ic: "moon", tier: "gold", n: "Відпочилий лицар", h: "30 ночей від 7 годин сну", ok: (c) => c.sleep7 >= 30, xp: 300 },
+    /* цілі й скарбниця */
+    { id: "gl1", g: "o", ic: "medal", tier: "bronze", n: "Перша ціль", h: "Виконати ціль місяця чи року", ok: (c) => c.goalsDone >= 1, xp: 40 },
+    { id: "gl10", g: "o", ic: "medal", tier: "silver", n: "Десять цілей", h: "10 виконаних цілей", ok: (c) => c.goalsDone >= 10, xp: 150 },
+    { id: "gl50", g: "o", ic: "medal", tier: "gold", n: "Стратег", h: "50 виконаних цілей", ok: (c) => c.goalsDone >= 50, xp: 500 },
+    { id: "gw1", g: "o", ic: "coin", tier: "bronze", n: "Чесна платня", h: "Перше золото, що дійшло на білу картку", ok: (c) => c.whiteN >= 1, xp: 30 },
+    { id: "gw10", g: "o", ic: "coin", tier: "silver", n: "Скарбник", h: "10 виведень на білу картку", ok: (c) => c.whiteN >= 10, xp: 150 }
   ];
   /* прогрес до нагороди: [скільки є, скільки треба] — для картки нагороди */
   const PROG = { first: ["done", 1], t50: ["done", 50], t200: ["done", 200], t500: ["done", 500], pd1: ["pdN", 1], pd7: ["pdBest", 7], pd30: ["pdBest", 30], early: ["early", 1],
@@ -866,7 +905,10 @@
     mo1: ["heard", 1], mo15: ["heard", 15], mo50: ["heard", 50], mgift: ["gifts", 5], mleg: ["legendH", 1], mmyth: ["mythH", 1],
     ml1: ["meals", 1], mlg7: ["greenBest", 7], mlg30: ["greenBest", 30], ml60: ["meals", 60], sl7: ["mornings", 7], sl30: ["mornings", 30], sl100: ["mornings", 100], siren: ["siren", 1],
     pg100: ["pages", 100], pg1k: ["pages", 1000], bk1: ["books", 1], bk5: ["books", 5], st10: ["st10", 1], st10x: ["st10", 10], st15: ["st15", 1], qf: ["flash", 1], qf5: ["flash", 5], qch: ["chain", 1],
-    gp1: ["prs", 1], gp10: ["prs", 10], gmon: ["gmon", 1], g100: ["gymTotal", 100], cd10: ["cardioTotal", 10], gm1: ["games", 1], gm5: ["games", 5], gm10: ["games", 10], rd12: ["booksYear", 12], kq: ["knight", 1] };
+    gp1: ["prs", 1], gp10: ["prs", 10], gmon: ["gmon", 1], g100: ["gymTotal", 100], cd10: ["cardioTotal", 10], gm1: ["games", 1], gm5: ["games", 5], gm10: ["games", 10], rd12: ["booksYear", 12], kq: ["knight", 1],
+    pk10k: ["pkHands", 10000], pk100k: ["pkHands", 100000], pk500k: ["pkHands", 500000], pkday: ["pkBest", 3000], sc7: ["calmBest", 7], sc30: ["calmDays", 30], du30: ["duoDays", 30], du100: ["duoDays", 100],
+    md10: ["mindN", 10], md50: ["mindN", 50], md100: ["mindN", 100], wt10: ["weighN", 10], wt3: [(c) => Math.max(0, Math.round(c.wDrop * 10) / 10), 3], wt6: [(c) => Math.max(0, Math.round(c.wDrop * 10) / 10), 6],
+    zz7: ["sleep7", 7], zz30: ["sleep7", 30], gl1: ["goalsDone", 1], gl10: ["goalsDone", 10], gl50: ["goalsDone", 50], gw1: ["whiteN", 1], gw10: ["whiteN", 10] };
   const progOf = (a, c) => { const p = PROG[a.id]; if (!p) return null; const v = typeof p[0] === "function" ? p[0](c) : c[p[0]]; return [Math.min(+v || 0, p[1]), p[1]]; };
   const TIERN = { bronze: "бронзова", silver: "срібна", gold: "золота", legend: "легендарна", myth: "міфічна" };
   const achFace = (a, big) => { const GD = window.ORDO_GOLD, img = GD && GD.achArt ? GD.achArt(a.id) : null;
@@ -886,7 +928,7 @@
   const lvGold = (L) => 50 + 10 * L;
   const chapterOf = (L) => (D().CHRONICLE || []).find((c) => c.pages && c.pages[L]) || null;
   /* групи нагород у Літописі; старі без g — за префіксом */
-  const ACH_G = [["d", "Справи"], ["q", "Квести"], ["v", "Вірність"], ["b", "Сповідь, тіло, звання"], ["w", "Слова храмовників"], ["m", "Трапеза"], ["s", "Ранки й ночі"], ["r", "Читання"], ["f", "Кроки"], ["a", "Зброярня"], ["l", "Бібліотека"]];
+  const ACH_G = [["d", "Справи"], ["q", "Квести"], ["v", "Вірність"], ["b", "Сповідь, тіло, звання"], ["w", "Слова храмовників"], ["m", "Трапеза"], ["s", "Ранки й ночі"], ["r", "Читання"], ["f", "Кроки"], ["a", "Зброярня"], ["l", "Бібліотека"], ["p", "Покер"], ["e", "Екран і розум"], ["h", "Тіло й сон"], ["o", "Цілі й скарбниця"]];
   const achG = (a) => a.g || (/^(first|t\d|pd|early|ch)/.test(a.id) ? "d" : /^q/.test(a.id) ? "q" : /^(f\d|rise|fmon)/.test(a.id) ? "v" : "b");
   /* 26.10 — день тестів: досвід і золото тестових сцен та медалі «Слів храмовників», здобуті на них, не рахуються (і при злитті — boot.js) */
   const TEST_DAY = "2026-10-26", isTestMo = (id) => /^(t\d?-|test-)/.test(id || "");

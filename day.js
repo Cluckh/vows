@@ -350,7 +350,16 @@
     anx: ["Тривога вночі завжди більша, ніж є насправді. Віддай її мені до ранку — я збережу.", "Вночі думки ростуть, як тіні від свічки. Запиши — і я покладу це на ранок."],
     awake: ["Буває. Не дивись на годинник — він тільки підганяє. Телефон зараз відкладемо.", "Не воюй зі сном — він приходить, коли за ним не женуться."],
     bye: ["Тоді спи. Я на варті до світанку.", "Добре. Екран донизу — і в темряву. Добраніч, брате."],
-    let: ["Правильно. Ніч перебільшує — ранок ставить на місце.", "Відпущено. Якщо повернеться — вирішимо вдень, на свіжу голову."]
+    let: ["Правильно. Ніч перебільшує — ранок ставить на місце.", "Відпущено. Якщо повернеться — вирішимо вдень, на свіжу голову."],
+    siren: ["Чую сирену, брате. Спершу — не думки, а стіни.", "Тривога. Я поруч. Спершу безпека, все інше — потім."],
+    safe: ["Добре. Ти зробив усе, що залежить від тебе. Небо — не твоя варта, на ньому стоять інші.", "Ти в безпечнішому місці — це головне. Тепер просто чекаємо відбою разом."],
+    stay: ["Твій вибір, брате, тиснути не буду. Але хоча б подалі від вікон — у коридор, за дві стіни. Ковдру можна взяти з собою.", "Розумію — сил вставати нема. Тоді хоча б не біля вікна: дві стіни між тобою й вулицею — вже інша ніч."],
+    ground: ["Назви про себе пʼять речей, які бачиш. Чотири — які чуєш. Три — яких торкаєшся. Повільно. Я рахую з тобою.", "Притисни долоні до підлоги чи стіни — відчуй, яка вона тверда й холодна. Ти тут, у цій кімнаті, і ти не сам."]
+  };
+  /* дихання: 4·7·8 — заспокоїтись і заснути; 4·6 — без затримок, коли серце калатає (сирена) */
+  const PATS = {
+    478: { name: "4 · 7 · 8", rounds: 4, ph: [["вдих через ніс", 4, "in"], ["затримай подих", 7, "hold"], ["видих через рот", 8, "out"]], note: "Чотири кола. Видих повільний, через рот. Думки приходять — хай пливуть далі." },
+    46: { name: "4 · 6", rounds: 6, ph: [["вдих через ніс", 4, "in"], ["довгий видих", 6, "out"]], note: "Без затримок: спокійний вдих, видих довший за вдих. Шість кіл — близько хвилини." }
   };
   let nbTimer = 0;
   async function nightScene() {
@@ -360,10 +369,23 @@
     S.night[t0] = Object.assign(N || { at: hmNow() }, { keeper: giver, ts: Date.now() }); saveS();
     h.stage(giver);
     if ((await h.say(pick(NL.open))) === "closed") return;
-    const i = await h.choose("Що тебе розбудило?", ["Тривога", "Щось муляє", "Просто не спиться", "Нічого, засинаю"]);
+    const i = await h.choose("Що тебе розбудило?", ["Повітряна тривога", "Тривога на душі", "Щось муляє", "Просто не спиться", "Нічого, засинаю"]);
     if (i === "closed") return;
-    const kind = ["anx", "bug", "awake", "fine"][i]; S.night[t0].kind = kind; S.night[t0].ts = Date.now(); saveS();
+    const kind = ["siren", "anx", "bug", "awake", "fine"][i]; S.night[t0].kind = kind; S.night[t0].ts = Date.now(); saveS();
     if (kind === "fine") { S.night[t0].done = 1; saveS(); await h.say(pick(NL.bye)); if (h.isOpen()) h.close(); return; }
+    if (kind === "siren") {                 // повітряна тривога: спершу укриття, потім — тіло, а не думки
+      if ((await h.say(pick(NL.siren))) === "closed") return;
+      const w = await h.choose("Ти в укритті або хоча б за двома стінами?", ["Так, я в безпечнішому місці", "Іду туди зараз", "Лишаюсь у ліжку"]);
+      if (w === "closed") return;
+      if (w === 1) { S.night[t0].ts = 0; saveS(); await h.say("Іди. Телефон і воду — з собою. Як дійдеш — відкрий мене знову, я почекаю."); if (h.isOpen()) h.close(); return; }
+      if ((await h.say(pick(w === 0 ? NL.safe : NL.stay))) === "closed") return;
+      const j = await h.choose("Поки чекаємо відбою:", ["Подихаємо (4 · 6)", "Заземлитись", "Відбій уже був — спати"]);
+      if (j === "closed") return;
+      if (j === 1) { await h.say(pick(NL.ground)); const z = await h.choose("Як зараз?", ["Тихіше. Подихаю ще", "Краще, лягаю"]); if (h.isOpen()) h.close(); if (z === 0) nightSheet("breath", 46); else { S.night[t0].done = 1; saveS(); } return; }
+      if (h.isOpen()) h.close();
+      if (j === 0) nightSheet("breath", 46); else { S.night[t0].done = 1; saveS(); }
+      return;
+    }
     if (kind === "awake") {
       await h.say(pick(NL.awake));
       const j = await h.choose("Подихаємо хвилину?", ["Так, подихаю", "Ні, просто лягаю"]);
@@ -375,18 +397,20 @@
     if (h.isOpen()) h.close();
     nightSheet("park");
   }
-  function nightSheet(step) { openSheet("night", null, today()); sh.step = step; renderSheet(); if (step === "breath") breathe(); }
+  function nightSheet(step, pat) { openSheet("night", null, today()); sh.step = step; sh.pat = pat || 478; renderSheet(); if (step === "breath") breathe(); }
   /* дихання 4-7-8, чотири кола; коло — вдих 4 с, затримка 7 с, видих 8 с */
   function breathe() {
     clearInterval(nbTimer);
-    const PH = [["вдих через ніс", 4, "in"], ["затримай подих", 7, "hold"], ["видих через рот", 8, "out"]];
+    const P = PATS[(sh && sh.pat) || 478], PH = P.ph;
     let round = 0, ph = 0, left = PH[0][1];
-    const show = () => { const o = $("nbOrb"), t = $("nbT"), n = $("nbN"); if (!o) return false; o.className = `nb__orb is-${PH[ph][2]}`; t.textContent = PH[ph][0]; n.textContent = left; return true; };
+    const show = () => { const o = $("nbOrb"), t = $("nbT"), n = $("nbN"); if (!o) return false;
+      if (left === PH[ph][1]) o.style.transition = PH[ph][2] === "hold" ? "none" : `transform ${PH[ph][1]}s ease-in-out`;     // тривалість анімації = тривалість фази
+      o.className = `nb__orb is-${PH[ph][2]}`; t.textContent = PH[ph][0]; n.textContent = left; return true; };
     setTimeout(show, 30);
     nbTimer = setInterval(() => {
       if (!sh || sh.mode !== "night" || sh.step !== "breath") { clearInterval(nbTimer); return; }
       left--;
-      if (left <= 0) { ph++; if (ph >= PH.length) { ph = 0; round++; } if (round >= 4) { clearInterval(nbTimer); nightRest(4); return; } left = PH[ph][1]; buzz("light"); }
+      if (left <= 0) { ph++; if (ph >= PH.length) { ph = 0; round++; } if (round >= P.rounds) { clearInterval(nbTimer); nightRest(P.rounds); return; } left = PH[ph][1]; buzz("light"); }
       show();
     }, 1000);
   }
@@ -1010,7 +1034,7 @@
       const N = S.night[k], gymToday = its.some(({ t }) => isGym(t));
       const tips = ["кава — до 12:00", "денний сон — до 20 хв і до 15:00", "за годину до сну — без екранів", "лягти до 23:00"].concat(gymToday ? ["у залі — без підвищення ваги"] : []);
       h += `<div class="dy-ret dy-night"><span class="dy-ret__t">Після нічної варти</span>
-        <span class="dy-ret__s">${N.at ? `прокидався о ${N.at}` : "ніч була неспокійна"}${N.parked && !N.dealt ? " · тривога чекає на розмову" : ""}</span>
+        <span class="dy-ret__s">${N.kind === "siren" ? `повітряна тривога${N.at ? ` о ${N.at}` : ""}` : N.at ? `прокидався о ${N.at}` : "ніч була неспокійна"}${N.parked && !N.dealt ? " · тривога чекає на розмову" : ""}</span>
         <ul class="dy-tips">${tips.map((x) => `<li>${x}</li>`).join("")}</ul></div>`;
     }
     const cb = k === today() ? comeback() : null;
@@ -1231,9 +1255,10 @@
     } else if (sh.mode === "night") {
       const N = S.night[sh.k] || {};
       if (sh.step === "breath") {
-        h += `<div class="gs-kicker">Нічна варта</div><div class="sheet__title dy-sht">Дихання 4 · 7 · 8</div>
+        const P = PATS[sh.pat || 478];
+        h += `<div class="gs-kicker">Нічна варта</div><div class="sheet__title dy-sht">Дихання ${P.name}</div>
           <div class="nb"><div class="nb__orb" id="nbOrb"></div><div class="nb__t" id="nbT">вдих через ніс</div><div class="nb__n" id="nbN">4</div></div>
-          <p class="dy-note">Чотири кола. Видих повільний, через рот. Думки приходять — хай пливуть далі.</p>
+          <p class="dy-note">${P.note}</p>
           <button class="btn btn--ghost" type="button" data-ds="nbend">Досить, лягаю</button>`;
       } else if (sh.step === "rest") {
         h += `<div class="gs-kicker">Нічна варта</div><div class="sheet__title dy-sht">${N.parked ? "Тривога під замком" : "Тепер — спати"}</div>

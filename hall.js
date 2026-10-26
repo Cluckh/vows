@@ -330,9 +330,10 @@
       const b = ev.target.closest(".kc__views button");
       if (b && img) { el.querySelectorAll(".kc__views button").forEach((x) => x.classList.toggle("on", x === b)); img.parentNode.classList.toggle("full", b !== el.querySelector(".kc__views button")); img.src = b.dataset.v; return; }
       if (ev.target.closest(".kc__arch")) { shut(); setTimeout(async () => {               // архів його слів — у залі
-        const wasOpen = isOpen(), v = (D().VOWS || []).find((x) => x.id === id);
+        if (closeResolve) { const r = closeResolve; closeResolve = null; onTap = null; r("closed"); }   // розмова, з якої відкрили портрет, — завершується: архів її замінює
+        const v = (D().VOWS || []).find((x) => x.id === id);
         show(v ? { id, icon: v.icon } : id === "supreme" ? SUPREME : id === "seneschal" ? Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {}) : Object.assign({ id: "chronicler", head: "hood" }, D().CHRONICLER || {}));
-        const ok = await archiveMenu(id, wasOpen ? "Назад" : "Дякую"); if (ok && !wasOpen && isOpen()) close(); }, 360); return; }
+        const ok = await archiveMenu(id, "Дякую"); if (ok && isOpen()) close(); }, 360); return; }
       if (ev.target.closest(".kc__x, .kc__back")) shut();
     });
     requestAnimationFrame(() => el.classList.add("open"));
@@ -410,8 +411,14 @@
     const P = D().PANIC; if (!P) return;
     show(SUPREME);
     { const DY = window.ORDO_DAY, n = DY && DY.newsFor ? DY.newsFor("supreme") : null; if (n) { DY.heard("supreme"); if ((await say(n.t)) === "closed") return; } }
-    const st = await ask(pick(P.intro), P.states.map((s) => s.t), "hall__acts--list");
-    if (st === "closed") return;
+    let st;
+    for (;;) {                                       // «Твої слова для мене» — архів Магістра одразу з першого меню
+      const arch = hasArch("supreme");
+      st = await ask(pick(P.intro), P.states.map((s) => s.t).concat(arch ? ["Твої слова для мене"] : []), "hall__acts--list");
+      if (st === "closed") return;
+      if (st < P.states.length) break;
+      if (!(await archiveMenu("supreme"))) return; show(SUPREME);
+    }
     const state = P.states[st];
     const A = API(); if (A.logPush) A.logPush({ k: "call", v: "supreme", d: A.todayKey(), st: state.id });
     const pool = P.dialogs.filter((d) => d.st === state.id);
@@ -611,9 +618,11 @@
     if (v) return callKeeper(id);
     const tales = K.supreme.tales || [];
     for (;;) {
-      const i = await ask(pick(MENU_Q), tales.length ? ["Розкажи історію", "Дякую, Магістре"] : ["Дякую, Магістре"], "hall__acts--row");
+      const o = (tales.length ? [["tale", "Розкажи історію"]] : []).concat(hasArch("supreme") ? [["arch", "Твої слова для мене"]] : []).concat([["bye", "Дякую, Магістре"]]);
+      const i = await ask(pick(MENU_Q), o.map((x) => x[1]), o.length > 2 ? "hall__acts--list" : "hall__acts--row");
       if (i === "closed") return;
-      if (i === 0 && tales.length) { if (!(await runDialog(fresh("tale.supreme", tales, 4).v))) return; continue; }
+      if (o[i][0] === "tale") { if (!(await runDialog(fresh("tale.supreme", tales, 4).v))) return; continue; }
+      if (o[i][0] === "arch") { if (!(await archiveMenu("supreme"))) return; show(SUPREME); continue; }
       close(); return;
     }
   }

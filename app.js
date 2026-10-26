@@ -312,20 +312,24 @@ window.ORDO_START = function () {
     /* свайп ≠ тап: перемикач у Safari можна «тягнути», тож свайп по ньому міг
        зараховуватись як натискання. Якщо палець зсунувся (>8 px) або тап зупиняв
        інерційну прокрутку — клік скасовуємо, нічого не відкривається. */
-    let sx = 0, sy = 0, moved = false, lastScroll = 0;
+    let sx = 0, sy = 0, moved = false, stopped = false, far = false, lastScroll = 0;
     const opt = { passive: true, capture: true };
     document.addEventListener("scroll", () => { lastScroll = performance.now(); }, opt);
     document.addEventListener("touchstart", (e) => {
       const t = e.touches[0]; sx = t.clientX; sy = t.clientY;
-      moved = performance.now() - lastScroll < 140;   // палець зупиняє прокрутку, а не тисне
+      stopped = performance.now() - lastScroll < 140;   // палець зупиняє прокрутку, а не тисне
+      moved = far = false;
     }, opt);
     document.addEventListener("touchmove", (e) => {
-      const t = e.touches[0]; if (Math.abs(t.clientX - sx) > 8 || Math.abs(t.clientY - sy) > 8) moved = true;
+      const t = e.touches[0], d = Math.max(Math.abs(t.clientX - sx), Math.abs(t.clientY - sy));
+      if (d > 8) moved = true; if (d > 24) far = true;
     }, opt);
     document.addEventListener("click", (e) => {
       if (!e.target.classList || !e.target.classList.contains("hx-ovl")) return;
       e.target.blur();   // перемикач не має тримати фокус (інакше «набір тексту» відкладає оновлення)
-      if (moved) { e.preventDefault(); e.stopImmediatePropagation(); }
+      /* нижні вкладки нерухомі: прокрутка сторінки під ними не скасовує тап, а дрібне зсування пальця — теж */
+      const cancel = e.target.closest(".tabs") ? far : moved || stopped;
+      if (cancel) { e.preventDefault(); e.stopImmediatePropagation(); }
     }, true);
     scan();
   })();

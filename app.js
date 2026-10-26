@@ -410,14 +410,30 @@ window.ORDO_START = function () {
   }
   const todayMark = (v) => LOG.find((e) => e.k === "mark" && e.v === v.id && e.d === todayKey());
 
-  function breach(v, why, n) {
-    const prev = streak(v), t = todayKey();
+  function breach(v, why, n, d) {
+    const prev = streak(v), t = d || todayKey();
     if (prev > (BEST[v.id] || 0)) { BEST[v.id] = prev; LS.set("ordo.best", BEST); }
     /* сьогоднішня відмітка вікна більше не заморожує — день став днем зриву */
     LOG = LOG.filter((e) => !(e.k === "mark" && e.v === v.id && e.d === t));
     logPush({ k: "breach", v: v.id, d: t, why, n, prev });
     setStart(v.id, t);
   }
+
+  /* трапеза дня зі сповіді: червона — вікно помірності на той день (вікон нема — зрив); передумав — знімається лише відмітка вікна */
+  function mealVow(d, red) {
+    const v = vowById("temperance"); if (!v || !v.window) return null;
+    const ex = LOG.find((e) => e.v === v.id && e.d === d && (e.k === "mark" || e.k === "breach"));
+    if (!red) { if (ex && ex.k === "mark" && ex.src === "meal") { LOG = LOG.filter((e) => e !== ex); saveLog(); renderBoard(); return "unmark"; } return null; }
+    if (ex) return ex.k;
+    const bad = windowsUsed(v, d.slice(0, 7)) >= v.window.limit;
+    if (bad) breach(v, "limit", undefined, d); else logPush({ k: "mark", v: v.id, d, w: windowsUsed(v, d.slice(0, 7)) + 1, src: "meal" });
+    renderBoard(); FX.play(bad ? "over" : "mark", true); FX.buzz(bad ? "heavy" : "medium");
+    if (bad && window.ORDO_HALL) setTimeout(() => window.ORDO_HALL.fall(v.id), 1500);
+    return bad ? "breach" : "mark";
+  }
+  const mealInfo = (d) => { const v = vowById("temperance"); if (!v || !v.window) return null;
+    const ex = LOG.find((e) => e.v === v.id && e.d === d && (e.k === "mark" || e.k === "breach"));
+    return { used: windowsUsed(v, d.slice(0, 7)), limit: v.window.limit, ex: ex ? ex.k : null, meal: !!(ex && ex.src === "meal") }; };
 
   /* ---- віхи ---- */
   const nextMilestone = (s) => D.MILESTONES.find((m) => m > s) || null;
@@ -2119,7 +2135,7 @@ window.ORDO_START = function () {
   });
   window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); },
     dayState, tab: () => TAB, renderTreasury, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy,
-    openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id),
+    openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id), mealVow, mealInfo,
     goalsSync: () => { settleAll(); updateGoalsDot(); if (TAB === "goals") renderGoals(); } };
   if (window.ORDO_TREASURY) { window.ORDO_TREASURY.load(); document.addEventListener("visibilitychange", () => { if (!document.hidden) window.ORDO_TREASURY.load(); }); }
   if (window.ORDO_DAY) window.ORDO_DAY.init();

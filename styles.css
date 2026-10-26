@@ -1614,3 +1614,22 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-app--lim i{background:linear-gradient(90deg,rgba(150,190,170,.55),rgba(190,215,195,.85));box-shadow:none}
 .dy-app.is-over i{background:linear-gradient(90deg,var(--ember),var(--ember-2));box-shadow:0 0 8px rgba(255,107,60,.45)}
 .dy-q__app{display:block;margin-top:6px;font-size:.78em;letter-spacing:.04em;opacity:.7}
+/* трапеза дня: три кольорові вибори з іконками */
+.ml--g{--mc:#86c79a}.ml--y{--mc:var(--q-rare)}.ml--r{--mc:#e2654a}
+.ml-pick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ml-pick button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px 10px;border-radius:14px;border:1px solid var(--edge);color:var(--ash);font-family:var(--f-serif);font-size:14px;line-height:1.15;transition:border-color .2s,background .2s,color .2s}
+.ml-pick svg{width:30px;height:30px;color:var(--mc);opacity:.75;transition:opacity .2s,transform .2s}
+.ml-pick button.is-on{border-color:var(--mc);color:var(--bone);background:color-mix(in srgb,var(--mc) 14%,transparent);box-shadow:0 0 14px color-mix(in srgb,var(--mc) 25%,transparent)}
+.ml-pick button.is-on svg{opacity:1;transform:scale(1.08)}
+.ml-note{margin-top:8px}.ml-note--r{color:#e2654a}
+.ml-tag{display:inline-flex;align-items:center;gap:6px;color:var(--mc)}.ml-tag svg{width:18px;height:18px}
+/* ранковий звіт: тривога, прокидання, сни */
+.sl-marks{display:grid;gap:10px;margin:4px 0 16px}
+.sl-tog{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;border:1px solid var(--edge);color:var(--ash);font-family:var(--f-serif);font-size:15px;text-align:left}
+.sl-tog svg,.sl-row>svg{width:22px;height:22px;flex:none;color:var(--gold)}
+.sl-tog.is-on{border-color:#e2654a;color:var(--bone);background:rgba(226,101,74,.12)}.sl-tog.is-on svg{color:#e2654a}
+.sl-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-family:var(--f-serif);font-size:15px;color:var(--ash)}
+.sl-row>span{min-width:84px}
+.sl-row .dy-chips button{padding:6px 11px;font-size:14px}
+.dy-sl-ask{color:var(--gold);cursor:pointer}
+.dy-body-line [data-dsleep]{cursor:pointer}

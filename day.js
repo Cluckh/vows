@@ -152,7 +152,7 @@
   const appKey = (n) => String(n || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "").slice(0, 24);
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
   /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
-  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$/i.test((q.unit || "").trim());
+  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$|по голоду|без перебор/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   const appMin = (k, n) => { const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
   /* старі цілі Duolingo («Зробити»/«Число» за назвою) — у «час у програмі», 10 хв на день */
@@ -177,6 +177,7 @@
     [0, 25, 50, 90].forEach((s) => setTimeout(() => { loadHealth(true); if (s === 90) render(); }, s * 1000));     // обробка на GitHub — ~15–40 с
   }
   const EARLY = "08:00", DAWN = "04:00";
+  const hhmm = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const early = (k) => !!(S.wake[k] && S.wake[k] >= DAWN && S.wake[k] < EARLY);
   let hAt = 0;
   async function loadHealth(force) {
@@ -328,6 +329,9 @@
   /* щоденний звіт: що було за день, настрій, позначки. Пишеться поступово (зберігається з кожною літерою),
      «Віддати сповідь» — і ціль «Journaling» закривається; писар читає сповіді й зважає на них у квестах, подіях і листах-зведеннях */
   const MOODS = [["1", "важкий"], ["2", "так собі"], ["3", "рівний"], ["4", "добрий"], ["5", "світлий"]];
+  /* трапеза дня: зелене — їв від голоду, жовте — зайвий перекус, червоне — перебір (вікно помірності) */
+  const MEALS = [["g", "по голоду", "meal-ok"], ["y", "зайвий перекус", "meal-snack"], ["r", "перебір", "meal-feast"]];
+  const mealHTML = (m) => { const x = MEALS.find((y) => y[0] === m); return x ? `<span class="ml-tag ml--${m}"><svg><use href="#i-${x[2]}"/></svg>${x[1]}</span>` : ""; };
   const JTAGS = { work: "робота", people: "люди", poker: "покер", body: "тіло", money: "гроші", anx: "тривога", joy: "радість", win: "перемога", fall: "зрив" };
   const jSent = (k) => !!(S.journal[k] && S.journal[k].sent);
   const journalCount = (from, to) => { let n = 0; const end = to < today() ? to : today(); for (let k = from; k <= end; k = add(k, 1)) if (jSent(k)) n++; return n; };
@@ -744,6 +748,12 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      if (q.st === "active" && q.type === "count" && /по голоду|без перебор/i.test(q.unit || "")) {   // трапеза дня зі сповіді: «по голоду» — лише зелені дні, «без переборів» — зелені й жовті
+        const ok = /по голоду/i.test(q.unit) ? (m) => m === "g" : (m) => m === "g" || m === "y";
+        let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) { const J = S.journal[k]; if (J && J.sent && ok(J.meal)) n++; }
+        if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
       if (q.st === "active" && q.weight) {          // вага: { op: "<" | "<=", v: 84.5, mode: "avg7" | "last" } — зараховується, щойно «Здоровʼя» покаже потрібне
         const w = weightOn(today(), q.weight.mode || "avg7"), ok = w != null && (q.weight.op === "<=" ? w <= q.weight.v : w < q.weight.v);
         if (ok) { q.cur = 1; q.at = Date.now(); q.st = "done"; q.end = today(); pendingDone.push(q); }
@@ -1131,7 +1141,9 @@
     const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
     const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
     const apm = Object.entries(hd.apps || {}).filter(([, a]) => a.min >= 1);
-    if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || apm.length || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.streak || hd.duo.today) && !(hd.apps && hd.apps.duolingo && hd.apps.duolingo.min >= 1) ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${apm.map(([n, a]) => `<span>${esc(n)} <b>${Math.floor(a.min)}</b> хв${n === "duolingo" && hd.duo && hd.duo.streak ? ` · <b>${hd.duo.streak}</b>🔥` : ""}</span>`).join("")}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
+    const slk = S.sleep[k], slAsk = (!slk || slk.skip) && k === today() && !isNight();
+    const slLine = slAsk ? `<span class="dy-sl-ask" data-dsleep="1">ранковий звіт ›</span>` : slk && !slk.skip ? `${slk.siren ? `<span data-dsleep="1"><svg><use href="#i-siren"/></svg>тривога</span>` : ""}${slk.wakes ? `<span data-dsleep="1"><svg><use href="#i-eye"/></svg>прокидався <b>${slk.wakes >= 3 ? "3+" : slk.wakes}</b></span>` : ""}${slk.dream && slk.dream !== "none" ? `<span data-dsleep="1"><svg><use href="#i-dream"/></svg>${{ calm: "сни", vivid: "яскраві сни", bad: "кошмар" }[slk.dream] || ""}</span>` : ""}` : "";
+    if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || apm.length || wl || slLine) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span${k === today() ? ' data-dsleep="1"' : ""}><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${slLine}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.streak || hd.duo.today) && !(hd.apps && hd.apps.duolingo && hd.apps.duolingo.min >= 1) ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${apm.map(([n, a]) => `<span>${esc(n)} <b>${Math.floor(a.min)}</b> хв${n === "duolingo" && hd.duo && hd.duo.streak ? ` · <b>${hd.duo.streak}</b>🔥` : ""}</span>`).join("")}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
     if (k === today() && IOS) h += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю з телефона…" : "↻ оновити з телефона"}</button></div>`;
@@ -1301,13 +1313,23 @@
       if (xp) h += `<p class="dy-note">За цю справу: +${xp} досвіду${ch ? ` (серія ${ch} дає +${Math.round(Math.min(0.3, ch * 0.03) * 100)}%)` : ""}</p>`;
       if (r && r.note) h += `<p class="dy-note">Поправка: ${esc(r.note)}</p>`;
     } else if (sh.mode === "sleep") {
-      const sl = S.sleep[today()] || {}, BEDS = ["21:30", "22:00", "22:30", "23:00", "23:30", "00:00", "00:30", "01:00", "01:30"];
-      h += `<div class="gs-kicker">Ранок · ${human(today())}</div><div class="sheet__title dy-sht">Доброго ранку, лицарю. Як спав?</div>
-        <p class="dy-note">Ти на ногах до восьмої — це вже ранній підйом.</p>
-        <div class="dy-f"><label>Ліг о</label><div class="dy-chips dy-chips--wrap" data-dk="bed">${BEDS.map((b) => `<button type="button" data-dv="${b}" class="${(sh.bed || sl.bed) === b ? "is-on" : ""}">${b}</button>`).join("")}</div>
-          <input class="dy-in" id="slB" type="time" value="${sh.bed || sl.bed || ""}" style="margin-top:8px"></div>
-        <div class="dy-f dy-f--row"><label>Встав о</label><input class="dy-in" id="slW" type="time" value="${sl.wake || S.wake[today()] || ""}"></div>
-        <div class="dy-f"><label>Самопочуття</label><div class="dy-chips" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => `<button type="button" data-dv="${v}" class="${String(sh.q || sl.q || "") === v ? "is-on" : ""}">${n}</button>`).join("")}</div></div>
+      const t0 = today(), sl = S.sleep[t0] || {}, hd = hDay(t0) || {}, BEDS = ["21:30", "22:00", "22:30", "23:00", "23:30", "00:00", "00:30", "01:00", "01:30"];
+      const hb = sl.bed || hhmm(hd.bed), hw = sl.wake || hhmm(hd.wake) || S.wake[t0] || "", N = S.night[t0];
+      if (sh.siren == null) sh.siren = sl.siren != null ? !!sl.siren : !!(N && N.kind === "siren");
+      if (sh.wakes == null) sh.wakes = sl.wakes != null ? String(sl.wakes) : N && N.at ? "1" : "";
+      if (sh.dream == null) sh.dream = sl.dream || "";
+      const chip = (k, v, n, on) => `<button type="button" data-dv="${v}" class="${on ? "is-on" : ""}">${n}</button>`;
+      h += `<div class="gs-kicker">Ранок · ${human(t0)}</div><div class="sheet__title dy-sht">Доброго ранку, лицарю. Як спав?</div>
+        <p class="dy-note">${early(t0) ? "Ти на ногах до восьмої — це вже ранній підйом." : "Кілька відміток — і писар знатиме, якою була ніч."}${hd.sleepMin ? ` «Здоровʼя» каже: сон <b>${hm(hd.sleepMin)}</b>.` : ""}</p>
+        <div class="dy-f"><label>Ліг о</label><div class="dy-chips dy-chips--wrap" data-dk="bed">${BEDS.map((b) => chip("bed", b, b, (sh.bed || hb) === b)).join("")}</div>
+          <input class="dy-in" id="slB" type="time" value="${sh.bed || hb || ""}" style="margin-top:8px"></div>
+        <div class="dy-f dy-f--row"><label>Встав о</label><input class="dy-in" id="slW" type="time" value="${sh.wakeV || hw}"></div>
+        <div class="dy-f"><label>Самопочуття</label><div class="dy-chips" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => chip("q", v, n, String(sh.q || sl.q || "") === v)).join("")}</div></div>
+        <div class="sl-marks">
+          <button type="button" class="sl-tog${sh.siren ? " is-on" : ""}" data-dv="siren" data-dk="sltog"><svg><use href="#i-siren"/></svg><span>тривога вночі</span></button>
+          <div class="sl-row"><svg><use href="#i-eye"/></svg><span>прокидався</span><div class="dy-chips" data-dk="wakes">${[["0", "ні"], ["1", "раз"], ["2", "двічі"], ["3", "3+"]].map(([v, n]) => chip("wakes", v, n, sh.wakes === v)).join("")}</div></div>
+          <div class="sl-row"><svg><use href="#i-dream"/></svg><span>сни</span><div class="dy-chips dy-chips--wrap" data-dk="dream">${[["none", "не памʼятаю"], ["calm", "звичайні"], ["vivid", "яскраві"], ["bad", "кошмар"]].map(([v, n]) => chip("dream", v, n, sh.dream === v)).join("")}</div></div>
+        </div>
         <button class="btn btn--gold" type="button" data-ds="slsave">Записати</button><button class="btn btn--ghost" type="button" data-ds="slskip">Не зараз</button>`;
     } else if (sh.mode === "gym") {
       const t = S.tasks[sh.id], wk = wKey(sh.k, sh.id), w = GYM.w[wk] || {}, r = rec(sh.k, sh.id), done = !!(t && isWin(stOf(t, r, sh.k)));
@@ -1346,11 +1368,15 @@
       h += `<div class="gs-kicker">Сповідь · ${rel(sh.k)}, ${human(sh.k)}</div><div class="sheet__title dy-sht">${sent && !sh.edit ? "Сповідь прийнято" : "Як минув день?"}</div>`;
       if (sent && !sh.edit) {
         h += `${J.mood ? `<p class="dy-note">настрій: <b>${(MOODS.find((m) => m[0] === J.mood) || [])[1] || ""}</b>${(J.tags || []).length ? ` · ${J.tags.map((x) => JTAGS[x] || x).join(", ")}` : ""}</p>` : ""}
+          ${J.meal ? `<p class="dy-note">трапеза: ${mealHTML(J.meal)}</p>` : ""}
           <div class="gy-report">${esc((J.text || "").trim()).replace(/\n/g, "<br>") || "<i>без тексту</i>"}</div>
           <p class="dy-note">Писар прочитає це до наступного нічного запуску й зважить у дорученнях, подіях і листі-зведенні.</p>
           <button class="btn btn--line" type="button" data-ds="jedit">Доповнити</button>`;
       } else {
         h += `<div class="dy-f"><label>Настрій</label><div class="dy-chips dy-chips--wrap" data-dk="jmood">${MOODS.map(([v, n]) => `<button type="button" data-dv="${v}" class="${J.mood === v ? "is-on" : ""}">${n}</button>`).join("")}</div></div>
+          <div class="dy-f"><label>Трапеза дня</label><div class="ml-pick" data-dk="jmeal">${MEALS.map(([v, n, ic]) => `<button type="button" data-dv="${v}" class="ml--${v}${J.meal === v ? " is-on" : ""}"><svg><use href="#i-${ic}"/></svg><span>${n}</span></button>`).join("")}</div>
+            ${(() => { if (J.meal !== "r") return J.meal === "y" ? `<p class="dy-note ml-note">Вікно не витрачається — але писар бачить.</p>` : ""; const I = API().mealInfo ? API().mealInfo(sh.k) : null; if (!I) return "";
+              return `<p class="dy-note ml-note ml-note--r">${I.ex === "breach" ? "Цього дня вже зрив помірності." : I.ex === "mark" ? "Вікно помірності цього дня вже відмічено." : I.used >= I.limit ? `Вікон помірності не лишилось (${I.limit} з ${I.limit}) — з відправкою це зрив, стрік з нуля.` : `З відправкою — вікно помірності: лишиться <b>${I.limit - I.used - 1} з ${I.limit}</b>.`}</p>`; })()}</div>
           <div class="dy-f"><label>Позначки</label><div class="dy-chips dy-chips--wrap" data-dk="jtag">${Object.entries(JTAGS).map(([v, n]) => `<button type="button" data-dv="${v}" class="${(J.tags || []).includes(v) ? "is-on" : ""}">${n}</button>`).join("")}</div></div>
           <textarea class="dy-in gy-text" id="jText" rows="10" placeholder="Що було сьогодні? Що вдалось, що ні, що відчуваєш? Пиши як є — це бачиш ти й писар.">${esc(J.text || "")}</textarea>
           <div class="gy-saved" id="jSaved">${J.at ? `збережено о ${clock(J.at)}` : "зберігається саме, можна закривати й повертатися"}</div>
@@ -1464,6 +1490,7 @@
     if (ch && sh.mode === "journal") {
       const J = S.journal[sh.k] = S.journal[sh.k] || {}, tx = $("jText"), key = ch.parentElement.dataset.dk; if (tx) J.text = tx.value;
       if (key === "jmood") J.mood = J.mood === ch.dataset.dv ? null : ch.dataset.dv;
+      if (key === "jmeal") J.meal = J.meal === ch.dataset.dv ? null : ch.dataset.dv;
       if (key === "jtag") { const s2 = new Set(J.tags || []); s2.has(ch.dataset.dv) ? s2.delete(ch.dataset.dv) : s2.add(ch.dataset.dv); J.tags = [...s2]; }
       J.at = Date.now(); saveS(); buzz("light"); renderSheet(); return;
     }
@@ -1475,6 +1502,10 @@
       const k = ch.parentElement.dataset.dk;
       if (k === "bed") { sh.bed = ch.dataset.dv; const b = $("slB"); if (b) b.value = sh.bed; }
       if (k === "q") sh.q = ch.dataset.dv;
+      if (k === "wakes") sh.wakes = sh.wakes === ch.dataset.dv ? "" : ch.dataset.dv;
+      if (k === "dream") sh.dream = sh.dream === ch.dataset.dv ? "" : ch.dataset.dv;
+      if (ch.dataset.dk === "sltog") sh.siren = !sh.siren;
+      if ($("slB") && k !== "bed") sh.bed = $("slB").value || sh.bed;
       sh.wakeV = ($("slW") || {}).value; buzz("light"); renderSheet(); if (sh.wakeV && $("slW")) $("slW").value = sh.wakeV; return;
     }
     if (ch && sh.mode === "edit") {
@@ -1532,7 +1563,7 @@
         const bed = ($("slB") || {}).value || sh.bed || "", wake = ($("slW") || {}).value || S.wake[t0] || "";
         const toMin = (x) => { const [hh, mm] = x.split(":").map(Number); return hh * 60 + mm; };
         let min = bed && wake ? toMin(wake) - toMin(bed) : 0; if (min <= 0) min += 1440;
-        S.sleep[t0] = { bed, wake, q: sh.q ? +sh.q : null, min: bed && wake && min < 16 * 60 ? min : null };
+        S.sleep[t0] = { bed, wake, q: sh.q ? +sh.q : null, min: bed && wake && min < 16 * 60 ? min : null, siren: sh.siren ? 1 : 0, wakes: sh.wakes === "" ? null : +sh.wakes, dream: sh.dream || null };
         fx("yes"); buzz("medium");
       }
       saveS(); closeSheet(); after(before); setTimeout(scenes, 900); return;
@@ -1542,8 +1573,9 @@
       if (g.ex.length) GYM.log[k] = g; else delete GYM.log[k]; saveG(); fx("yes"); buzz("medium"); closeSheet(); after(before); return; }
     if (a === "jsend") {
       jFlush(); const J = S.journal[k] = S.journal[k] || {}, tx = $("jText"); if (tx) J.text = tx.value;
-      if (!(J.text || "").trim() && !J.mood) { const t2 = $("jText"); if (t2) t2.focus(); return; }
+      if (!(J.text || "").trim() && !J.mood && !J.meal) { const t2 = $("jText"); if (t2) t2.focus(); return; }
       const first = !J.sent; J.sent = J.sent || Date.now(); J.at = Date.now(); saveS();
+      if (API().mealVow) API().mealVow(k, J.meal === "r");
       applyJournal(); if (first) fx("yes"); buzz("medium"); sh.edit = false;
       after(before); writerSync(true); confessStatus(); renderSheet(); return;
     }
@@ -1615,6 +1647,7 @@
     const qp = e.target.closest("[data-dqplus]"); if (qp) { qPlus(qp.dataset.dqplus); return; }
     const nw = e.target.closest("[data-dnew]"); if (nw) { openSheet("edit", null, view); return; }
     const xb = e.target.closest("[data-dxp]"); if (xb) { openSheet("xp", null, xb.dataset.dxp); return; }
+    if (e.target.closest("[data-dsleep]") && (view || today()) === today()) { openSheet("sleep", null, today()); return; }
     const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; if (srcOf(t) === "journal" && (view || today()) <= today()) { openJournal(view); return; } openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }
@@ -1697,10 +1730,10 @@
       steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
       faith: Object.assign(faith(), { comeback: comeback() }),
       weight: { last: weightOn(t0, "last"), avg7: weightOn(t0, "avg7") },
-      journal: Object.keys(S.journal).filter((k) => k >= since(14) && jSent(k)).sort().map((k) => { const J = S.journal[k]; return { d: k, mood: J.mood ? +J.mood : null, tags: J.tags || [], text: (J.text || "").trim().slice(0, 1500) }; }),
+      journal: Object.keys(S.journal).filter((k) => k >= since(14) && jSent(k)).sort().map((k) => { const J = S.journal[k]; return { d: k, mood: J.mood ? +J.mood : null, meal: J.meal || null, tags: J.tags || [], text: (J.text || "").trim().slice(0, 1500) }; }),
       nights: Object.keys(S.night).filter((k) => k >= since(14)).sort().map((k) => { const N = S.night[k]; return { d: k, at: N.at, kind: N.kind || "", topic: N.topic || "", text: (N.text || "").slice(0, 140), dealt: N.dealt || "" }; }),
       poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
-      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null })).filter((x) => x.steps != null || x.sleepMin || x.up),
+      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       seenEvents: Object.keys(S.ev || {})
     };
@@ -1771,7 +1804,7 @@
   function stamp() {
     const n = new Date(), hm = `${p2(n.getHours())}:${p2(n.getMinutes())}`, t0 = today();
     if (!S.wake[t0] && hm >= DAWN && !isNight()) { S.wake[t0] = hm; saveS(); }
-    if (early(t0) && !S.sleep[t0]) morning(Date.now());
+    if (!S.sleep[t0] && hm >= DAWN && hm < "13:00" && !isNight()) morning(Date.now());          // ранковий звіт — щоранку, не лише до восьмої
   }
   function morning(t0) {
     const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };

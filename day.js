@@ -47,16 +47,22 @@
   /* ============================================================ СТАН ======= */
   const XP_START_DAY = "2026-10-26";       // з цього дня рахується досвід; усе раніше — у стартовому
   const START_XP = 4650;                    // посвята: рівень 7, звання «Лицар»
-  let S = LS.get("ordo.day", null); if (!S || typeof S !== "object") S = {};
-  S.tasks = S.tasks || {}; S.log = S.log || {}; S.wake = S.wake || {}; S.sleep = S.sleep || {}; S.night = S.night || {}; S.journal = S.journal || {};
-  let Q = LS.get("ordo.quests", null); if (!Q || typeof Q !== "object") Q = {};
-  Q.list = Q.list || []; Q.clock = Q.clock || {}; Q.trig = Q.trig || [];
-  let X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
-  X.e = X.e || {};
-  let ACH = LS.get("ordo.ach", {}) || {};
+  /* стан читаємо й при завантаженні скрипта, і ще раз у init(): перед стартом boot.js міг підтягнути свіжіше з іншого пристрою */
+  let S, Q, X, ACH;
+  function loadState() {
+    S = LS.get("ordo.day", null); if (!S || typeof S !== "object") S = {};
+    S.tasks = S.tasks || {}; S.log = S.log || {}; S.wake = S.wake || {}; S.sleep = S.sleep || {}; S.night = S.night || {}; S.journal = S.journal || {};
+    Q = LS.get("ordo.quests", null); if (!Q || typeof Q !== "object") Q = {};
+    Q.list = Q.list || []; Q.clock = Q.clock || {}; Q.trig = Q.trig || [];
+    X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
+    X.e = X.e || {};
+    ACH = LS.get("ordo.ach", {}) || {};
+    GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {}; GYM.w = GYM.w || {};
+  }
   let PK = LS.get("ordo.k.poker", null);                    // роздачі й сесії з бази HM3 (з компа через приватний репозиторій)
   let HL = LS.get("ordo.k.health", null);                   // кроки й сон зі «Здоровʼя» (лише на пристрої; джерело — приватний репозиторій)
-  let GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {}; GYM.w = GYM.w || {};   // w: записи тренувань «день|ціль» → { text, at, fin }
+  let GYM;                                                   // w: записи тренувань «день|ціль» → { text, at, fin }
+  loadState();
   const saveG = () => LS.set("ordo.gym", GYM);
   const saveS = () => LS.set("ordo.day", S), saveQ = () => LS.set("ordo.quests", Q), saveX = () => LS.set("ordo.xp", X), saveA = () => LS.set("ordo.ach", ACH);
 
@@ -1620,6 +1626,7 @@
   let started = false;
   function init() {
     if (started) return; started = true;
+    loadState();
     const box = $("dayBody"); if (box) { box.addEventListener("click", onBody); box.addEventListener("pointerup", onBodyTouch); }
     const sc = $("scrim"); if (sc) sc.addEventListener("click", () => { if (sh) closeSheet(); });
     const seed = (D().DAY || {}).seed;

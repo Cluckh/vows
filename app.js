@@ -2034,18 +2034,13 @@ window.ORDO_START = function () {
   if ("serviceWorker" in navigator) {
     const sw = navigator.serviceWorker;
     let hadCtl = !!sw.controller, reloadPending = false, reloading = false;
-    const calm = () => {
-      const intro = $("intro"), a = document.activeElement;
-      return !queueBusy && (!intro || intro.hasAttribute("hidden")) && !document.querySelector(".sheet.open, .confirm.open, .rite.open, .hall.open")
-        && !(a && /^(INPUT|TEXTAREA)$/.test(a.tagName));
-    };
     const reloadNow = () => { if (reloading) return; reloading = true; location.reload(); };
     sw.addEventListener("controllerchange", () => {
       if (!hadCtl) { hadCtl = true; return; }   // перша установка — сторінка вже свіжа
-      if (document.visibilityState === "hidden" || calm()) reloadNow(); else reloadPending = true;
+      if (document.visibilityState === "hidden") reloadNow(); else reloadPending = true;       // нова версія — коли згорнеш, не на очах
     });
     document.addEventListener("visibilitychange", () => {
-      if (reloadPending && (document.visibilityState === "hidden" || calm())) { reloadNow(); return; }
+      if (reloadPending && document.visibilityState === "hidden") { reloadNow(); return; }
       if (document.visibilityState === "visible") sw.getRegistration().then((r) => r && r.update()).catch(() => {});
     });
     window.addEventListener("load", () => sw.register("sw.js", { updateViaCache: "none" }).catch(() => {}));

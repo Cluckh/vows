@@ -246,9 +246,7 @@
   const backupNow = () => syncNow("force");
   /* підтягнуті дані показуємо перезапуском — але не посеред дії */
   let reloadPending = false;
-  const calm = () => { const a = document.activeElement, intro = $("intro");
-    return (!intro || intro.hasAttribute("hidden")) && !document.querySelector(".sheet.open, .confirm.open, .rite.open") && !(a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !a.classList.contains("hx-ovl")); };
-  function reloadWhenCalm() { if (document.hidden || calm()) location.reload(); else reloadPending = true; }
+  function reloadWhenCalm() { if (document.hidden) location.reload(); else reloadPending = true; }      // на очах не перезавантажуємо — коли згорнеш
 
   /* ---------------------------------------------------------------- ворота */
   function gate(html) {
@@ -502,7 +500,6 @@
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) setTimeout(checkInbox, 600);
       if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }
-      else if (reloadPending && calm()) location.reload();
       else syncNow("now");
     });
   }
@@ -536,11 +533,7 @@
     const data = await unlockContent(vault);
     if (data) {
       /* перед стартом — лише підтягнути зміни з інших пристроїв (один запит, не довше 3,5 с): вступ, квести й цитати вже будуть спільні */
-      let pre = null;
-      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) pre = await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
-      /* модулі вже прочитали стан до pull — якщо інший пристрій щось змінив, перезапуск із свіжими даними (не частіше разу на хвилину) */
-      if (pre && pre.pulled) { let last = 0; try { last = +sessionStorage.getItem("ordo.prereload") || 0; } catch (e) {}
-        if (Date.now() - last > 60e3) { try { sessionStorage.setItem("ordo.prereload", String(Date.now())); } catch (e) {} location.reload(); return; } }
+      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
       start(data); setTimeout(() => syncNow("now"), 2500);      // збереження — уже у фоні, коли Орден відкритий
       return;
     }

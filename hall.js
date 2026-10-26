@@ -398,6 +398,7 @@
   async function panic() {
     const P = D().PANIC; if (!P) return;
     show(SUPREME);
+    { const DY = window.ORDO_DAY, n = DY && DY.newsFor ? DY.newsFor("supreme") : null; if (n) { DY.heard("supreme"); if ((await say(n.t)) === "closed") return; } }
     const st = await ask(pick(P.intro), P.states.map((s) => s.t), "hall__acts--list");
     if (st === "closed") return;
     const state = P.states[st];
@@ -500,6 +501,7 @@
     if (k.talks && k.talks.length && Math.random() < 0.3) {                 // інколи хранитель сам заводить розмову
       const t = fresh("talk." + vowId, k.talks, 3); if (!(await runDialog(t.v))) return;
     } else lead = fresh("keeper." + vowId, k.lines, 6).v;
+    { const DY = window.ORDO_DAY, n = DY && DY.newsFor ? DY.newsFor(vowId) : null; if (n) { lead = n.t; DY.heard(vowId); } }      // «є що сказати» — спершу це слово від писаря
     for (;;) {
       const opts = [];
       if (k.gains && k.gains.length) opts.push(["gain", "Що мені дає цей стрік?"]);
@@ -574,6 +576,7 @@
   }
   async function summon(id, text, mode) {
     if (id === "letter") return letter(text);
+    if (id === "moment") { const DY = window.ORDO_DAY; return DY && DY.playMomentId ? DY.playMomentId(text) : null; }
     if (id === "supreme" && mode === "legend") return morningSupreme();
     const K = D().KEEPERS || {}; if (!K[id]) return;
     const v = (D().VOWS || []).find((x) => x.id === id);

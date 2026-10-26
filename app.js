@@ -489,6 +489,11 @@ window.ORDO_START = function () {
     const fd = $("footDate"); if (fd) fd.innerHTML = fmtShort(new Date()) + (VER ? `<span class="board__ver">v${VER}</span>` : "");
     const ul = $("oaths"); if (!ul) return;
     ul.innerHTML = "";
+    /* «є що сказати»: Верховний і хранителі світяться кольором рідкості свого слова; тизер — рідкісна історія чи порада, торкнись */
+    const DY = window.ORDO_DAY, nf = (id) => (DY && DY.newsFor ? DY.newsFor(id) : null);
+    const cb = $("crestBtn"); if (cb) { const n = nf("supreme"); cb.className = "crest__btn" + (n ? ` has-news rar-${n.rar}` : ""); }
+    let tz = $("teaser"); if (!tz) { tz = document.createElement("div"); tz.id = "teaser"; ul.parentNode.insertBefore(tz, ul); }
+    tz.innerHTML = DY && DY.teaserHTML ? DY.teaserHTML() : "";
     D.VOWS.forEach((v) => {
       const s = streak(v), nm = nextMilestone(s);
       const prog = nm ? Math.min(100, (s / nm) * 100) : 100;
@@ -509,7 +514,7 @@ window.ORDO_START = function () {
         `<span class="oath__icon"><svg><use href="#i-${v.icon}"></use></svg></span>` +
         `<span class="oath__body"><span class="oath__name">${v.name}</span><span class="oath__sub">${sub}</span></span>` +
         `<span class="oath__count"><span class="oath__num" data-n="${s}">${s}</span><span class="oath__unit">${daysWord(s)}</span></span>` +
-        (D.KEEPERS && D.KEEPERS[v.id] ? `<span class="oath__kp" data-kp="${v.id}" role="button" aria-label="Покликати хранителя: ${D.KEEPERS[v.id].name}"><svg><use href="#i-helm"></use></svg></span>` : "") +
+        (D.KEEPERS && D.KEEPERS[v.id] ? `<span class="oath__kp${nf(v.id) ? ` has-news rar-${nf(v.id).rar}` : ""}" data-kp="${v.id}" role="button" aria-label="Покликати хранителя: ${D.KEEPERS[v.id].name}"><svg><use href="#i-helm"></use></svg></span>` : "") +
         `<span class="oath__ring" style="width:${prog}%"></span>`;
       btn.addEventListener("click", (e) => {
         const pill = e.target.closest && e.target.closest("[data-mark]");
@@ -606,6 +611,7 @@ window.ORDO_START = function () {
   on("shKeeper", "click", () => { const id = sheetVow; closeSheet(); if (window.ORDO_HALL) setTimeout(() => window.ORDO_HALL.callKeeper(id), 320); });
   /* щит на табло — поклик Верховного храмовника */
   on("crestBtn", "click", () => { if (window.ORDO_HALL) window.ORDO_HALL.panic(); });
+  document.addEventListener("click", (e) => { const t = e.target.closest && e.target.closest("[data-tz]"); if (!t || !window.ORDO_DAY || !window.ORDO_DAY.playMomentId) return; FX.buzz("light"); window.ORDO_DAY.playMomentId(t.dataset.tz); });
 
   /* ======================================================= ВІДМІТКА ВІКНА === */
   let markVow = null, markN = 1;
@@ -2172,7 +2178,7 @@ window.ORDO_START = function () {
   });
   window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); },
     dayState, tab: () => TAB, renderTreasury, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy,
-    openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id), mealVow, mealInfo,
+    openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id), mealVow, mealInfo, renderBoard,
     goalsSync: () => { settleAll(); updateGoalsDot(); if (TAB === "goals") renderGoals(); } };
   if (window.ORDO_TREASURY) { window.ORDO_TREASURY.load(); document.addEventListener("visibilitychange", () => { if (!document.hidden) window.ORDO_TREASURY.load(); }); }
   if (window.ORDO_DAY) window.ORDO_DAY.init();

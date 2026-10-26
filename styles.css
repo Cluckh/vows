@@ -1666,3 +1666,22 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-news p{margin:6px 0 0;font-family:var(--f-serif);font-style:italic;font-size:16px;line-height:1.45;color:var(--bone)}
 .dy-news__dots{display:flex;gap:5px;margin-top:10px}
 .dy-news__dots i{width:6px;height:6px;border-radius:50%;background:var(--edge)}.dy-news__dots i.is-on{background:var(--gold)}
+/* «є що сказати»: ореол кольору рідкості біля кнопок виклику */
+@keyframes newsGlow{0%,100%{box-shadow:0 0 6px 1px color-mix(in srgb,var(--rc) 45%,transparent)}50%{box-shadow:0 0 16px 4px color-mix(in srgb,var(--rc) 75%,transparent)}}
+.crest__btn.has-news{animation:newsGlow 2.6s ease-in-out infinite}
+.crest__btn.has-news .crest__sigil{color:var(--rc)}
+.oath__kp.has-news{position:relative}
+.oath__kp.has-news svg{color:var(--rc);filter:drop-shadow(0 0 6px var(--rc))}
+.oath__kp.has-news::after{content:"";position:absolute;top:50%;left:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;animation:newsGlow 2.6s ease-in-out infinite;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.crest__btn.has-news,.oath__kp.has-news::after{animation:none;box-shadow:0 0 10px 2px color-mix(in srgb,var(--rc) 60%,transparent)}}
+.dy-news.rar-rare,.dy-news.rar-legend,.dy-news.rar-myth{border-color:color-mix(in srgb,var(--rc) 55%,transparent);box-shadow:0 0 18px color-mix(in srgb,var(--rc) 18%,transparent)}
+.dy-news.rar-rare .dy-news__fig,.dy-news.rar-legend .dy-news__fig,.dy-news.rar-myth .dy-news__fig{border-color:var(--rc)}
+.dy-news__dots i.rar-rare,.dy-news__dots i.rar-legend,.dy-news__dots i.rar-myth{background:color-mix(in srgb,var(--rc) 45%,transparent)}
+.dy-news__dots i.is-on{background:var(--rc,var(--gold))}
+/* тизер на головному: рідкісна історія чи порада — торкнись */
+.tz{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 14px;padding:10px 14px;border-radius:16px;border:1px solid color-mix(in srgb,var(--rc) 50%,transparent);background:color-mix(in srgb,var(--rc) 7%,transparent);text-align:left;animation:newsGlow 3.2s ease-in-out infinite}
+.tz__fig{flex:none;width:40px;height:40px;border-radius:50%;overflow:hidden;border:1px solid var(--rc)}
+.tz__fig img{width:100%;height:100%;object-fit:cover;object-position:50% 18%}
+.tz__b{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tz__b b{font-family:var(--f-serif);font-weight:500;font-size:16px;color:var(--bone)}
+.tz__b em{font-family:var(--f-serif);font-size:13px;color:var(--ash)}

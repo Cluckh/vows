@@ -180,7 +180,7 @@
   const early = (k) => !!(S.wake[k] && S.wake[k] >= DAWN && S.wake[k] < EARLY);
   let hAt = 0;
   async function loadHealth(force) {
-    const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - hAt < 5 * 60e3)) return;
+    const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - hAt < 60e3)) return;
     hAt = Date.now();
     try { const h = await V.readSealed("health/log.json"); if (h && h.at !== (HL && HL.at)) { HL = h; LS.set("ordo.k.health", h); applyHealth(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } } catch (e) {}
   }
@@ -1264,7 +1264,7 @@
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
         <div class="dy-f"><label>Рідкість</label><div class="dy-chips dy-chips--wrap dy-rar" data-dk="diff">${Object.keys(ECON.task).map((v) => `<button type="button" data-dv="${v}" class="rar-${v}${rarOf(d) === v ? " is-on" : ""}">${RARN[v]} · ${ECON.task[v][0]} досв · ${ECON.task[v][1]} зол</button>`).join("")}</div></div>
         <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
-        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", journal: "Відмічається сама, щойно віддаси сповідь дня.", app: (d.app && d.app.lim ? "Зараховується наступного дня, якщо за день у програмі пробув не більше ліміту." : "Зараховується сама, щойно за день набереться потрібний час у програмі.") + ` Потрібні дві автоматизації «Коли програму … Відкрито / Закрито», що шлють <b>app: ${esc((d.app && d.app.n) || "назва")}</b> та <b>ev: open</b> / <b>close</b> (event_type health). «Число» — хвилини за день.`, weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
+        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно в «Здоровʼї» є сесія Calm.", journal: "Відмічається сама, щойно віддаси сповідь дня.", app: (d.app && d.app.lim ? "Зараховується наступного дня, якщо за день у програмі пробув не більше ліміту." : "Зараховується сама, щойно за день набереться потрібний час у програмі.") + ` Потрібні дві автоматизації: «Відкрито» зберігає час у файл на телефоні, «Закрито» шле <b>app: ${esc((d.app && d.app.n) || "назва")}</b>, <b>ev: close</b> і <b>openAt</b> (event_type health). «Число» — хвилини за день.`, weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
         ${srcOf(d) === "app" ? `<div class="dy-f dy-f--row"><label>Програма</label><input class="dy-in" id="dsAN" value="${esc(appOf(d).n)}" placeholder="duolingo, youtube…" autocomplete="off" autocapitalize="off"></div>
           <div class="dy-f"><label>Скільки</label><div class="dy-chips" data-dk="alim"><button type="button" data-dv="" class="${appOf(d).lim ? "" : "is-on"}">щонайменше</button><button type="button" data-dv="1" class="${appOf(d).lim ? "is-on" : ""}">не більше</button></div></div>
           ${d.type === "count" ? "" : `<div class="dy-f dy-f--row"><label>Хвилин</label><input class="dy-in dy-in--n" id="dsAM" inputmode="numeric" value="${appOf(d).min}"><span class="dy-unit">${appOf(d).lim ? "на день, 0 — не відкривати" : "на день"}</span></div>`}` : ""}
@@ -1763,6 +1763,7 @@
     render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); applyHealth(); settle(); render(); } }, 60000);
+    setInterval(() => { if (!document.hidden) loadHealth(); }, 90e3);                 // поки Орден відкритий — кроки й хвилини з телефона підтягуються самі
     document.addEventListener("visibilitychange", () => { if (!document.hidden) { carryOver(); confessStatus(); stamp(); loadHealth(); afterPhoneSync(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);
   }

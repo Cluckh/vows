@@ -27,7 +27,12 @@
   const DROP = { rare: 0.15, legend: 0.4, myth: 1 };          // шанс реліквії за виконаний квест
   const BLESS = 0.05;
   const CHEST_Q = 0.12;                                        // шанс несподіваної скрині за виконаний квест (писар може дати й напевно: chest: true)                                          // базовий шанс благословення
-  const SLOTS = 3;
+  /* місця для реліквій: 3, далі — за званням (D.PERKS.slots: Лицар Хреста — 4-те, Маршал — 5-те) */
+  const rankIdx = () => { const Dy = DAY(), lv = Dy && Dy.levelOf ? Dy.levelOf() : null; return lv ? lv.ri : 0; };
+  const slots = () => 3 + ((D().PERKS || {}).slots || []).filter((x) => rankIdx() >= x.rank).length;
+  const rankName = (i) => { const Dy = DAY(), R = Dy && Dy.ranks ? Dy.ranks() : []; return (R[i] || {}).name || ""; };
+  /* крамниця: базові товари + те, що відкриває звання (D.PERKS.shop) */
+  const shopItems = () => SHOP.concat(((D().PERKS || {}).shop || []).map((x) => Object.assign({ perk: 1 }, x)));
   const SHOP = [
     { id: "chest", n: "Скриня Сенешаля", p: 150, d: "Що всередині — не знає навіть Орест: золото, жетони, реліквія… а інколи й скарб." },
     { id: "reroll", n: "Жетон перекидання", p: 60, d: "Не твоє доручення? Попроси в храмовника інше." },
@@ -54,7 +59,7 @@
   }
   if (purge(G)) save();
   /* жетони й скриня — іконками, не емодзі */
-  const TKN = { reroll: "reroll", extend: "hourglass", chest: "chest" };
+  const TKN = { reroll: "reroll", extend: "hourglass", chest: "chest", breath: "breath", rest: "moon", cmdchest: "chest" };
   const tkIc = (kind, cls) => `<span class="gd-tk gd-tk--${kind}${cls ? " " + cls : ""}"><svg><use href="#i-${TKN[kind] || kind}"/></svg></span>`;
   const coin = (cls) => `<svg class="gd-coin${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6.5"/><path d="M12 8.5v7M9.5 12h5"/></svg>`;
   const gem = (r, cls) => `<svg class="rl-gem rl-gem--${r}${cls ? " " + cls : ""}" viewBox="0 0 48 48" aria-hidden="true"><path class="rl-g1" d="M24 4 41 16 34 42H14L7 16Z"/><path class="rl-g2" d="M7 16h34M24 4l-7 12 7 26 7-26-7-12M14 42l3-26M34 42l-3-26"/></svg>`;
@@ -107,7 +112,7 @@
       return { dup: true, id, g };
     }
     G.own[id] = { at: Date.now(), src };
-    if (G.eq.length < SLOTS) { G.eq.push(id); G.eqAt = Date.now(); }
+    if (G.eq.length < slots()) { G.eq.push(id); G.eqAt = Date.now(); }
     return { id };
   }
   /* випадкова реліквія з тих, яких ще нема (без таємних — ті тільки за подвиги); рідкість не вища за maxR, частіше — саме maxR */
@@ -170,9 +175,11 @@
       else if (lv.L > G.lv) {
         for (let L = G.lv + 1; L <= lv.L; L++) {
           const g = 50 + 10 * L; G.inc["lv:" + L] = { at: Date.now(), amt: g, why: `рівень ${L}` };
-          const up = { level: L, rank: L === lv.L ? lv.rank.name : "", g, newRank: L === lv.L && lv.ri > (G.ri || 0) };
+          const up = { level: L, rank: L === lv.L ? lv.rank.name : "", g, newRank: L === lv.L && lv.ri > (G.ri || 0), page: L <= 30 ? L : null };
+          if (L % 2 === 1) { const kd = L % 4 === 1 ? "reroll" : "extend"; G.tk["lv:" + L] = { kind: kd, d: 1, at: Date.now() }; up.token = kd; } else up.lvChest = true;   // непарний — жетон, парний — скриня
           if (up.newRank) { const id = randomRelic(lv.ri >= 6 ? "legend" : "rare", "rank" + lv.ri); if (id) { const r = grant(id, `звання «${lv.rank.name}»`); if (r && !r.dup) up.relic = id; } }
           reveals.push(up);
+          if (up.lvChest) freeChest("lv:" + L, `За ${L}-й рівень`, "Скриня рівня");
         }
         G.lv = lv.L; G.ri = lv.ri; ch = true;
       }
@@ -249,9 +256,12 @@
      розшифровані кешуються на пристрої (Cache Storage), відсутні — не питаємо частіше ніж раз на 6 год */
   const ART = {};
   /* медалі-нагороди артом: Літопис просить ті, що на екрані; вантажаться у фоні й лягають у кеш (256 px — легкі) */
-  const ACHW = new Set(); let achT = null;
+  /* будь-який арт за ключем «вид:id» (ach, rank, chron, shop, game, book, scene): екран просить — вантажиться у фоні, далі подія ordo-art */
+  const WANT = new Set(); let wantT = null;
+  const artKey = (key) => ART[key] || null;
+  function want(keys) { let n = 0; keys.forEach((k) => { if (k && !ART[k] && !WANT.has(k)) { WANT.add(k); n++; } }); if (n) { clearTimeout(wantT); const go = () => { if (artBusy) wantT = setTimeout(go, 800); else loadArts(); }; wantT = setTimeout(go, 500); } }
   const achArt = (id) => ART["ach:" + id] || null;
-  function wantAch(ids) { let n = 0; ids.forEach((id) => { if (!ART["ach:" + id] && !ACHW.has(id)) { ACHW.add(id); n++; } }); if (n) { clearTimeout(achT); achT = setTimeout(loadArts, 600); } }
+  const wantAch = (ids) => want(ids.map((id) => "ach:" + id));
   const artName = (kind, id) => { let h = 2166136261; const s = kind + ":" + id; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
   let artBusy = false;
   const SCENES = ["chest", "chestc", "shop", "treasury", "levelup", "night", "weekchest"];
@@ -268,14 +278,14 @@
   async function loadArts() {
     const V = window.ORDO_VAULT; if (artBusy || !V || !V.readSealedBlob) return;
     const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(SCENES.filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]))
-      .concat([...ACHW].filter((x) => !ART["ach:" + x]).map((x) => ["ach", x]));
+      .concat([...WANT].filter((k) => !ART[k]).map((k) => [k.slice(0, k.indexOf(":")), k.slice(k.indexOf(":") + 1)]));
     if (!want.length) return;
     artBusy = true; let ch = false;
     try {
       let cache = null; try { cache = await caches.open("ordo-art"); } catch (e) {}
       const miss = LS.get("ordo.k.artMiss", {});
       for (const [kind, id0] of want) {
-        const id = kind === "scene" || kind === "ach" ? kind + ":" + id0 : id0, n = artName(kind, id0), key = new Request(`${location.origin}/__art/${n}`);
+        const id = kind === "relic" ? id0 : kind + ":" + id0, n = artName(kind, id0), key = new Request(`${location.origin}/__art/${n}`);
         let blob = null;
         if (cache) { const r = await cache.match(key); if (r) blob = await r.blob(); }
         if (!blob && !(miss[n] && Date.now() - miss[n] < 6 * 3600e3)) {
@@ -286,7 +296,7 @@
       }
       LS.set("ordo.k.artMiss", miss);
     } finally { artBusy = false; }
-    if (ch && want.some(([k]) => k === "ach")) { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); }
+    if (ch && want.some(([k]) => k !== "relic" && k !== "scene")) { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); try { window.dispatchEvent(new Event("ordo-art")); } catch (e) {} }
     if (ch) { refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); } }
   }
   const face = (r, cls) => ART[r.id] ? `<img class="rl-img${cls ? " " + cls : ""}" src="${ART[r.id]}" alt="">` : gem(r.rar, cls);
@@ -316,7 +326,7 @@
     if (relics().length) {
       const own = relics().filter((r) => G.own[r.id]);
       h += `<section class="st-sec rl"><div class="st-h">Реліквії <em class="rl-n">${own.length} / ${relics().length}</em></div>
-        <div class="rl-slots">${[0, 1, 2].map((i) => { const r = relic(G.eq[i]); return r ? `<button type="button" class="rl-slot is-on rl--${r.rar}" data-rl="${r.id}">${face(r)}<b>${esc(r.n)}</b><span>${esc(bonusText(r.bonus))}</span></button>` : `<div class="rl-slot"><i>порожньо</i></div>`; }).join("")}</div>
+        <div class="rl-slots${slots() > 3 ? " rl-slots--" + slots() : ""}">${Array.from({ length: slots() }, (_, i) => i).map((i) => { const r = relic(G.eq[i]); return r ? `<button type="button" class="rl-slot is-on rl--${r.rar}" data-rl="${r.id}">${face(r)}<b>${esc(r.n)}</b><span>${esc(bonusText(r.bonus))}</span></button>` : `<div class="rl-slot"><i>порожньо</i></div>`; }).join("")}</div>
         <div class="rl-grid">${relics().map((r) => G.own[r.id] ? `<button type="button" class="rl-cell rl--${r.rar}${G.eq.includes(r.id) ? " is-eq" : ""}" data-rl="${r.id}" title="${esc(r.n)}">${face(r)}</button>`
           : `<button type="button" class="rl-cell is-locked rl--${r.rar}" data-rlx="${r.id}" title="${r.secret ? "таємна" : "ще не знайдена"}"><span>${r.secret ? "?" : ""}</span></button>`).join("")}</div>
         <p class="tr-at">реліквії випадають за квести, зі скринь і за таємні подвиги. Активних — три</p></section>`;
@@ -359,7 +369,8 @@
     } else if (m === "shop") {
       el.innerHTML = `${grip}<div class="gs-kicker">Крамниця Сенешаля</div>${ART["scene:shop"] ? `<img class="gd-scene" src="${ART["scene:shop"]}" alt="">` : ""}<div class="sheet__title dy-sht">«Чесно зароблене — чесно й витрачай»</div>
         <p class="dy-note">У тебе ${coin()}<b>${fmtN(b)}</b></p>
-        <ul class="gd-shop">${SHOP.map((it) => `<li>${tkIc(it.id)}<div><b>${esc(it.n)}</b><span>${esc(it.d)}</span></div><button type="button" class="btn btn--line" data-gdbuy="${it.id}" ${b >= it.p ? "" : "disabled"}>${coin()} ${it.p}</button></li>`).join("")}</ul>
+        <ul class="gd-shop">${shopItems().map((it) => { const lock = it.perk && rankIdx() < it.rank;
+          return `<li class="${lock ? "is-lock" : ""}">${tkIc(it.id)}<div><b>${esc(it.n)}</b><span>${lock ? `відкриється зі званням «${esc(rankName(it.rank))}»` : esc(it.d)}</span></div><button type="button" class="btn btn--line" data-gdbuy="${it.id}" ${!lock && b >= it.p ? "" : "disabled"}>${lock ? `<svg class="gd-lock"><use href="#i-lock"/></svg>` : `${coin()} ${it.p}`}</button></li>`; }).join("")}</ul>
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
     } else if (m === "chest") {
       el.innerHTML = `${grip}<div class="gs-kicker">${esc((arg && arg.kicker) || "Скриня Сенешаля")}</div><div class="gd-chest${ART["scene:chestc"] ? " has-art" : ""}">${ART["scene:chestc"] ? `<img src="${ART["scene:chestc"]}" alt=""><i class="gd-chest__light"></i>` : ""}<svg viewBox="0 0 64 64" aria-hidden="true"><path class="ch-b" d="M8 30h48v24H8z"/><path class="ch-l" d="M8 30c0-12 10-18 24-18s24 6 24 18z"/><path class="ch-s" d="M8 30h48M30 26h4v10h-4z"/></svg></div><p class="dy-note dy-note--t gd-chest__why">${esc((arg && arg.why) || "Сенешаль відмикає замок…")}</p>`;
@@ -369,8 +380,8 @@
       const r = relic(arg), on = G.eq.includes(r.id);
       el.innerHTML = `${grip}<div class="gs-kicker rl-k--${r.rar}">${RN[r.rar]} реліквія</div><div class="rl-big rl--${r.rar}">${face(r, "rl-face")}</div>
         <div class="sheet__title dy-sht">${esc(r.n)}</div><p class="rl-bonus">${esc(bonusText(r.bonus))}</p><p class="dy-note dy-note--t rl-lore">${esc(r.lore)}</p>
-        ${on ? `<button type="button" class="btn btn--line" data-rleq="${r.id}">Зняти</button>` : G.eq.length < SLOTS ? `<button type="button" class="btn btn--gold" data-rleq="${r.id}">Носити</button>`
-          : `<p class="dy-note">Усі три місця зайняті — обери, що зняти:</p><div class="dy-chips dy-chips--wrap">${G.eq.map((x) => `<button type="button" data-rlswap="${r.id}|${x}">${esc(relic(x).n)}</button>`).join("")}</div>`}
+        ${on ? `<button type="button" class="btn btn--line" data-rleq="${r.id}">Зняти</button>` : G.eq.length < slots() ? `<button type="button" class="btn btn--gold" data-rleq="${r.id}">Носити</button>`
+          : `<p class="dy-note">Усі ${slots()} місця зайняті — обери, що зняти:</p><div class="dy-chips dy-chips--wrap">${G.eq.map((x) => `<button type="button" data-rlswap="${r.id}|${x}">${esc(relic(x).n)}</button>`).join("")}</div>`}
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
     } else if (m === "locked") {
       const r = relic(arg);
@@ -382,6 +393,9 @@
         <div class="lv-big">${arg.level}</div><div class="sheet__title dy-sht">${arg.newRank ? `Нове звання — «${esc(arg.rank)}»` : `Рівень ${arg.level}`}</div>
         <p class="dy-note dy-note--t">${arg.newRank ? "Капітул вписує нове звання в книгу Ордену. Слово тримав — і слово тримає тебе." : "Орден відзначає ще одну сходинку."}</p>
         <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — <span class="rw rw--${relic(arg.relic).rar}">«${esc(relic(arg.relic).n)}»</span></p>` : ""}
+        ${arg.token ? `<p class="rl-bonus">і ${tkIc(arg.token)} жетон ${arg.token === "reroll" ? "перекидання" : "відстрочки"}</p>` : arg.lvChest ? `<p class="rl-bonus">і ${tkIc("chest")} скриня — відкриється слідом</p>` : ""}
+        ${arg.newRank ? perkLine(rankIdx()) : ""}
+        ${arg.page ? `<button type="button" class="btn btn--line" data-gd="chron" data-l="${arg.page}">Нова сторінка хроніки Ордену</button>` : ""}
         <button type="button" class="btn btn--gold" data-gd="close">${arg.relic ? "Подивитися реліквію" : "Прийняти"}</button>`;
         if (arg.relic) reveals.unshift({ id: arg.relic, why: `За звання «${arg.rank}»` });
         return; }
@@ -395,7 +409,7 @@
       else if (arg.dup) el.innerHTML = `${grip}<div class="gs-kicker">Реліквія</div><div class="sheet__title dy-sht">${esc(relic(arg.id).n)} — уже є</div><p class="dy-note dy-note--t">Сенешаль переплавив дублікат: <b>+${fmtN(arg.g)}</b> золота.</p><button type="button" class="btn btn--gold" data-gd="close">Добре</button>`;
       else { const r = relic(arg.id); el.innerHTML = `${grip}<div class="gs-kicker rl-k--${r.rar}">нова ${RN[r.rar]} реліквія</div><div class="rl-big rl--${r.rar} is-new">${face(r, "rl-face")}</div>
         <div class="sheet__title dy-sht">${esc(r.n)}</div><p class="rl-bonus">${esc(bonusText(r.bonus))}</p><p class="dy-note dy-note--t rl-lore">${esc(r.lore)}</p>${arg.why ? `<p class="tr-at">${esc(arg.why)}</p>` : ""}
-        <p class="dy-note">${G.eq.includes(r.id) ? "Уже на тобі — одне з трьох місць." : "Усі три місця зайняті — можна замінити в колекції."}</p><button type="button" class="btn btn--gold" data-gd="close">Прийняти</button>`; }
+        <p class="dy-note">${G.eq.includes(r.id) ? `Уже на тобі — одне з ${slots()} місць.` : `Усі ${slots()} місця зайняті — можна замінити в колекції.`}</p><button type="button" class="btn btn--gold" data-gd="close">Прийняти</button>`; }
     }
   }
   const LR = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
@@ -408,10 +422,16 @@
   }
   /* скриня: звичайний випадок (Math.random) — здобич записується в синхронізовану книгу */
   /* seed — для дарованих скринь (квест, сцена): та сама здобич на всіх пристроях; куплена — звичайний випадок */
-  function openChest(seed, key) {
+  function openChest(seed, key, cmd) {
     const rnd = seed ? (s) => roll(seed + s) : () => Math.random(), x = rnd("x"), id = key || "c" + Date.now().toString(36);
     let L;
-    if (x < 0.01) L = { kind: "gold", g: 1500, jack: true };
+    if (cmd) {                                                   // Скриня Командора: без дрібного золота, реліквія частіше, скарб — удвічі ймовірніший
+      if (x < 0.02) L = { kind: "gold", g: 1500, jack: true };
+      else if (x < 0.20) L = { kind: "gold", g: 250 + Math.floor(rnd("g") * 251) };
+      else if (x < 0.70) { const rr = rnd("r"), R = rr < 0.03 ? "myth" : rr < 0.2 ? "legend" : rr < 0.6 ? "rare" : "common", rid = randomRelic(R); L = rid ? { kind: "relic", id: rid } : { kind: "gold", g: 300 }; }
+      else if (x < 0.85) L = { kind: "token", t: rnd("t") < 0.5 ? "reroll" : "extend" };
+      else L = { kind: "gold", g: 150 + Math.floor(rnd("g") * 151) };
+    } else if (x < 0.01) L = { kind: "gold", g: 1500, jack: true };
     else if (x < 0.10) L = { kind: "gold", g: 250 + Math.floor(rnd("g") * 251) };
     else if (x < 0.35) { const rr = rnd("r"), R = rr < 0.01 ? "myth" : rr < 0.1 ? "legend" : rr < 0.4 ? "rare" : "common", rid = randomRelic(R, seed ? seed + "p" : undefined); L = rid ? { kind: "relic", id: rid } : { kind: "gold", g: 150 }; }
     else if (x < 0.50) L = { kind: "token", t: "reroll" };
@@ -444,22 +464,29 @@
     reveals.push({ chest: L, why, kicker: kicker || "Дарована скриня" }); setTimeout(nextReveal, 900);
     return true;
   }
+  /* що відкрило звання: місце для реліквії, товар у крамниці */
+  function perkLine(ri) {
+    const P = D().PERKS || {}, sl = (P.slots || []).find((x) => x.rank === ri), sh = (P.shop || []).filter((x) => x.rank === ri);
+    const bits = [].concat(sl ? [`${sl.n}-те місце для реліквії`] : []).concat(sh.map((x) => `у крамниці — «${x.n}»`));
+    return bits.length ? `<p class="rl-bonus">Звання відкрило: ${bits.map(esc).join(" · ")}</p>` : "";
+  }
   function onSheet(e) {
     const v = e.target.closest("[data-gdv]"); if (v) { amt = +v.dataset.gdv; render("out"); return; }
     const buy = e.target.closest("[data-gdbuy]");
     if (buy) {
-      const it = SHOP.find((s) => s.id === buy.dataset.gdbuy); if (!it || balance() < it.p) return;
+      const it = shopItems().find((s) => s.id === buy.dataset.gdbuy); if (!it || balance() < it.p || (it.perk && rankIdx() < it.rank)) return;
       G.out["s" + Date.now().toString(36)] = { at: Date.now(), amt: it.p, kind: "shop", st: "done", item: it.n };
-      if (it.id === "chest") { save(); const L = openChest(); render("chest"); fx("open"); chestPlay(L); return; }
+      if (it.id === "chest" || it.id === "cmdchest") { save(); const cmd = it.id === "cmdchest", L = openChest(null, null, cmd); render("chest", cmd ? { kicker: "Скриня Командора", why: "Орест знімає печатку з короною…" } : null); fx("open"); chestPlay(L, cmd ? { kicker: "Скриня Командора" } : null); return; }
       G.tk["t" + Date.now().toString(36)] = { kind: it.id, d: 1, at: Date.now() }; save(); fx("yes"); render("shop"); return;
     }
     const eq = e.target.closest("[data-rleq]");
-    if (eq) { const id = eq.dataset.rleq; G.eq = G.eq.includes(id) ? G.eq.filter((x) => x !== id) : G.eq.concat(id).slice(0, SLOTS); G.eqAt = Date.now(); save(); fx("yes"); render("relic", id); return; }
+    if (eq) { const id = eq.dataset.rleq; G.eq = G.eq.includes(id) ? G.eq.filter((x) => x !== id) : G.eq.concat(id).slice(0, slots()); G.eqAt = Date.now(); save(); fx("yes"); render("relic", id); return; }
     const sw = e.target.closest("[data-rlswap]");
     if (sw) { const [nid, old] = sw.dataset.rlswap.split("|"); G.eq = G.eq.map((x) => (x === old ? nid : x)); G.eqAt = Date.now(); save(); fx("yes"); render("relic", nid); return; }
     const b = e.target.closest("[data-gd]"); if (!b) return;
     const a = b.dataset.gd;
     if (a === "close") { close(); return; }
+    if (a === "chron") { const L = +b.dataset.l; close(); setTimeout(() => { const Dy = DAY(); if (Dy && Dy.openChron) Dy.openChron(L); }, 420); return; }
     if (a === "ok") {
       if (!(amt > 0 && amt <= balance())) return;
       G.out["o" + Date.now().toString(36)] = { at: Date.now(), amt, kind: "white", st: "pending" }; save();
@@ -474,8 +501,8 @@
     if (document.hidden || document.querySelector(".sheet.open, .hall.open, .rite.open, .confirm.open") || (intro && !intro.hasAttribute("hidden"))) { revealT = setTimeout(nextReveal, 4000); return; }
     const nx = reveals[0];
     if (nx && nx.id && !nx.dup && !ART[nx.id] && !nx.waited) { nx.waited = 1; loadArts(); revealT = setTimeout(nextReveal, 2500); return; }   // спершу — справжній арт
-    if (nx.chest) { reveals.shift(); show("chest", { why: nx.why, kicker: nx.kicker }); chestPlay(nx.chest, { kicker: nx.kicker }); return; }
-    if (nx.loot) { reveals.shift(); show("loot", Object.assign({}, nx.loot, { kicker: nx.kicker })); fx("yes"); return; }
+    if (nx.chest && typeof nx.chest === "object") { reveals.shift(); show("chest", { why: nx.why, kicker: nx.kicker }); chestPlay(nx.chest, { kicker: nx.kicker }); return; }
+    if (nx.loot && typeof nx.loot === "object") { reveals.shift(); show("loot", Object.assign({}, nx.loot, { kicker: nx.kicker })); fx("yes"); return; }
     show("reveal", reveals.shift()); fx("date");
   }
   /* швидка звірка з банком. Орден не бачить переказу, доки GitHub не стягне свіжу виписку з монобанку (~40–60 с на запит),
@@ -518,5 +545,5 @@
   setTimeout(loadArts, 5000);
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, art: artKey, want };
 })();

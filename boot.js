@@ -190,6 +190,16 @@
       if (window.ORDO_GOLD && window.ORDO_GOLD.purge) window.ORDO_GOLD.purge(G2);      // тестові покупки 26.10 не воскресають з іншого пристрою
       out["ordo.gold"] = JSON.stringify(G2);
     }
+    /* Зброярня й бібліотека: правки вправ, ігор і книжок — новіша за часом (mt); вибір дня A/B — новіший */
+    const byMt = (x, y) => { const o = Object.assign({}, y, x); Object.keys(y || {}).forEach((k) => { if (x && x[k] && ((y[k] || {}).mt || 0) > ((x[k] || {}).mt || 0)) o[k] = y[k]; }); return o; };
+    if (L["ordo.arm"] || R["ordo.arm"]) {
+      const a = P(L, "ordo.arm", {}), b = P(R, "ordo.arm", {}), next = ((b.next || {}).at || 0) > ((a.next || {}).at || 0) ? b.next : a.next || b.next;
+      out["ordo.arm"] = JSON.stringify(Object.assign({}, b, a, { ex: byMt(a.ex || {}, b.ex || {}), next }));
+    }
+    if (L["ordo.lib"] || R["ordo.lib"]) {
+      const a = P(L, "ordo.lib", {}), b = P(R, "ordo.lib", {});
+      out["ordo.lib"] = JSON.stringify(Object.assign({}, b, a, { games: byMt(a.games || {}, b.games || {}), books: byMt(a.books || {}, b.books || {}) }));
+    }
     if (L["ordo.books"] || R["ordo.books"]) {          // книжки: опис — новіша правка; сторінка дня — новіший запис; поточна — новіший вибір
       const a = P(L, "ordo.books", {}), b = P(R, "ordo.books", {}), list = Object.assign({}, b.list, a.list), log = {};
       Object.keys(b.list || {}).forEach((id) => { if (a.list && a.list[id] && (b.list[id].mt || 0) > (a.list[id].mt || 0)) list[id] = b.list[id]; });

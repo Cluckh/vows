@@ -712,6 +712,7 @@ window.ORDO_START = function () {
     if (name === "treasury") renderTreasury();
     if (name === "goals") renderGoals();
     if (name === "day" && window.ORDO_DAY) window.ORDO_DAY.shown();
+    if (name === "armory" && window.ORDO_ARM) window.ORDO_ARM.renderArmory();
     window.scrollTo(0, 0);
     FX.play("tab", true); FX.buzz("light");
   }
@@ -805,6 +806,9 @@ window.ORDO_START = function () {
   }
 
   /* Скарбниця: золото Ордену, реліквії, крамниця — і книга банку */
+  /* Бібліотека Ордену — вхід з Літопису: прочитане й пройдене */
+  const libLink = () => { const R = window.ORDO_ARM; if (!R || !R.counts) return ""; const c = R.counts();
+    return `<button type="button" class="lb-open" data-lib><svg><use href="#i-books"/></svg><span><b>Бібліотека</b><em>книжок прочитано ${c.books} · ігор пройдено ${c.games}</em></span><i>›</i></button>`; };
   const tzHTML = (place) => (window.ORDO_DAY && window.ORDO_DAY.teaserHTML ? window.ORDO_DAY.teaserHTML(place) : "");
   function renderTreasury() {
     const box = $("treasuryBody"); if (!box) return;
@@ -816,7 +820,7 @@ window.ORDO_START = function () {
     const seg = `<div class="st-seg" role="tablist">
       <button type="button" data-mode="month" class="${statsMode === "month" ? "is-on" : ""}">Місяць</button>
       <button type="button" data-mode="year" class="${statsMode === "year" ? "is-on" : ""}">Рік</button></div>`;
-    box.innerHTML = tzHTML("chronicle") + chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
+    box.innerHTML = tzHTML("chronicle") + chronicler() + libLink() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
     on("stPrev", "click", () => { if (statsMode === "year") statsYearOff--; else statsOffset--; renderStats(); FX.buzz("light"); });
     on("stNext", "click", () => {
       if (statsMode === "year") { if (statsYearOff < 0) statsYearOff++; } else if (statsOffset < 0) statsOffset++;
@@ -1074,6 +1078,9 @@ window.ORDO_START = function () {
   /* автозакриття лічильників, етапів і обітниць (та відкат, якщо значення зменшили) */
   function settle(it, kind, key) {
     const t = tyOf(it);
+    if (t === "once" && !it.done && window.ORDO_ARM && window.ORDO_ARM.gameDoneFor) {          // «Пройти Elden Ring…» — гру позначено пройденою в бібліотеці
+      const g = window.ORDO_ARM.gameDoneFor(it.t); if (g && /пройти|пройду|подолати|закрити|добити/i.test(it.t || "")) { it.done = g.d || todayKey(); it.auto = 1; logPush({ k: "goal", gid: it.id, kind, key, t: it.t, d: it.done }); return true; }
+    }
     if (t === "once" || t === "measure") return false;
     const c = complete(it);
     if (c && !it.done) { it.done = todayKey(); logPush({ k: "goal", gid: it.id, kind, key, t: it.t, d: it.done }); return true; }
@@ -1082,12 +1089,16 @@ window.ORDO_START = function () {
   }
   /* звідки місячна чи річна ціль бере число: вручну, з привʼязаних денних цілей, зі «Здоровʼя» (кроки, медитації, вага) чи з HM3.
      Старі цілі без поля src — за назвою */
-  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації", faith: "дні вірності", journal: "сповіді", pages: "сторінки" },
+  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації", faith: "дні вірності", journal: "сповіді", pages: "сторінки", gym: "зали", cardio: "кардіо", books: "дочитані книжки", games: "пройдені ігри" },
                  measure: { "": "вручну", steps: "кроки (середнє)", poker: "роздачі (середнє)", weight: "вага", jar: "скарбничка" } };
   function goalSrc(it) {
     if (it.src != null) return it.src;
     if (it.link && it.link.length) return "link";
     const s = it.t || "";
+    if (tyOf(it) === "count" && /кардіо/i.test(s)) return "cardio";
+    if (tyOf(it) === "count" && /(^|[^а-яіїєґ])зал(ів|и|у)?([^а-яіїєґ]|$)|тренуван/i.test(s)) return "gym";
+    if (tyOf(it) === "count" && /книж|книг/i.test(s) && !/сторін/i.test(s)) return "books";
+    if (tyOf(it) === "count" && /(^|[^а-яіїєґ])ігор|(^|[^а-яіїєґ])ігри|пройти \d+ ігр/i.test(s)) return "games";
     return /сторін/i.test(s) && tyOf(it) === "count" ? "pages" : /крок/i.test(s) ? "steps" : /роздач/i.test(s) ? "poker" : /медит|calm/i.test(s) ? "mind" : tyOf(it) === "measure" && /ваг/i.test(s) ? "weight" : "";
   }
   const periodOf = (key) => key.length === 4 ? [`${key}-01-01`, `${key}-12-31`] : [`${key}-01`, `${key}-${pad(daysIn(key))}`];
@@ -1099,6 +1110,7 @@ window.ORDO_START = function () {
     if (src === "faith") return t === "count" && DY.faithCount ? DY.faithCount(a, b) : null;
     if (src === "journal") return t === "count" && DY.journalCount ? DY.journalCount(a, b) : null;
     if (src === "pages") return t === "count" && DY.periodPages ? DY.periodPages(a, b) : null;
+    if (src === "gym" || src === "cardio" || src === "books" || src === "games") { const R = window.ORDO_ARM; return t === "count" && R && R.count ? R.count(src, a, b) : null; }
     if (src === "weight") return t === "measure" ? DY.weightOn(b < todayKey() ? b : todayKey(), it.wmode || "avg7") : null;
     if (src === "jar") { const T = window.ORDO_TREASURY, acc = T && T.accs && T.accs().find((x) => x.label === it.jar); return t === "measure" && acc ? Math.round(acc.bal) / 100 : null; }
     const f = { steps: DY.periodSteps, poker: DY.periodHands, mind: DY.periodMind }[src], ps = f && f(key);
@@ -1116,9 +1128,9 @@ window.ORDO_START = function () {
      «Дочитати 2 томи Темні віки» — закривається, коли дочитано стільки книжок цієї серії */
   /* етапи з даними: числова частина бере джерело з назви, як ціль-лічильник («300 сторінок» — полиця, «100к кроків», «20к роздач»,
      «10 медитацій», «20 сповідей», «25 днів вірності»); сторінки до привʼязки — база. «Дочитати 2 томи Темні віки» — з полиці книжок */
-  const PSRC = { pages: "сторінки з полиці", steps: "кроки", poker: "роздачі", mind: "медитації", journal: "сповіді", faith: "дні вірності" };
+  const PSRC = { pages: "сторінки з полиці", steps: "кроки", poker: "роздачі", mind: "медитації", journal: "сповіді", faith: "дні вірності", gym: "зали", cardio: "кардіо" };
   const partSrc = (p) => !p.target ? "" : p.src != null ? p.src : /сторін/i.test(p.t || "") ? "pages" : /крок/i.test(p.t || "") ? "steps" : /роздач/i.test(p.t || "") ? "poker"
-    : /медит|calm/i.test(p.t || "") ? "mind" : /сповід/i.test(p.t || "") ? "journal" : /вірн/i.test(p.t || "") ? "faith" : "";
+    : /медит|calm/i.test(p.t || "") ? "mind" : /сповід/i.test(p.t || "") ? "journal" : /вірн/i.test(p.t || "") ? "faith" : /кардіо/i.test(p.t || "") ? "cardio" : /(^|[^а-яіїєґ])зал|тренуван/i.test(p.t || "") ? "gym" : "";
   const pagesPart = (p) => partSrc(p) === "pages", bookPart = (p) => !p.target && /дочит|прочит/i.test(p.t || "");
   function partsFill(it, key) {
     const DY = window.ORDO_DAY; if (tyOf(it) !== "stages" || !DY || !DY.periodPages) return;
@@ -2013,7 +2025,7 @@ window.ORDO_START = function () {
 
   /* вкладки свайпом: справа наліво — наступна, зліва направо — попередня */
   {
-    const ORDER = ["board", "day", "stats", "goals", "treasury"], frame = document.querySelector(".frame");
+    const ORDER = ["board", "day", "armory", "stats", "goals", "treasury"], frame = document.querySelector(".frame");
     let t = null;
     const viewEl = () => document.querySelector(".view.is-on");
     const blocked = (el) => !!el.closest('input, textarea, select, [data-noswipe], .hall, .kc, .rite, .sheet, .confirm') ||

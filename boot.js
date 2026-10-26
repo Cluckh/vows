@@ -177,6 +177,11 @@
       }).filter((q) => q.st !== "offer" || offers[`${q.offerOn}|${q.rar}`] === q.id);
       out["ordo.quests"] = JSON.stringify({ list, clock, trig: [...new Set([].concat(a.trig || [], b.trig || []))] });
     }
+    if (L["ordo.gold"] || R["ordo.gold"]) {            // золото: виведення й покупки — обʼєднуємо; «прийшло» сильніше за «скасовано», а те — за «в дорозі»
+      const a = P(L, "ordo.gold", {}), b = P(R, "ordo.gold", {}), go = Object.assign({}, b.out, a.out), rk = { done: 3, cancel: 2, pending: 1 };
+      Object.keys(b.out || {}).forEach((k) => { if (a.out && a.out[k] && (rk[b.out[k].st] || 0) > (rk[a.out[k].st] || 0)) go[k] = b.out[k]; });
+      out["ordo.gold"] = JSON.stringify(Object.assign({}, b, a, { out: go }));
+    }
     if (L["ordo.xp"] || R["ordo.xp"]) {
       const a = P(L, "ordo.xp", {}), b = P(R, "ordo.xp", {});
       out["ordo.xp"] = JSON.stringify(Object.assign({}, b, a, { e: Object.assign({}, b.e, a.e), knighted: a.knighted || b.knighted }));

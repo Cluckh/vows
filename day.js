@@ -941,6 +941,7 @@
     res.fresh.forEach((a, i) => setTimeout(() => { toast(`<span>нагорода</span><b>${esc(a.n)}</b>`, "dy-toast--ach"); fx("date"); }, 900 + i * 1800));
     if (res.up) { pendingUp = res.up; setTimeout(() => { toast(`<span>новий рівень</span><b>${res.up.to.L} · ${esc(res.up.to.rank.name)}</b>`, "dy-toast--lv"); scenes(); }, 600); }
     const A = API(); if (A.goalsSync) A.goalsSync();          // привʼязані місячні й річні цілі
+    if (window.ORDO_GOLD) window.ORDO_GOLD.tick();          // золото — слідом за досвідом
     render(); renderStatsIfOpen();
   }
 
@@ -968,7 +969,7 @@
     return `<button class="dy-rank" type="button" data-dgo="stats">${emblem(lv.ri)}
       <div class="dy-rank__t"><b>${esc(lv.rank.name)}</b><span>рівень ${lv.L}</span></div>
       <div class="dy-rank__bar"><i style="width:${Math.round(p * 100)}%"></i></div>
-      <em class="dy-rank__n">${fmtN(lv.xp - lv.from)} / ${fmtN(lv.to - lv.from)}</em></button>`;
+      <em class="dy-rank__n">${fmtN(lv.xp - lv.from)} / ${fmtN(lv.to - lv.from)}${window.ORDO_GOLD ? window.ORDO_GOLD.chip() : ""}</em></button>`;
   }
   function metaOf(t, r, k) {
     const bits = [];
@@ -1658,6 +1659,7 @@
       q.from = add(q.from, 1); q.until = add(q.until, 1); q.shifted = 1; q.at = Date.now(); saveQ(); } });
     lastLevel = levelOf(totalXP());
     carryOver(); applyHealth(); applyPoker(); applyBank(); applyJournal(); settle(); lastLevel = levelOf(totalXP());
+    if (window.ORDO_GOLD) window.ORDO_GOLD.tick();
     const cb2 = $("confessBtn"); if (cb2) cb2.addEventListener("click", () => openJournal(today())); confessStatus();
     render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();

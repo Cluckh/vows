@@ -775,7 +775,7 @@ window.ORDO_START = function () {
     const seg = `<div class="st-seg" role="tablist">
       <button type="button" data-mode="month" class="${statsMode === "month" ? "is-on" : ""}">Місяць</button>
       <button type="button" data-mode="year" class="${statsMode === "year" ? "is-on" : ""}">Рік</button></div>`;
-    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
+    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
     on("stPrev", "click", () => { if (statsMode === "year") statsYearOff--; else statsOffset--; renderStats(); FX.buzz("light"); });
     on("stNext", "click", () => {
       if (statsMode === "year") { if (statsYearOff < 0) statsYearOff++; } else if (statsOffset < 0) statsOffset++;

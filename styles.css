@@ -1510,3 +1510,21 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-strip .is-today{border-color:color-mix(in srgb,var(--gold) 40%,transparent)}
 .dy-strip .is-on{background:color-mix(in srgb,var(--gold) 18%,transparent);border-color:var(--gold)}
 .dy-strip .is-on b{color:var(--gold-2)}
+
+/* ---- золото Ордену ---- */
+.gd-coin{width:1em;height:1em;vertical-align:-.14em;fill:color-mix(in srgb,var(--gold) 26%,transparent);stroke:var(--gold);stroke-width:1.6;stroke-linecap:round}
+.gd-coin--big{width:44px;height:44px;filter:drop-shadow(0 0 14px color-mix(in srgb,var(--gold) 45%,transparent))}
+.gd-big{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 10px}
+.gd-big b{font-family:var(--f-display);font-size:40px;color:var(--bone);letter-spacing:.02em}
+.gd-big span{font-family:var(--f-serif);font-style:italic;font-size:16px;color:var(--gold)}
+.gd-wait{font-family:var(--f-serif);font-size:14.5px;color:var(--ash);text-align:center;margin:4px 0 8px}
+.gd-wait b{color:var(--gold)}
+.gd .dy-acts{margin:10px 0 4px}
+.gd-list li b{color:var(--gold)}
+.gd-chip{display:inline-flex;align-items:center;gap:4px;margin-left:10px;color:var(--gold)}
+.gd-chip b{color:var(--bone);font-weight:500}
+.dy-toast--gold{color:var(--gold)}
+.dy-toast--gold .gd-coin{width:20px;height:20px;margin-right:4px}
+.gd-sheet .dy-chips{margin:4px 0 14px}
+.gd-sheet .dy-note .gd-coin{margin:0 3px}
+.gd-sheet a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:14px}

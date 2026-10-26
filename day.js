@@ -168,7 +168,7 @@
     return Object.keys(h).length ? h : null;
   };
   /* «↻ оновити з телефона»: відкриває «Швидкі команди» з командою, що запускає всі вивантаження; після повернення — кілька свіжих зчитувань */
-  const PHONE_SHORTCUT = "Орден оновити все";
+  const PHONE_SHORTCUT = "Update health";
   const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   let hSyncAt = LS.get("ordo.k.hsync", 0);
   function phoneSync() { hSyncAt = Date.now(); LS.set("ordo.k.hsync", hSyncAt); location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(PHONE_SHORTCUT)}`; }

@@ -43,7 +43,7 @@
     try {
       const s = await V.readSealed("bank/summary.json");
       ask(s);
-      if (s && s.at !== (B && B.at)) { B = s; LS.set("ordo.k.bank", s); const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); if (window.ORDO_DAY && window.ORDO_DAY.bankSync) window.ORDO_DAY.bankSync(); }
+      if (s && s.at !== (B && B.at)) { B = s; LS.set("ordo.k.bank", s); const A = API(); if (A.tab && A.tab() === "treasury" && A.renderTreasury) A.renderTreasury(); if (window.ORDO_DAY && window.ORDO_DAY.bankSync) window.ORDO_DAY.bankSync(); }
     } catch (e) {}
   }
 
@@ -149,7 +149,7 @@
   }
   document.addEventListener("click", (e) => {
     const b = e.target.closest && e.target.closest("[data-tr]"); if (!b) return;
-    view += +b.dataset.tr; const A = API(); if (A.renderStats) A.renderStats(); if (A.FX) A.FX.buzz("light");
+    view += +b.dataset.tr; const A = API(); if (A.renderTreasury) A.renderTreasury(); if (A.FX) A.FX.buzz("light");
   });
 
   /* --------------------------------------------------------------- сцени */

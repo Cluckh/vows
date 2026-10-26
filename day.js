@@ -1593,7 +1593,7 @@
     if (done.length) h += `<div class="st-h st-h--sub">Хроніка квестів</div><ul class="dy-qlog">${done.map((q) => `<li class="dy-q--${q.rar}"><b>${esc(q.t)}</b><span>${human(q.end)} · +${q.xp}</span></li>`).join("")}</ul>`;
     return h + `</section>`;
   }
-  function renderStatsIfOpen() { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); }
+  function renderStatsIfOpen() { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); if (A.tab && A.tab() === "treasury" && A.renderTreasury) A.renderTreasury(); }
 
   /* ============================================================ ПИСАР ====== */
   /* зведення для нічного писаря: що відбувається в житті Ордену (шифрується ключем сховища) */

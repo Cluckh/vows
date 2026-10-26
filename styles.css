@@ -1584,3 +1584,4 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .gd-sheet .lv-big + .sheet__title{text-align:center}
 .gd-sync{display:block;margin:8px auto 2px;background:none;border:0;font-family:var(--f-serif);font-size:14px;color:var(--ash);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--gold) 35%,transparent);text-underline-offset:3px}
 .gd-sync:disabled{text-decoration:none;color:var(--gold)}
+.tabs .tab span{letter-spacing:.06em;font-size:11px;white-space:nowrap}

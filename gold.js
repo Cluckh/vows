@@ -311,7 +311,7 @@
     if (m === "sent") {
       el.innerHTML = `${grip}<div class="gs-kicker">Золото Ордену</div><div class="sheet__title dy-sht">Переведи ${fmtN(amt)} ₴ на білу картку</div>
         <p class="dy-note dy-note--t">У монобанку: з чорної картки на білу <b>…9467</b>. Золото вже відкладено; щойно поповнення зʼявиться у виписці (зазвичай 1–2 хв), Сенешаль закриє виведення. Не прийде за добу — золото повернеться.</p>
-        <a class="btn btn--gold" href="shortcuts://run-shortcut?name=${encodeURIComponent("Орден - Моно")}">Відкрити монобанк</a><button type="button" class="btn btn--ghost" data-gd="close">Готово</button>`;
+        <a class="btn btn--gold" href="https://send.monobank.ua/">Відкрити монобанк</a><button type="button" class="btn btn--ghost" data-gd="close">Готово</button>`;
     } else if (m === "out") {
       amt = Math.min(b, amt || Math.min(b, 500));
       el.innerHTML = `${grip}<div class="gs-kicker">Золото Ордену</div><div class="sheet__title dy-sht">Вивести на білу картку</div>
@@ -431,7 +431,7 @@
     reads.forEach((s, i) => polls.push(setTimeout(async () => { if (!pending().length && !manual && i > 2) return; await readBank(); if (i === reads.length - 1 || (manual && i >= 2 && !pending().length)) { syncing = false; refreshViews(); } }, s * 1000)));
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && pending().length) { if (Date.now() - lastAsk > 30e3) lastAsk = 0; watchBank(); } });     // повернувся з монобанку — одразу питаємо банк
-  function refreshViews() { const A = API(); if (A.renderStats && A.tab && A.tab() === "stats") A.renderStats(); if (DAY() && DAY().render) DAY().render(); }
+  function refreshViews() { const A = API(); if (A.renderTreasury && A.tab && A.tab() === "treasury") A.renderTreasury(); if (DAY() && DAY().render) DAY().render(); }
 
   document.addEventListener("click", (e) => {
     if (!e.target.closest || e.target.closest("#gdSheet")) return;

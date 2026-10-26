@@ -675,6 +675,7 @@ window.ORDO_START = function () {
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("is-on", t.dataset.tab === name));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("is-on", v.dataset.view === name));
     if (name === "stats") renderStats();
+    if (name === "treasury") renderTreasury();
     if (name === "goals") renderGoals();
     if (name === "day" && window.ORDO_DAY) window.ORDO_DAY.shown();
     window.scrollTo(0, 0);
@@ -769,13 +770,18 @@ window.ORDO_START = function () {
     return medallion(S, { head: "plume", look: S.look }, t);
   }
 
+  /* Скарбниця: золото Ордену, реліквії, крамниця — і книга банку */
+  function renderTreasury() {
+    const box = $("treasuryBody"); if (!box) return;
+    box.innerHTML = (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "");
+  }
   function renderStats() {
     const box = $("statsBody"); if (!box) return;
     const sub = $("stSub"); if (sub) sub.textContent = `усе записується з ${fmtKey(SINCE)}`;
     const seg = `<div class="st-seg" role="tablist">
       <button type="button" data-mode="month" class="${statsMode === "month" ? "is-on" : ""}">Місяць</button>
       <button type="button" data-mode="year" class="${statsMode === "year" ? "is-on" : ""}">Рік</button></div>`;
-    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
+    box.innerHTML = chronicler() + (window.ORDO_DAY ? window.ORDO_DAY.gloryHTML() : "") + seg + (statsMode === "year" ? yearHTML() : monthHTML()) + renderLog();
     on("stPrev", "click", () => { if (statsMode === "year") statsYearOff--; else statsOffset--; renderStats(); FX.buzz("light"); });
     on("stNext", "click", () => {
       if (statsMode === "year") { if (statsYearOff < 0) statsYearOff++; } else if (statsOffset < 0) statsOffset++;
@@ -2110,7 +2116,7 @@ window.ORDO_START = function () {
     if (e.data.type === "ordo-open" && e.data.url) openCall(e.data.url);            // старий service worker
   });
   window.ORDO_API = { pendingCall, D, FX, streak, nextMilestone, todayKey, daysWord, logPush: (e) => { logPush(e); if (TAB === "stats") renderStats(); },
-    dayState, tab: () => TAB, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy,
+    dayState, tab: () => TAB, renderTreasury, showTab, renderStats, dragDismiss, scrimFollow, queueBusy: () => queueBusy,
     openVow: (id) => { if (vowById(id)) openSheet(id); }, openMark: (id) => openMark(id),
     goalsSync: () => { settleAll(); updateGoalsDot(); if (TAB === "goals") renderGoals(); } };
   if (window.ORDO_TREASURY) { window.ORDO_TREASURY.load(); document.addEventListener("visibilitychange", () => { if (!document.hidden) window.ORDO_TREASURY.load(); }); }

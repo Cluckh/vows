@@ -599,7 +599,8 @@
   function armAdvice(k) {
     const R = window.ORDO_ARM, P = R && R.plan ? R.plan() : null; if (!P) return null;
     const U = (x) => (x.e.body ? "" : `${fmtN(x.w)} ${x.e.inv ? "кг компенс." : x.e.per ? "кг/стор" : "кг"} · `) + `${x.reps.length}×${x.reps[0]}`;
-    const head = P.warn.length && P.k === k ? P.warn[0] : P.k === k ? `Сьогодні день ${P.type}: ${P.label}.${P.prog ? ` Прогресія — ${P.prog.n.toLowerCase()}.` : ""}` : `За планом зал ${human(P.k)} — день ${P.type}. Сьогодні можна, але плечам і графіку краще ${human(P.k)}.`;
+    const when = k === today() ? "Сьогодні" : k === add(today(), 1) ? "Завтра" : `${human(k)} —`;
+    const head = P.warn.length && P.k === k ? P.warn[0] : P.k === k ? `${when} день ${P.type}: ${P.label}.${P.prog ? ` Прогресія — ${P.prog.n.toLowerCase()}.` : ""}` : `За планом зал ${human(P.k)} — день ${P.type}. Сьогодні можна, але плечам і графіку краще ${human(P.k)}.`;
     return { giver: "sobriety", head, tips: P.k === k ? P.ex.slice(0, 6).map((x) => `${x.prog ? "↑ " : ""}${x.n}: ${U(x)}`) : [] };
   }
   const gymSig = (g) => JSON.stringify([g.ex.map((e) => [e.n, (e.sets || []).map((z) => [z.r, z.w])]), g.note || ""]);
@@ -2184,7 +2185,7 @@
       <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : q.st === "fail" ? "не встиг" : ""} · +${q.xp} досвіду</div>
       ${canBreath(q) ? `<button class="btn btn--gold" type="button" data-dqs="breath">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("breath", "gd-tk--btn") : ""}Друге дихання — ще 2 дні, 85% мети</button>` : ""}
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
-      ${q.st === "active" && q.until && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
+      ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
       ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
       <button class="btn btn--ghost" type="button" data-dqs="close">Закрити</button>`;
@@ -2194,7 +2195,7 @@
       if (a === "close") { closeSheet(); el.onclick = null; return; }
       if (a === "done") { closeSheet(); el.onclick = null; qDone(q.id); return; }
       if (a === "cur") { const c = numIn(($("dqC") || {}).value); if (c != null) { q.cur = Math.max(0, c); q.at = Date.now(); if (q.target && q.cur >= q.target) { closeSheet(); el.onclick = null; qDone(q.id); return; } saveQ(); } closeSheet(); el.onclick = null; render(); return; }
-      if (a === "ext") { if (window.ORDO_GOLD.use("extend")) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b>`); } closeSheet(); el.onclick = null; render(); return; }
+      if (a === "ext") { if (q.type !== "budget" && !q.flash && window.ORDO_GOLD.use("extend")) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b>`); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "breath") { if (canBreath(q) && window.ORDO_GOLD.use("breath")) { secondWind(q); fx("yes"); buzz("medium"); toast(`Друге дихання: <b>${esc(q.t)}</b> — до ${human(add(today(), 1))}`, "is-gift"); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
     };

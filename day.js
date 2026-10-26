@@ -129,7 +129,8 @@
     if (r && r.st === "done") return "done";
     return k < today() ? "miss" : "open";
   }
-  const isWin = (st) => st === "done" || st === "fix";
+  const isWin = (st) => st === "done" || st === "fix";          // справу закрито (для екрана)
+  const isFull = (st) => st === "done";                         // виконано повністю: лише це йде в ланцюжки, чисті дні, медалі, цілі й квести; «з поправкою» дає тільки частку досвіду
 
   /* ===================================================== ДЖЕРЕЛА ДАНИХ ===== */
   /* звідки ціль бере дані: steps — «Здоровʼя», poker — HM3, mind — Calm, bank — виписка, "" — вручну.
@@ -301,7 +302,7 @@
     let n = 0; const end = to < today() ? to : today();
     for (let k = from; k <= end; k = add(k, 1)) items(k).forEach(({ t, r }) => {            // разом із перенесеними на цей день
       if (!(ids || []).includes(t.id)) return;
-      if (t.type === "count") n += (r && r.cur) || 0; else if (isWin(stOf(t, r, k))) n++;
+      if (t.type === "count") n += (r && r.cur) || 0; else if (isFull(stOf(t, r, k))) n++;
     });
     return n;
   }
@@ -642,7 +643,7 @@
       if (!occurs(t, d)) continue;
       const st = stOf(t, rec(d, t.id), d);
       if (st === "moved" || st === "cancel") continue;
-      if (isWin(st)) c++; else break;
+      if (isFull(st)) c++; else break;
     }
     return c;
   }
@@ -726,7 +727,7 @@
   /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані */
   function perfect(k) {
     const its = items(k).map(({ t, r }) => stOf(t, r, k)).filter((s) => s !== "moved" && s !== "cancel");
-    return its.length >= 3 && its.every(isWin);
+    return its.length >= 3 && its.every(isFull);
   }
   function settleTasks(k) { items(k).forEach(({ t, r }) => putXP(`t:${t.id}:${k}`, xpTask(t, r, k), "task", t.t, k)); }
 
@@ -736,7 +737,7 @@
     const days = Object.keys(S.log).sort();
     days.forEach((k) => Object.keys(S.log[k]).forEach((id) => {
       const t = S.tasks[id], r = S.log[k][id]; if (!t) return;
-      if (isWin(stOf(t, r, k))) { done++; if (r.at && new Date(r.at).getHours() < 8 && keyOf(new Date(r.at)) === k) early++; }
+      if (isFull(stOf(t, r, k))) { done++; if (r.at && new Date(r.at).getHours() < 8 && keyOf(new Date(r.at)) === k) early++; }
     }));
     for (let k = XP_START_DAY; k <= today(); k = add(k, 1)) { if (perfect(k)) { pdRun++; pdBest = Math.max(pdBest, pdRun); } else if (k < today()) pdRun = 0; }
     Object.values(S.tasks).forEach((t) => { if (t.rep && t.rep.f !== "none") chainBest = Math.max(chainBest, chainBefore(t, add(today(), 1))); });
@@ -927,7 +928,7 @@
         return;
       }
       if (q.st === "active" && q.type === "count" && /тренуван/i.test(q.unit || "")) {        // зал, кардіо — усе з позначкою «тренування»
-        let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (items(k).some(({ t, r }) => isGym(t) && r && isWin(r.st))) n++;
+        let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (items(k).some(({ t, r }) => isGym(t) && r && isFull(stOf(t, r, k)))) n++;
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
@@ -1770,7 +1771,7 @@
     } else if (sh.mode === "fix") {
       const t = S.tasks[sh.id], r = rec(sh.k, sh.id);
       h += `<div class="gs-kicker">Виконано з поправкою</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
-        <p class="dy-note">Що пішло не так, як планувалось? ${t.type === "count" && t.target ? `Зараховується частка зробленого — ${fmtN((r && r.cur) || 0)} з ${fmtN(t.target)}${t.unit ? " " + esc(t.unit) : ""}: <b>${Math.round(fixPct(t, r) * 100)}%</b> досвіду (не більше 70%).` : "Зараховується 70% досвіду."}</p>
+        <p class="dy-note">Що пішло не так, як планувалось? ${t.type === "count" && t.target ? `Зараховується частка зробленого — ${fmtN((r && r.cur) || 0)} з ${fmtN(t.target)}${t.unit ? " " + esc(t.unit) : ""}: <b>${Math.round(fixPct(t, r) * 100)}%</b> досвіду (не більше 70%).` : "Зараховується 70% досвіду."} Ланцюжок днів, чистий день, медалі й цілі — лише за повне виконання.</p>
         <textarea class="dy-in dy-in--note" id="dsF" rows="3" placeholder="наприклад: 30 хвилин замість години">${esc((r && r.note) || "")}</textarea>
         <button class="btn btn--gold" type="button" data-ds="fix">Зарахувати</button><button class="btn btn--ghost" type="button" data-ds="back">Назад</button>`;
     } else if (sh.mode === "move") {

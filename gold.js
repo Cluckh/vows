@@ -248,6 +248,10 @@
   /* арти реліквій: art/sealed/<хеш>.json (зашифровані, з непрозорими назвами — щоб і список файлів нічого не підказував);
      розшифровані кешуються на пристрої (Cache Storage), відсутні — не питаємо частіше ніж раз на 6 год */
   const ART = {};
+  /* медалі-нагороди артом: Літопис просить ті, що на екрані; вантажаться у фоні й лягають у кеш (256 px — легкі) */
+  const ACHW = new Set(); let achT = null;
+  const achArt = (id) => ART["ach:" + id] || null;
+  function wantAch(ids) { let n = 0; ids.forEach((id) => { if (!ART["ach:" + id] && !ACHW.has(id)) { ACHW.add(id); n++; } }); if (n) { clearTimeout(achT); achT = setTimeout(loadArts, 600); } }
   const artName = (kind, id) => { let h = 2166136261; const s = kind + ":" + id; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
   let artBusy = false;
   const SCENES = ["chest", "chestc", "shop", "treasury", "levelup", "night", "weekchest"];
@@ -263,14 +267,15 @@
   }
   async function loadArts() {
     const V = window.ORDO_VAULT; if (artBusy || !V || !V.readSealedBlob) return;
-    const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(SCENES.filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]));
+    const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(SCENES.filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]))
+      .concat([...ACHW].filter((x) => !ART["ach:" + x]).map((x) => ["ach", x]));
     if (!want.length) return;
     artBusy = true; let ch = false;
     try {
       let cache = null; try { cache = await caches.open("ordo-art"); } catch (e) {}
       const miss = LS.get("ordo.k.artMiss", {});
       for (const [kind, id0] of want) {
-        const id = kind === "scene" ? "scene:" + id0 : id0, n = artName(kind, id0), key = new Request(`${location.origin}/__art/${n}`);
+        const id = kind === "scene" || kind === "ach" ? kind + ":" + id0 : id0, n = artName(kind, id0), key = new Request(`${location.origin}/__art/${n}`);
         let blob = null;
         if (cache) { const r = await cache.match(key); if (r) blob = await r.blob(); }
         if (!blob && !(miss[n] && Date.now() - miss[n] < 6 * 3600e3)) {
@@ -281,6 +286,7 @@
       }
       LS.set("ordo.k.artMiss", miss);
     } finally { artBusy = false; }
+    if (ch && want.some(([k]) => k === "ach")) { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); }
     if (ch) { refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); } }
   }
   const face = (r, cls) => ART[r.id] ? `<img class="rl-img${cls ? " " + cls : ""}" src="${ART[r.id]}" alt="">` : gem(r.rar, cls);
@@ -512,5 +518,5 @@
   setTimeout(loadArts, 5000);
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch };
 })();

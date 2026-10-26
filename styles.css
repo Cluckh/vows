@@ -1372,7 +1372,7 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-a svg{width:34px;height:44px;display:block;margin:0 auto 4px;color:var(--gold)}
 .dy-a__m{position:relative;display:block;width:34px;margin:0 auto 4px}
 .dy-a__m>svg:first-child{margin:0}
-.dy-a .dy-a__ic{position:absolute;left:50%;top:21px;width:19px;height:19px;margin:0 0 0 -9.5px;padding:3px;border-radius:50%;background:var(--m2);color:var(--m3);box-shadow:0 0 0 1px var(--m3)}
+.dy-a__ic{position:absolute;left:50%;top:21px;width:19px;height:19px;margin:0 0 0 -9.5px;padding:3px;border-radius:50%;background:var(--m2);color:var(--m3);box-shadow:0 0 0 1px var(--m3)}
 .dy-ach__g{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;margin:10px 2px -2px;padding-bottom:4px;border-bottom:1px solid rgba(231,199,119,.14);font-family:var(--f-display);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-2)}
 .dy-ach__g:first-child{margin-top:0}
 .dy-ach__g em{font-style:normal;font-family:var(--f-serif);letter-spacing:0;color:var(--ash)}
@@ -1763,3 +1763,28 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .gd-chest.is-glow .gd-chest__light{opacity:1}
 .gd-chest.rar-common .gd-chest__light{opacity:0}
 .gd-chest.has-art::before{width:340px;height:340px;margin:-170px 0 0 -170px}
+/* нагороди: тап — картка; арт медалі (256 px), незаслужена — сіра й тьмяна */
+.dy-a{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dy-a:active .dy-a__m{transform:scale(.94)}
+.dy-a__m{transition:transform .2s var(--ease)}
+.dy-a__m.has-art{width:52px;height:52px;margin:0 auto 6px;border-radius:50%;overflow:hidden}
+.dy-a__m.has-art img{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.12);
+  -webkit-mask-image:radial-gradient(circle,#000 62%,transparent 71%);mask-image:radial-gradient(circle,#000 62%,transparent 71%)}
+.dy-a:not(.is-on) .dy-a__m.has-art img{filter:grayscale(1) brightness(.45) contrast(.9)}
+.dy-a.is-on.tier-legend .dy-a__m.has-art{box-shadow:0 0 14px rgba(255,138,43,.35)}
+.dy-a.is-on.tier-myth .dy-a__m.has-art{box-shadow:0 0 16px rgba(176,124,255,.45)}
+.ach-big{display:flex;justify-content:center;margin:6px 0 10px}
+.dy-a__m--big{position:relative;display:block;width:96px;margin:0 auto}
+.dy-a__m--big>svg:first-child{display:block;width:96px;height:126px;color:var(--gold)}
+.dy-a__m--big .dy-a__ic{top:57px;width:50px;height:50px;margin-left:-25px;padding:9px}
+.dy-a__m--big.has-art{width:176px;height:176px;border-radius:50%;overflow:visible}
+.dy-a__m--big.has-art img{transform:none;-webkit-mask-image:radial-gradient(circle,#000 58%,transparent 71%);mask-image:radial-gradient(circle,#000 58%,transparent 71%)}
+.ach-big:not(.is-on) .dy-a__m--big.has-art img{filter:grayscale(1) brightness(.5)}
+.ach-big.is-on.tier-legend .dy-a__m--big.has-art{filter:drop-shadow(0 0 22px rgba(255,138,43,.35))}
+.ach-big.is-on.tier-myth .dy-a__m--big.has-art{filter:drop-shadow(0 0 24px rgba(176,124,255,.5))}
+.ach-k{text-align:center;color:var(--rc,var(--gold-2))}
+.ach-k.rar-common{color:var(--gold-2)}
+.ach-when{text-align:center;font-family:var(--f-serif);font-style:italic;color:var(--ash);margin:6px 0}
+.ach-bar{max-width:240px;margin:10px auto 0}
+.ach-rew{text-align:center;font-family:var(--f-serif);color:var(--bone);margin:8px 0 14px}
+.ach-rew b{color:var(--gold-2)}

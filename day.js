@@ -646,6 +646,8 @@
     }
     return c;
   }
+  /* «з поправкою»: лічильник — частка зробленого (2 з 10 хв → 20%), але не більше 70%; справа без числа — 70% */
+  const fixPct = (t, r) => t.type === "count" && t.target ? Math.min(0.7, Math.max(0, ((r && r.cur) || 0) / t.target)) : 0.7;
   function xpTask(t, r, k) {
     const st = stOf(t, r, k), base = ECON.task[rarOf(t)][0];
     const bonus = Math.min(0.3, 0.03 * chainBefore(t, k));
@@ -654,7 +656,7 @@
       if (t.type === "count" && t.target) m *= 1 + Math.min(0.2, Math.max(0, (r.cur / t.target - 1) * 0.4));   // перевиконання
       return Math.round(base * m);
     }
-    if (st === "fix") return Math.round(base * 0.7);
+    if (st === "fix") return Math.round(base * fixPct(t, r));
     return 0;                                         // число не дотягнуто — справу не виконано (все або нічого)
   }
   function putXP(id, xp, src, why, d) {
@@ -816,6 +818,19 @@
     { id: "qf5", g: "q", ic: "bolt", tier: "legend", n: "Швидка рука", h: "5 блискавичних квестів", ok: (c) => c.flash >= 5, xp: 200, rar: "legend" },
     { id: "qch", g: "q", ic: "scroll", tier: "gold", n: "Ланцюг подій", h: "Дійти до третього кроку ланцюжкового квесту", ok: (c) => c.chain >= 1, xp: 80 }
   ];
+  /* прогрес до нагороди: [скільки є, скільки треба] — для картки нагороди */
+  const PROG = { first: ["done", 1], t50: ["done", 50], t200: ["done", 200], t500: ["done", 500], pd1: ["pdN", 1], pd7: ["pdBest", 7], pd30: ["pdBest", 30], early: ["early", 1],
+    ch14: ["chainBest", 14], ch30: ["chainBest", 30], qr: [(c) => c.qd("rare"), 1], ql: [(c) => c.qd("legend"), 1], qm: [(c) => c.qd("myth"), 1], q10: [(c) => c.qd(), 10],
+    f10: [(c) => c.f.total, 10], f50: [(c) => c.f.total, 50], f100: [(c) => c.f.total, 100], f365: [(c) => c.f.total, 365], rise: [(c) => (c.f.rise ? 1 : 0), 1], fmon: [(c) => c.f.months, 1],
+    j1: ["jn", 1], j30: ["jn", 30], j100: ["jn", 100], gym10: ["gym", 10], gym50: ["gym", 50], lv10: ["lv", 10], lv16: ["lv", 16],
+    mo1: ["heard", 1], mo15: ["heard", 15], mo50: ["heard", 50], mgift: ["gifts", 5], mleg: ["legendH", 1], mmyth: ["mythH", 1],
+    ml1: ["meals", 1], mlg7: ["greenBest", 7], mlg30: ["greenBest", 30], ml60: ["meals", 60], sl7: ["mornings", 7], sl30: ["mornings", 30], sl100: ["mornings", 100], siren: ["siren", 1],
+    pg100: ["pages", 100], pg1k: ["pages", 1000], bk1: ["books", 1], bk5: ["books", 5], st10: ["st10", 1], st10x: ["st10", 10], st15: ["st15", 1], qf: ["flash", 1], qf5: ["flash", 5], qch: ["chain", 1] };
+  const progOf = (a, c) => { const p = PROG[a.id]; if (!p) return null; const v = typeof p[0] === "function" ? p[0](c) : c[p[0]]; return [Math.min(+v || 0, p[1]), p[1]]; };
+  const TIERN = { bronze: "бронзова", silver: "срібна", gold: "золота", legend: "легендарна", myth: "міфічна" };
+  const achFace = (a, big) => { const GD = window.ORDO_GOLD, img = GD && GD.achArt ? GD.achArt(a.id) : null;
+    return img ? `<i class="dy-a__m has-art${big ? " dy-a__m--big" : ""}"><img src="${img}" alt=""></i>`
+      : `<i class="dy-a__m${big ? " dy-a__m--big" : ""}"><svg><use href="#medal"/></svg>${a.ic ? `<svg class="dy-a__ic"><use href="#i-${a.ic}"/></svg>` : ""}</i>`; };
   /* групи нагород у Літописі; старі без g — за префіксом */
   const ACH_G = [["d", "Справи"], ["q", "Квести"], ["v", "Вірність"], ["b", "Сповідь, тіло, звання"], ["w", "Слова храмовників"], ["m", "Трапеза"], ["s", "Ранки й ночі"], ["r", "Читання"], ["f", "Кроки"]];
   const achG = (a) => a.g || (/^(first|t\d|pd|early|ch)/.test(a.id) ? "d" : /^q/.test(a.id) ? "q" : /^(f\d|rise|fmon)/.test(a.id) ? "v" : "b");
@@ -1550,6 +1565,7 @@
       scroller: () => el, can: (e) => !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) });
     return el;
   }
+  document.addEventListener("click", (e) => { const a = e.target.closest && e.target.closest("[data-ach]"); if (a && !a.closest(".dsheet, .sheet")) openSheet("ach", a.dataset.ach); });
   function openSheet(mode, id, k) {
     sheetEl().onclick = null;
     sh = { mode, id, k: k || view || today(), draft: null };
@@ -1719,7 +1735,7 @@
       h += `<div class="gs-kicker">${rel(k)}, ${human(k)}</div><div class="sheet__title dy-sht">За що досвід</div>
         <div class="xp-tot"><b>+${fmtN(sx)}</b> досвіду${sg ? ` · ${coin}<b>+${fmtN(sg)}</b> золота` : ""}</div>
         ${groups.map((g) => `<div class="st-h st-h--sub">${g.c} <em>+${fmtN(g.rows.reduce((s, r) => s + r.e.xp, 0))}</em></div><ul class="tr-top xp-list">${g.rows.map((r) => `<li><span>${esc(lbl(r.id, r.e))}</span><b>+${r.e.xp}</b>${r.g ? `<em>${coin}${r.g}</em>` : "<em></em>"}</li>`).join("")}</ul>`).join("")}
-        <p class="tr-at">справи: звичайна 8 · рідкісна 15 · легендарна 30 · міфічна 60, ланцюжок днів підряд — до +30%; «з поправкою» — 70%</p>
+        <p class="tr-at">справи: звичайна 8 · рідкісна 15 · легендарна 30 · міфічна 60, ланцюжок днів підряд — до +30%; «з поправкою» — частка зробленого, не більше 70%</p>
         <button type="button" class="btn btn--ghost" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "night") {
       const N = S.night[sh.k] || {};
@@ -1742,10 +1758,19 @@
           <button class="btn btn--gold" type="button" data-ds="npark">Покласти на ранок</button>
           <button class="btn btn--ghost" type="button" data-ds="nskip">Без запису — просто подихати</button>`;
       }
+    } else if (sh.mode === "ach") {                     // картка нагороди: за що, коли, скільки дала (або скільки лишилось)
+      const a = ACHS.find((x) => x.id === sh.id) || ACHS[0], got = ACH[a.id], pr = got ? null : progOf(a, ctx()), gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "";
+      const gold = a.xp && (!got || got >= "2026-10-26") ? ECON.ach[1] : 0;
+      h += `<div class="ach-big tier-${got ? a.tier || "gold" : "ash"}${got ? " is-on" : ""}">${achFace(a, true)}</div>
+        <div class="gs-kicker ach-k rar-${{ legend: "legend", myth: "myth" }[a.tier] || "common"}">${TIERN[a.tier] || "золота"} нагорода · ${esc(gname.toLowerCase())}</div>
+        <div class="sheet__title dy-sht">${esc(a.n)}</div><p class="dy-note dy-note--t">${esc(a.h)}</p>
+        ${got ? `<p class="ach-when">здобуто ${human(got)}</p>` : pr ? `<div class="gl-bar ach-bar"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i></div><p class="ach-when">${fmtN(pr[0])} з ${fmtN(pr[1])}</p>` : `<p class="ach-when">ще попереду</p>`}
+        <p class="ach-rew">${a.xp || gold ? `${got ? "Дала" : "Дасть"}${a.xp ? ` <b>+${fmtN(a.xp)}</b> досвіду` : ""}${gold ? `${a.xp ? " ·" : ""} <b>+${gold}</b> золота` : ""}` : "Почесна — без досвіду, лише честь"}</p>
+        <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "fix") {
       const t = S.tasks[sh.id], r = rec(sh.k, sh.id);
       h += `<div class="gs-kicker">Виконано з поправкою</div><div class="sheet__title dy-sht">${esc(t.t)}</div>
-        <p class="dy-note">Що пішло не так, як планувалось? Зараховується 70% досвіду.</p>
+        <p class="dy-note">Що пішло не так, як планувалось? ${t.type === "count" && t.target ? `Зараховується частка зробленого — ${fmtN((r && r.cur) || 0)} з ${fmtN(t.target)}${t.unit ? " " + esc(t.unit) : ""}: <b>${Math.round(fixPct(t, r) * 100)}%</b> досвіду (не більше 70%).` : "Зараховується 70% досвіду."}</p>
         <textarea class="dy-in dy-in--note" id="dsF" rows="3" placeholder="наприклад: 30 хвилин замість години">${esc((r && r.note) || "")}</textarea>
         <button class="btn btn--gold" type="button" data-ds="fix">Зарахувати</button><button class="btn btn--ghost" type="button" data-ds="back">Назад</button>`;
     } else if (sh.mode === "move") {
@@ -2037,7 +2062,8 @@
       <div class="dy-g__qs"><span class="dy-q--rare"><b>${qn("rare")}</b>рідкісних</span><span class="dy-q--legend"><b>${qn("legend")}</b>легендарних</span><span class="dy-q--myth"><b>${qn("myth")}</b>міфічних</span></div>
       ${(() => { const f = faith(); return `<div class="dy-g__qs dy-g__faith"><span><b>${f.total}</b>днів вірності</span><span><b>${f.d30}/${f.n30}</b>за 30 днів</span><span><b>${f.best}</b>найдовше поспіль</span></div>`; })()}
       <div class="st-h st-h--sub">Нагороди</div><div class="dy-ach">`;
-    const medal = (a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" title="${esc(a.h)}"><i class="dy-a__m"><svg><use href="#medal"/></svg>${a.ic ? `<svg class="dy-a__ic"><use href="#i-${a.ic}"/></svg>` : ""}</i><b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`;
+    if (window.ORDO_GOLD && window.ORDO_GOLD.wantAch) window.ORDO_GOLD.wantAch(ACHS.map((a) => a.id));
+    const medal = (a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" data-ach="${a.id}" role="button" tabindex="0">${achFace(a)}<b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`;
     h += ACH_G.map(([g, name]) => { const L = ACHS.filter((a) => achG(a) === g), n = L.filter((a) => ACH[a.id]).length;
       return `<div class="dy-ach__g"><span>${esc(name)}</span><em>${n}/${L.length}</em></div>` + L.map(medal).join(""); }).join("");
     if (vowMedals.length) h += `<div class="dy-ach__g"><span>Печатки обітниць</span><em>${vowMedals.length}</em></div>`;

@@ -816,12 +816,14 @@
     const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !Q.list.some((q) => q.pid === p.id));
     if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
     const [trig, tag] = (Q.trig.shift() || "").split(":");
+    /* щоранку жереб: випасти може будь-яка рідкість, просто з різним шансом; одразу після попереднього того ж ґатунку — шанс менший.
+       У середньому: рідкісний ~2 на тиждень, легендарний ~раз на 10–12 днів, міфічний ~раз на місяць. Тригери (зрив, віха, три ідеальні дні) — понад жереб */
+    const ODDS = { myth: [21, 0.03, 0.012], legend: [7, 0.12, 0.05], rare: [2, 0.35, 0.15] };     // [після скількох днів — повний шанс, повний, знижений]
+    const CAP = { rare: 3, legend: 2, myth: 1 };                                                  // більше одночасно активних — не пропонуємо
+    const busyR = (r) => Q.list.filter((q) => q.rar === r && q.st === "active").length >= CAP[r];
     let rar = null;
     if (trig) rar = trig;
-    else if (again) rar = null;
-    else if (since("myth") >= 21 && roll(t0 + "m") < 0.1) rar = "myth";
-    else if (since("legend") >= 7 && roll(t0 + "l") < 0.25) rar = "legend";
-    else if (since("rare") >= 2 && roll(t0 + "r") < 0.4) rar = "rare";
+    else if (!again) for (const r of ["myth", "legend", "rare"]) { const [d, hi, lo] = ODDS[r]; if (!busyR(r) && roll(t0 + r[0]) < (since(r) >= d ? hi : lo)) { rar = r; break; } }
     if (rar) { const q = draw(rar, tag); if (q) { Q.list.push(q); Q.clock[rar] = t0; } }
     saveQ();
   }

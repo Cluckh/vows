@@ -1749,3 +1749,17 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 @media (prefers-reduced-motion:reduce){.gd-chest.is-glow,.gd-loot::before{animation:none}}
 .gd-tk--btn{width:22px;height:22px;margin-right:8px;vertical-align:-6px}
 .gd-tk--btn svg{width:13px;height:13px}
+/* скриня артом: закрита, без рамки — краї тонуть у темряві; світло зі щілини фарбується кольором здобичі */
+.gd-chest.has-art img{width:260px;height:260px;border-radius:0;box-shadow:none;object-fit:cover;animation:none;
+  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 46%,transparent 71%);mask-image:radial-gradient(circle at 50% 50%,#000 46%,transparent 71%);
+  filter:brightness(.92);transition:filter .45s ease}
+.gd-chest.has-art svg{display:none}
+.gd-chest.has-art.is-glow img{box-shadow:none;filter:brightness(1.05) saturate(1.05)}
+.gd-chest.rar-legend.has-art img,.gd-chest.rar-myth.has-art img{filter:brightness(1.15) saturate(1.1)}
+.gd-chest__light{position:absolute;left:50%;top:50%;width:260px;height:260px;margin:-130px 0 0 -130px;pointer-events:none;opacity:0;transition:opacity .45s ease}
+.gd-chest__light::before,.gd-chest__light::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 44% 9% at 50% 44%,var(--rc,#fff) 0%,color-mix(in srgb,var(--rc,#fff) 55%,transparent) 50%,transparent 100%)}
+.gd-chest__light::before{mix-blend-mode:multiply}
+.gd-chest__light::after{mix-blend-mode:screen;opacity:.55;background:radial-gradient(ellipse 52% 16% at 50% 44%,color-mix(in srgb,var(--rc,#fff) 70%,transparent) 0%,transparent 100%)}
+.gd-chest.is-glow .gd-chest__light{opacity:1}
+.gd-chest.rar-common .gd-chest__light{opacity:0}
+.gd-chest.has-art::before{width:340px;height:340px;margin:-170px 0 0 -170px}

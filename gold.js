@@ -250,7 +250,7 @@
   const ART = {};
   const artName = (kind, id) => { let h = 2166136261; const s = kind + ":" + id; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
   let artBusy = false;
-  const SCENES = ["chest", "shop", "treasury", "levelup", "night", "weekchest"];
+  const SCENES = ["chest", "chestc", "shop", "treasury", "levelup", "night", "weekchest"];
   const scene = (n) => ART["scene:" + n] || null;
   /* арт за запитом (ілюстрації моментів писаря): той самий кеш «ordo-art», що й для реліквій */
   async function artFor(kind, id) {
@@ -356,7 +356,7 @@
         <ul class="gd-shop">${SHOP.map((it) => `<li>${tkIc(it.id)}<div><b>${esc(it.n)}</b><span>${esc(it.d)}</span></div><button type="button" class="btn btn--line" data-gdbuy="${it.id}" ${b >= it.p ? "" : "disabled"}>${coin()} ${it.p}</button></li>`).join("")}</ul>
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
     } else if (m === "chest") {
-      el.innerHTML = `${grip}<div class="gs-kicker">${esc((arg && arg.kicker) || "Скриня Сенешаля")}</div><div class="gd-chest">${ART["scene:chest"] ? `<img src="${ART["scene:chest"]}" alt="">` : ""}<svg viewBox="0 0 64 64" aria-hidden="true"><path class="ch-b" d="M8 30h48v24H8z"/><path class="ch-l" d="M8 30c0-12 10-18 24-18s24 6 24 18z"/><path class="ch-s" d="M8 30h48M30 26h4v10h-4z"/></svg></div><p class="dy-note dy-note--t gd-chest__why">${esc((arg && arg.why) || "Сенешаль відмикає замок…")}</p>`;
+      el.innerHTML = `${grip}<div class="gs-kicker">${esc((arg && arg.kicker) || "Скриня Сенешаля")}</div><div class="gd-chest${ART["scene:chestc"] ? " has-art" : ""}">${ART["scene:chestc"] ? `<img src="${ART["scene:chestc"]}" alt=""><i class="gd-chest__light"></i>` : ""}<svg viewBox="0 0 64 64" aria-hidden="true"><path class="ch-b" d="M8 30h48v24H8z"/><path class="ch-l" d="M8 30c0-12 10-18 24-18s24 6 24 18z"/><path class="ch-s" d="M8 30h48M30 26h4v10h-4z"/></svg></div><p class="dy-note dy-note--t gd-chest__why">${esc((arg && arg.why) || "Сенешаль відмикає замок…")}</p>`;
     } else if (m === "loot") {
       el.innerHTML = `${grip}<div class="gs-kicker">${esc(arg.kicker || "Скриня Сенешаля")}</div>${lootHTML(arg)}<button type="button" class="btn btn--gold" data-gd="close">Забрати</button>`;
     } else if (m === "relic") {
@@ -424,7 +424,7 @@
     const step = () => {
       const c = el && el.classList.contains("open") && el.querySelector(".gd-chest");
       if (!c) { reveals.unshift({ loot: L, kicker: o.kicker }); return; }                // закрили посеред відкриття — здобич покажемо пізніше
-      if (i < top) { i++; c.className = `gd-chest is-glow rar-${R[i]}`; c.style.animation = "none"; void c.offsetWidth; c.style.animation = "";
+      if (i < top) { i++; R.forEach((x) => c.classList.remove("rar-" + x)); c.classList.add("is-glow", "rar-" + R[i]); c.style.animation = "none"; void c.offsetWidth; c.style.animation = "";
         const A = API(); if (A.FX && A.FX.buzz) A.FX.buzz(i >= 2 ? "medium" : "light"); chestT = setTimeout(step, i < top ? 620 : 950); return; }
       render("loot", Object.assign({}, L, { kicker: o.kicker })); fx(top >= 2 ? "date" : "yes");
     };

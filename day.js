@@ -511,7 +511,7 @@
     put("steps", "Кроки", back(14).filter((k) => raw(k).steps != null).length >= 2, hr >= 13 && st0 == null, st0 != null ? `сьогодні ${fmtN(st0)}` : "сьогодні ще не приходили",
       "Відкрий «Здоровʼя» або натисни «Оновити з телефона».");
     const wl = back(14).find((k) => raw(k).weight);
-    put("weight", "Вага", back(8).filter((k) => raw(k).weight).length >= 3, !back(3).some((k) => raw(k).weight), wl ? `остання — ${human(wl)}` : "ще не приходила",
+    put("weight", "Вага", back(14).filter((k) => raw(k).weight).length >= 2, !back(3).some((k) => raw(k).weight), wl ? `остання — ${human(wl)}` : "ще не приходила",
       "Якщо зважувався — перевір, що в команді вага передається як Текст. Якщо ні — просто зважся.");
     const sl = back(14).find((k) => raw(k).sleepMin);
     put("sleep", "Сон зі «Здоровʼя»", back(14).filter((k) => raw(k).sleepMin).length >= 2, hr >= 11 && !raw(t0).sleepMin && !raw(add(t0, -1)).sleepMin, sl ? `остання ніч — ${human(sl)}` : "ще не приходив",
@@ -1471,7 +1471,7 @@
       h += `<div class="gs-kicker">Сторож · ${clock(Date.now())}</div><div class="sheet__title dy-sht">${bad.length ? "Щось замовкло" : "Усе на місці"}</div>
         <p class="dy-note">Стежу лише за тим, що вже колись приходило. Замовкне довше звичайного — скажу тут і зверху на екрані дня.</p>
         <ul class="wt-list">${on.sort((a, b) => (b.st === "bad") - (a.st === "bad")).map((x) => `<li class="wt--${x.st}"><i></i><div><b>${esc(x.name)}</b><span>${esc(x.what)}</span>${x.st === "bad" ? `<p>${esc(x.fix)}</p>` : ""}</div></li>`).join("")}</ul>
-        ${off.length ? `<p class="dy-note wt-off">Ще не підключено: ${off.map((x) => esc(x.name)).join(", ")}.</p>` : ""}
+        ${off.length ? `<p class="dy-note wt-off">Поки не стежу — даних ще не було або замало (потрібно хоча б два дні): ${off.map((x) => esc(x.name)).join(", ")}.</p>` : ""}
         ${W.some((x) => x.id === "errors" && x.st === "bad") ? `<button class="btn btn--line" type="button" data-ds="wclear">Позначити помилки прочитаними</button>` : ""}
         <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "journal") {

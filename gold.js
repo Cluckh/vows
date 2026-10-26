@@ -192,10 +192,35 @@
   const chip = () => `<span class="gd-chip">${coin()}<b>${fmtN(balance())}</b></span>`;
   const bonusText = (b) => !b ? "" : b.type === "gold" ? `+${Math.round(b.v * 100)}% золота ${({ all: "за все", day: "за дні й сповіді", body: "за зал, кроки й ранні підйоми", quest: "за квести", vow: "за віхи обітниць" })[b.src] || ""}`
     : b.type === "luck" ? `+${Math.round(b.v * 100)}% до шансу благословення` : b.type === "reroll" ? `перекинути квест ${b.v > 1 ? b.v + " рази" : "раз"} на тиждень` : b.type === "extend" ? `+1 день до квесту ${b.v > 1 ? b.v + " рази" : "раз"} на місяць` : "";
-  const ART = {};                                               // розшифровані арти реліквій (зʼявляться з генерацією)
+  /* арти реліквій: art/sealed/<хеш>.json (зашифровані, з непрозорими назвами — щоб і список файлів нічого не підказував);
+     розшифровані кешуються на пристрої (Cache Storage), відсутні — не питаємо частіше ніж раз на 6 год */
+  const ART = {};
+  const artName = (kind, id) => { let h = 2166136261; const s = kind + ":" + id; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
+  let artBusy = false;
+  async function loadArts() {
+    const V = window.ORDO_VAULT; if (artBusy || !V || !V.readSealedBlob) return;
+    const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)); if (!want.length) return;
+    artBusy = true; let ch = false;
+    try {
+      let cache = null; try { cache = await caches.open("ordo-art"); } catch (e) {}
+      const miss = LS.get("ordo.k.artMiss", {});
+      for (const id of want) {
+        const n = artName("relic", id), key = new Request(`${location.origin}/__art/${n}`);
+        let blob = null;
+        if (cache) { const r = await cache.match(key); if (r) blob = await r.blob(); }
+        if (!blob && !(miss[n] && Date.now() - miss[n] < 6 * 3600e3)) {
+          try { blob = await V.readSealedBlob(`art/sealed/${n}.json`); } catch (e) {}
+          if (blob) { delete miss[n]; if (cache) await cache.put(key, new Response(blob, { headers: { "Content-Type": blob.type } })); } else miss[n] = Date.now();
+        }
+        if (blob) { ART[id] = URL.createObjectURL(blob); ch = true; }
+      }
+      LS.set("ordo.k.artMiss", miss);
+    } finally { artBusy = false; }
+    if (ch) { refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); } }
+  }
   const face = (r, cls) => ART[r.id] ? `<img class="rl-img${cls ? " " + cls : ""}" src="${ART[r.id]}" alt="">` : gem(r.rar, cls);
   function html() {
-    reconcile(); process();
+    reconcile(); process(); setTimeout(loadArts, 50);
     const b = balance(), L = ledger(), mk = today().slice(0, 7);
     const month = L.filter((x) => x.d.startsWith(mk)).reduce((a, x) => a + x.g, 0) + Object.entries(G.bon).filter(([k]) => { const id = k.replace(/^(rb|bl):/, ""); const x = L.find((y) => y.id === id); return x && x.d.startsWith(mk); }).reduce((a, [, v]) => a + v, 0);
     const W = T() && T().white && T().white(), pd = pending();
@@ -355,5 +380,6 @@
   });
   setTimeout(() => { if (pending().length) watchBank(); }, 6000);       // виведення в дорозі, а додаток перезапустили — стежимо далі
 
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens };
+  setTimeout(loadArts, 5000);
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName };
 })();

@@ -516,6 +516,13 @@
     const txt = await gh(path, { raw: true }); if (!txt) return null;
     return JSON.parse(await open(unb64(raw), JSON.parse(txt)));
   }
+  /* зашифрована картинка (арти реліквій, сцен): { mime, iv, ct } → Blob; null, якщо файлу нема */
+  async function readSealedBlob(path) {
+    const raw = LS.get(K.content, null); if (!raw || !token()) return null;
+    const txt = await gh(path, { raw: true }); if (!txt) return null;
+    const f = JSON.parse(txt), pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(f.iv) }, await aesKey(unb64(raw)), unb64(f.ct));
+    return new Blob([pt], { type: f.mime || "image/jpeg" });
+  }
   async function writeSealed(path, obj, message) {
     const raw = LS.get(K.content, null); if (!raw || !token()) return false;
     const box = await seal(unb64(raw), JSON.stringify(obj));
@@ -531,7 +538,7 @@
       return r.status === 204;
     } catch (e) { return false; }
   }
-  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, writeSealed, dispatch };
+  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
 
   async function boot() {
     let vault;

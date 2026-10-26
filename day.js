@@ -878,6 +878,7 @@
     const t0 = today();
     autoCount();
     Q.list.forEach((q) => {
+      if (q.st === "active" && q.flash && (q.until < t0 || (q.until === t0 && hmNow2() >= q.flash))) { q.st = "fail"; q.end = t0; q.at = Date.now(); return; }      // блискавичний: година минула — не встиг
       if (q.type === "budget" && q.st === "active" && T() && T().ready()) {          // бюджет: суддя — виписка банку
         const sp = qSpent(q);
         if (sp != null && sp > (q.limit || 0) && !q.limit) { q.st = "fail"; q.end = t0; q.at = Date.now(); }
@@ -918,11 +919,18 @@
     if (!c.length && tag) c = pool().filter((p) => free(p) && (p.tags || []).includes(tag));      // тематичні можна повторювати
     if (!c.length) c = pool().filter(free);
     if (!c.length) return null;
-    const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)]; rar = p.rar;
-    return { id: uid(), pid: p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
+    const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)];
+    return qFrom(p);
+  }
+  /* квест із пулу чи з писаря → доручення в пропозиції. flash: "21:00" — блискавичний (лише сьогодні, до години);
+     next — ланцюжок: наступний крок сюжету, що приходить одразу після виконання */
+  function qFrom(p, pid) {
+    const rar = p.rar;
+    return { id: uid(), pid: pid || p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: ECON.quest[rar] ? ECON.quest[rar][0] : p.xp || 0,
       cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
+      flash: /^\d\d:\d\d$/.test(p.flash || "") ? p.flash : null, next: p.next && p.next.t ? p.next : null, step: p.step || 1,
       st: "offer", offerOn: today(), cur: 0 };
   }
   /* розклад: рідкісні ~2–3 на тиждень, легендарні ~раз на 10 днів, міфічні ~раз на місяць; плюс тригери */
@@ -932,6 +940,10 @@
     Q.clock.roll = t0;
     if (Q.list.some((q) => q.st === "offer")) { saveQ(); return; }
     const since = (r) => Q.clock[r] ? diff(Q.clock[r], t0) : 99;
+    /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу */
+    const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !(p.flash && hmNow2() >= p.flash) && !Q.list.some((q) => q.pid === p.id));
+    if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
+
     /* видно, що не встигаєш: минуло 60%+ строку, а зроблено менше ніж 60% від потрібного темпу — храмовник (через раз) пропонує
        полегшене доручення замість цього: мета 70%, той самий строк, зроблене зараховано, нагорода на рідкість нижча. Один раз на квест */
     if (!again) for (const q of Q.list.filter((x) => x.st === "active" && x.type === "count" && x.target && !x.retry && !x.replaces && !x.easeAt && x.until && x.from)) {
@@ -968,9 +980,6 @@
         saveQ(); return;
       }
     }
-    /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу */
-    const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !Q.list.some((q) => q.pid === p.id));
-    if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
     const [trig, tag] = (Q.trig.shift() || "").split(":");
     /* щоранку жереб: кожна рідкість кидається окремо, тож може випасти будь-яка, а щастя — то й дві-три одразу; одночасних квестів — без обмежень.
        Одразу після попереднього того ж ґатунку шанс менший. У середньому: рідкісний ~2 на тиждень, легендарний ~раз на 10–12 днів, міфічний ~раз на 1,5 місяця.
@@ -992,6 +1001,7 @@
   }
   async function offerScene(q) {
     const h = H(); if (!h) return false;
+    if (q.flash && hmNow2() >= q.flash) { q.st = "declined"; q.missed = 1; q.at = Date.now(); saveQ(); return true; }      // блискавичний, а час уже минув
     const L = (D().DAY || {}).quest || {};
     h.stage(q.giver, { glow: glowOf(q.rar) });
     const lines = (L.offer && L.offer[q.rar]) || [];
@@ -1005,7 +1015,7 @@
     }
     if (i === 0) {
       const nxt = ((pool().find((p) => p.id === q.pid) || {}).tags || []).includes("return");          // «з наступних днів»: день зриву не рахується
-      q.st = "active"; q.from = nxt ? add(today(), 1) : today(); q.until = untilFor(q.scope, q.from, q.days); q.at = Date.now();
+      q.st = "active"; q.from = nxt ? add(today(), 1) : today(); q.until = q.flash ? q.from : untilFor(q.scope, q.from, q.days); q.at = Date.now();
       if (q.retry) { q.from = q.from0 || q.from; q.until = add(today(), 1); }          // друга спроба: зроблене рахується з початку, ще 2 дні
       if (q.replaces) {                                                               // полегшене: замінює важчий квест, той самий строк
         const o = Q.list.find((x) => x.id === q.replaces); if (o && o.st === "active") { o.st = "eased"; o.end = today(); o.at = Date.now(); }
@@ -1027,6 +1037,10 @@
     const L = (D().DAY || {}).quest || {};
     h.stage(q.giver, { glow: glowOf(q.rar) });
     await h.say(q.done || pick(L.done && L.done[q.rar]) || "Доручення виконано. Орден це памʼятає.");
+    if (q.next && !q.chained) {                                     // ланцюжок: наступний крок сюжету — одразу
+      q.chained = 1; const nq = qFrom(Object.assign({ rar: q.rar, giver: q.giver, scope: "day" }, q.next), `${q.pid}>${(q.step || 1) + 1}`); nq.step = (q.step || 1) + 1;
+      Q.list.push(nq); saveQ(); if (h.isOpen()) { await offerScene(nq); render(); return; }
+    }
     if (h.isOpen()) h.close();
   }
   async function rankScene(up) {
@@ -1189,7 +1203,7 @@
   }
   function questHTML(q) {
     const r = RAR[q.rar], pr = qProg(q), left = q.until ? diff(today(), q.until) : 0;
-    const due = q.st !== "active" ? "" : left <= 0 ? "сьогодні останній день" : `ще ${left} ${API().daysWord ? API().daysWord(left) : "дн."}`;
+    const due = q.st !== "active" ? "" : q.flash ? `⚡ до ${q.flash}` : left <= 0 ? "сьогодні останній день" : `ще ${left} ${API().daysWord ? API().daysWord(left) : "дн."}`;
     const who = q.giver === "supreme" ? (D().KEEPERS || {}).supreme : q.giver === "seneschal" ? D().SENESCHAL : q.giver === "chronicler" ? D().CHRONICLER : (D().KEEPERS || {})[q.giver];
     const img = who && who.art ? `<img src="${esc(who.art)}" alt="">` : "";
     return `<li class="dy-q dy-q--${q.rar} st-${q.st}" data-dq="${q.id}">

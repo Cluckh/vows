@@ -1423,11 +1423,14 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-bud i{background:linear-gradient(90deg,var(--gold),var(--ember-2))}
 .tr-watch li{display:grid;grid-template-columns:1fr auto auto;gap:10px}
 /* — День: тіло й зал — */
-.dy-body-line{display:flex;justify-content:center;gap:18px;margin:-2px 0 14px;font-family:var(--f-serif);font-size:15px;color:var(--ash)}
-.dy-body-line span{display:inline-flex;align-items:center;gap:6px}
+.dy-body-line{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;margin:-2px 0 14px;font-family:var(--f-serif);font-size:15px;color:var(--ash)}
+.dy-body-line span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .dy-body-line svg{width:16px;height:16px;color:var(--gold)}
 .dy-body-line b{color:var(--bone);font-weight:500}
 .dy-body-line--sub{margin:-8px 0 14px;font-size:13.5px;gap:14px;flex-wrap:wrap}
+.dy-hsync{text-align:center;margin:-6px 0 14px}
+.dy-hsync button{background:none;border:1px solid color-mix(in srgb,var(--gold) 30%,transparent);border-radius:999px;color:var(--ash);font-family:var(--f-serif);font-size:13.5px;padding:6px 16px;touch-action:manipulation}
+.dy-hsync button:active{color:var(--bone);border-color:var(--gold)}
 .dy-num.is-over,.dy-num.is-over em{color:var(--ember-2)}
 .dy-note--src{margin:-4px 0 10px;font-size:13.5px}
 /* — сповідь дня: кнопка на головній і список попередніх — */

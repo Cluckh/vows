@@ -167,6 +167,15 @@
     if (S.wake[k]) h.up = S.wake[k];
     return Object.keys(h).length ? h : null;
   };
+  /* «↻ оновити з телефона»: відкриває «Швидкі команди» з командою, що запускає всі вивантаження; після повернення — кілька свіжих зчитувань */
+  const PHONE_SHORTCUT = "Орден оновити все";
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  let hSyncAt = LS.get("ordo.k.hsync", 0);
+  function phoneSync() { hSyncAt = Date.now(); LS.set("ordo.k.hsync", hSyncAt); location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(PHONE_SHORTCUT)}`; }
+  function afterPhoneSync() {
+    if (Date.now() - hSyncAt > 10 * 60e3) return;
+    [0, 25, 50, 90].forEach((s) => setTimeout(() => { loadHealth(true); if (s === 90) render(); }, s * 1000));     // обробка на GitHub — ~15–40 с
+  }
   const EARLY = "08:00", DAWN = "04:00";
   const early = (k) => !!(S.wake[k] && S.wake[k] >= DAWN && S.wake[k] < EARLY);
   let hAt = 0;
@@ -1042,6 +1051,7 @@
     if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || apm.length || wl) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.streak || hd.duo.today) && !(hd.apps && hd.apps.duolingo && hd.apps.duolingo.min >= 1) ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${apm.map(([n, a]) => `<span>${esc(n)} <b>${Math.floor(a.min)}</b> хв${n === "duolingo" && hd.duo && hd.duo.streak ? ` · <b>${hd.duo.streak}</b>🔥` : ""}</span>`).join("")}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
+    if (k === today() && IOS) h += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю з телефона…" : "↻ оновити з телефона"}</button></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) h += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
     if (k === today() && roughNight(k) && !isNight()) {
@@ -1496,6 +1506,7 @@
     navTapAt = Date.now(); e.preventDefault(); goDay(nv);
   }
   function onBody(e) {
+    if (e.target.closest("[data-hsync]")) { phoneSync(); return; }
     const nv0 = e.target.closest("[data-dnav], [data-dday]");
     if (nv0) { if (Date.now() - navTapAt > 700) goDay(nv0); return; }
     const g = e.target.closest("[data-dgo]"); if (g) { const A = API(); if (A.showTab) A.showTab("stats"); return; }
@@ -1644,7 +1655,7 @@
     render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); applyHealth(); settle(); render(); } }, 60000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) { carryOver(); confessStatus(); stamp(); loadHealth(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { carryOver(); confessStatus(); stamp(); loadHealth(); afterPhoneSync(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);
   }
   /* перше відкриття дня = підйом; до 8:00 — питаємо, як спав (після ритуалу, коли нічого не відкрито) */

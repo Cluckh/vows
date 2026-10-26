@@ -404,7 +404,7 @@
     if (a === "ok") {
       if (!(amt > 0 && amt <= balance())) return;
       G.out["o" + Date.now().toString(36)] = { at: Date.now(), amt, kind: "white", st: "pending" }; save();
-      fx("yes"); render("sent"); refreshViews(); watchBank();
+      fx("yes"); render("sent"); refreshViews(); watchBank(false, true);
     }
   }
   /* відкриття реліквії чи благословення — коли екран вільний (не посеред сцени, ритуалу чи іншого аркуша); інакше — пізніше */
@@ -427,14 +427,15 @@
     if (reconcile()) { refreshViews(); const d = Object.values(G.out).filter((o) => o.done && Date.now() - o.done < 60 * 60e3).sort((a, b) => b.done - a.done); if (d.length) toast(`${coin()}<b>${fmtN(d[0].amt)} ₴</b> на білій картці`); }
     else if (syncing) refreshViews();
   }
-  function watchBank(manual) {
+  /* later — щойно натиснув «На білу картку»: переказу ще нема, банк питаємо, коли повернешся з монобанку (або за півтори хвилини) */
+  function watchBank(manual, later) {
     polls.forEach(clearTimeout); polls = [];
-    syncing = true; refreshViews(); askBank();
-    const asks = [100, 220, 400], reads = [45, 65, 85, 150, 170, 270, 290, 450, 470, 600];
+    syncing = true; refreshViews(); if (!later) askBank();
+    const asks = later ? [90, 220, 400] : [100, 220, 400], reads = [45, 65, 85, 150, 170, 270, 290, 450, 470, 600];
     asks.forEach((s) => polls.push(setTimeout(() => { if (manual && s > 100 && !pending().length) return; if (pending().length || manual) askBank(); }, s * 1000)));
     reads.forEach((s, i) => polls.push(setTimeout(async () => { if (!pending().length && !manual && i > 2) return; await readBank(); if (i === reads.length - 1 || (manual && i >= 2 && !pending().length)) { syncing = false; refreshViews(); } }, s * 1000)));
   }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && pending().length) { if (Date.now() - lastAsk > 30e3) lastAsk = 0; watchBank(); } });     // повернувся з монобанку — одразу питаємо банк
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && pending().length) { if (Date.now() - lastAsk > 20e3) lastAsk = 0; watchBank(); } });     // повернувся з монобанку — одразу питаємо банк
   function refreshViews() { const A = API(); if (A.renderTreasury && A.tab && A.tab() === "treasury") A.renderTreasury(); if (DAY() && DAY().render) DAY().render(); }
 
   document.addEventListener("click", (e) => {

@@ -231,7 +231,8 @@
         const b = await makeBackup();
         try { await putFile("backups/latest.json", b.file, "копія", true); }
         catch (e) { if (e.conflict) continue; throw e; }                      // інший пристрій щойно зберіг — спершу зливаємо його копію
-        await putFile(`backups/${day()}.json`, b.file, "копія дня");
+        const dk = LS.get("ordo.bk.day", {});                                // копія дня — не частіше, ніж раз на 30 хв (історія, а не синхронізація)
+        if (dk.d !== day() || Date.now() - (dk.at || 0) > 30 * 60e3) { await putFile(`backups/${day()}.json`, b.file, "копія дня"); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
         LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at });
         break;
       }
@@ -239,7 +240,7 @@
     } catch (e) {
       LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err");
     } finally { busy = false; }
-    if (pulled && window.__ordoStarted && !pullOnly) reloadWhenCalm();
+    if (pulled && window.__ordoStarted) reloadWhenCalm();          // зокрема передстартовий pull, що не встиг до старту
     return { pulled };
   }
   const backupNow = () => syncNow("force");
@@ -535,7 +536,11 @@
     const data = await unlockContent(vault);
     if (data) {
       /* перед стартом — лише підтягнути зміни з інших пристроїв (один запит, не довше 3,5 с): вступ, квести й цитати вже будуть спільні */
-      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
+      let pre = null;
+      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) pre = await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
+      /* модулі вже прочитали стан до pull — якщо інший пристрій щось змінив, перезапуск із свіжими даними (не частіше разу на хвилину) */
+      if (pre && pre.pulled) { let last = 0; try { last = +sessionStorage.getItem("ordo.prereload") || 0; } catch (e) {}
+        if (Date.now() - last > 60e3) { try { sessionStorage.setItem("ordo.prereload", String(Date.now())); } catch (e) {} location.reload(); return; } }
       start(data); setTimeout(() => syncNow("now"), 2500);      // збереження — уже у фоні, коли Орден відкритий
       return;
     }

@@ -1065,11 +1065,18 @@
       <div class="dy-body"><span class="dy-t">${esc(t.t)}</span>
         ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em></span>` : ""}
         ${(() => { if (srcOf(t) !== "app" || t.type === "count" || k > today()) return ""; const a = appOf(t), m = Math.floor(appMin(k, a.n));
-          return a.lim ? `<span class="dy-num${m > a.min ? " is-over" : ""}">${m} хв <em>/ ліміт ${a.min}</em></span>` : m ? `<span class="dy-num">${m} <em>/ ${a.min} хв</em></span>` : ""; })()}
+          return appBar(m, a.min, a.lim); })()}
         ${(() => { const sp = srcOf(t) === "bank" && k <= today() ? bankSpent(t, k) : null; return sp == null ? "" : `<span class="dy-num${sp > (t.bank.limit || 0) ? " is-over" : ""}">витрачено ${T().money(sp)} <em>/ ліміт ${T().money(t.bank.limit || 0)}</em></span>`; })()}
         <span class="dy-meta">${metaOf(t, r, k)}</span></div>
       ${cnt && !ro && st !== "done" && st !== "moved" && st !== "cancel" ? `<button type="button" class="gs-plus" data-dplus="${t.id}" aria-label="Додати">+</button>` : ""}
       ${xp ? `<span class="dy-xp">+${xp}</span>` : ""}</li>`;
+  }
+  /* час у програмі: смужка й «ще N хв» (мета) або «залишилось N хв» (ліміт) */
+  function appBar(m, goal, lim) {
+    if (!(goal > 0) && !lim) return "";
+    const over = lim && m > goal, pr = goal > 0 ? Math.min(1, m / goal) : over ? 1 : 0;
+    const tail = lim ? (over ? `понад ліміт на ${m - goal} хв` : `залишилось ${goal - m} хв`) : m >= goal ? "є" : `ще ${goal - m} хв`;
+    return `<div class="gl-bar dy-app${lim ? " dy-app--lim" : ""}${over ? " is-over" : ""}"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num${over ? " is-over" : ""}">${m} хв <em>/ ${lim ? "ліміт " : ""}${goal} · ${tail}</em></span>`;
   }
   function questHTML(q) {
     const r = RAR[q.rar], pr = qProg(q), left = q.until ? diff(today(), q.until) : 0;
@@ -1081,7 +1088,8 @@
       <div class="dy-q__body"><span class="dy-q__kind">${r.n} квест${who ? ` · ${esc(who.name)}` : ""}</span><b class="dy-q__t">${esc(q.t)}</b>
         ${q.desc ? `<span class="dy-q__d">${esc(q.desc)}</span>` : ""}
         ${q.type === "budget" ? budgetLine(q) : ""}
-        ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}</em></span>` : ""}
+        ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}${q.app && q.appMax == null && q.st === "active" && (q.cur || 0) < q.target ? ` · ще ${fmtN(q.target - (q.cur || 0))}` : ""}</em></span>` : ""}
+        ${q.app && q.appMax != null && q.st === "active" && q.from <= today() ? `<span class="dy-q__app">сьогодні в ${esc(q.app)}</span>${appBar(Math.floor(appMin(today(), q.app)), q.appMax, true)}` : ""}
         <span class="dy-q__due">${q.st === "done" ? `виконано · +${q.xp}` : due}${q.st === "active" ? ` · +${q.xp}` : ""}</span></div>
       ${q.st === "active" && !qAuto(q) ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
   }

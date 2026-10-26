@@ -1610,3 +1610,7 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .rl-slot.is-on b{color:var(--rc)}
 .gd-sheet .rl-big.rl--common + .sheet__title{color:#f6f5f2}.gd-sheet .rl-big.rl--rare + .sheet__title{color:var(--q-rare)}
 .gd-sheet .rl-big.rl--legend + .sheet__title{color:var(--q-legend)}.gd-sheet .rl-big.rl--myth + .sheet__title{color:var(--q-myth)}
+/* час у програмі: ліміт — смужка «з'їдається», понад ліміт — жар */
+.dy-app--lim i{background:linear-gradient(90deg,rgba(150,190,170,.55),rgba(190,215,195,.85));box-shadow:none}
+.dy-app.is-over i{background:linear-gradient(90deg,var(--ember),var(--ember-2));box-shadow:0 0 8px rgba(255,107,60,.45)}
+.dy-q__app{display:block;margin-top:6px;font-size:.78em;letter-spacing:.04em;opacity:.7}

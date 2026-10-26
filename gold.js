@@ -43,6 +43,7 @@
   const coin = (cls) => `<svg class="gd-coin${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6.5"/><path d="M12 8.5v7M9.5 12h5"/></svg>`;
   const gem = (r, cls) => `<svg class="rl-gem rl-gem--${r}${cls ? " " + cls : ""}" viewBox="0 0 48 48" aria-hidden="true"><path class="rl-g1" d="M24 4 41 16 34 42H14L7 16Z"/><path class="rl-g2" d="M7 16h34M24 4l-7 12 7 26 7-26-7-12M14 42l3-26M34 42l-3-26"/></svg>`;
   const relics = () => D().RELICS || [];
+  const MK = (h) => (window.ORDO_MARK ? window.ORDO_MARK(h) : h);                // слова рідкості — кольором
   const relic = (id) => relics().find((r) => r.id === id);
 
   /* ------------------------------------------------------------- нарахування */
@@ -344,13 +345,13 @@
       if (arg.level) { el.innerHTML = `${grip}<div class="gs-kicker">Церемонія Ордену</div>${scene("levelup") ? `<img class="gd-scene gd-scene--tall" src="${scene("levelup")}" alt="">` : ""}
         <div class="lv-big">${arg.level}</div><div class="sheet__title dy-sht">${arg.newRank ? `Нове звання — «${esc(arg.rank)}»` : `Рівень ${arg.level}`}</div>
         <p class="dy-note dy-note--t">${arg.newRank ? "Капітул вписує нове звання в книгу Ордену. Слово тримав — і слово тримає тебе." : "Орден відзначає ще одну сходинку."}</p>
-        <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — «${esc(relic(arg.relic).n)}»</p>` : ""}
+        <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — <span class="rw rw--${relic(arg.relic).rar}">«${esc(relic(arg.relic).n)}»</span></p>` : ""}
         <button type="button" class="btn btn--gold" data-gd="close">${arg.relic ? "Подивитися реліквію" : "Прийняти"}</button>`;
         if (arg.relic) reveals.unshift({ id: arg.relic, why: `За звання «${arg.rank}»` });
         return; }
       if (arg.weekChest) { el.innerHTML = `${grip}<div class="gs-kicker">Недільна скриня</div>${scene("weekchest") ? `<img class="gd-scene gd-scene--tall" src="${scene("weekchest")}" alt="">` : ""}
         <div class="sheet__title dy-sht">${arg.n} ідеальних днів за тиждень</div><p class="dy-note dy-note--t">Сенешаль сам приносить скриню: «За такий тиждень — заслужено».</p>
-        <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — «${esc(relic(arg.relic).n)}»</p>` : arg.token ? `<p class="rl-bonus">і жетон ${arg.token === "reroll" ? "перекидання" : "відстрочки"}</p>` : ""}
+        <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — <span class="rw rw--${relic(arg.relic).rar}">«${esc(relic(arg.relic).n)}»</span></p>` : arg.token ? `<p class="rl-bonus">і жетон ${arg.token === "reroll" ? "перекидання" : "відстрочки"}</p>` : ""}
         <button type="button" class="btn btn--gold" data-gd="close">${arg.relic ? "Подивитися реліквію" : "Забрати"}</button>`;
         if (arg.relic) reveals.unshift({ id: arg.relic, why: "З недільної скрині" });
         return; }
@@ -362,7 +363,7 @@
     }
   }
   function lootHTML(L) {
-    if (L.kind === "relic") { const r = relic(L.id); return `<div class="rl-big rl--${r.rar} is-new">${face(r, "rl-face")}</div><div class="sheet__title dy-sht">${esc(r.n)}</div><p class="rl-bonus">${RN[r.rar]} реліквія · ${esc(bonusText(r.bonus))}</p><p class="dy-note dy-note--t rl-lore">${esc(r.lore)}</p>`; }
+    if (L.kind === "relic") { const r = relic(L.id); return `<div class="rl-big rl--${r.rar} is-new">${face(r, "rl-face")}</div><div class="sheet__title dy-sht">${esc(r.n)}</div><p class="rl-bonus">${MK(RN[r.rar] + " реліквія")} · ${esc(bonusText(r.bonus))}</p><p class="dy-note dy-note--t rl-lore">${esc(r.lore)}</p>`; }
     if (L.kind === "token") return `<div class="gd-bless">${L.t === "reroll" ? "🎲" : "⏳"}</div><div class="sheet__title dy-sht">Жетон ${L.t === "reroll" ? "перекидання" : "відстрочки"}</div><p class="dy-note dy-note--t">${L.t === "reroll" ? "Наступне непотрібне доручення можна буде замінити." : "Будь-який активний квест — на день довше."}</p>`;
     return `<div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(L.g)}</b></div><div class="sheet__title dy-sht">${L.jack ? "СКАРБ!" : L.g >= 250 ? "Щедра скриня" : "Золото"}</div><p class="dy-note dy-note--t">${L.jack ? "Сенешаль мовчки дивиться на скриню. Таке трапляється раз на сотню." : "Сенешаль перелічує монети й киває."}</p>`;
   }

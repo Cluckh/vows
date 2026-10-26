@@ -340,15 +340,21 @@
   }
   const isOpen = () => !!(hall && hall.classList.contains("open"));
 
+  /* слова рідкості — кольором: рідкісний (жовтий), легендарний (помаранчевий), міфічний (фіолетовий) у будь-якому відмінку.
+     «звичайний» не фарбуємо — надто часте слово, а білий і так зливається з текстом. Приймає вже екранований HTML */
+  const RW = { "рідкісн": "rare", "легендарн": "legend", "міфічн": "myth" };
+  const mark = (html) => String(html).replace(/(^|[^\p{L}])((рідкісн|легендарн|міфічн)\p{L}*)/giu, (m, pre, w, st) => `${pre}<span class="rw rw--${RW[st.toLowerCase()]}">${w}</span>`);
+  window.ORDO_MARK = mark;
   /* друкарський текст; торкання — докрутити */
   function type(text) {
     if (typing) typing();                            // попередній друк — дописати й відпустити
     const el = $("hallSay"); el.textContent = ""; $("hallBox").classList.remove("has-tap");
     return new Promise((res) => {
-      if (reduce) { el.textContent = text; res(); return; }
-      let i = 0; const step = () => { i++; el.textContent = text.slice(0, i); if (i >= text.length) { clearInterval(t); typing = null; res(); } };
+      const fin = () => { el.innerHTML = mark(esc(text)); };                     // дописано — кольори рідкості
+      if (reduce) { fin(); res(); return; }
+      let i = 0; const step = () => { i++; el.textContent = text.slice(0, i); if (i >= text.length) { clearInterval(t); typing = null; fin(); res(); } };
       const t = setInterval(step, 24);
-      typing = () => { clearInterval(t); el.textContent = text; typing = null; res(); };
+      typing = () => { clearInterval(t); fin(); typing = null; res(); };
     });
   }
   /* сказати й дочекатися торкання */
@@ -369,7 +375,7 @@
       if (!isOpen()) return;
       const box = $("hallActs");
       box.className = "hall__acts" + (cls ? " " + cls : "") + (options.length >= 5 ? " hall__acts--many" : "");
-      box.innerHTML = options.map((o, i) => `<button type="button" data-i="${i}" style="--d:${i * 70}ms">${esc(o)}</button>`).join("");
+      box.innerHTML = options.map((o, i) => `<button type="button" data-i="${i}" style="--d:${i * 70}ms">${mark(esc(o))}</button>`).join("");
       const t0 = performance.now();                 // захист від випадкового «подвійного» тапу
       box.onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b || performance.now() - t0 < 450) return; box.onclick = null; closeResolve = null;
         const A = API(); if (A.FX) A.FX.buzz("light"); box.innerHTML = ""; res(+b.dataset.i); };

@@ -858,6 +858,26 @@
         st: "offer", offerOn: t0, cur: q.cur || 0, replaces: q.id, from0: q.from, until0: q.until });
       saveQ(); return;
     }
+    /* «Надолужити»: учора справа-лічильник недотягнула (менше 70% норми) — зрідка (1 з 3, не частіше ніж раз на 4 дні) на сьогодні
+       приходить рідкісний квест: звична норма + половина вчорашнього недобору. Лише для повторюваних справ, що є й сьогодні */
+    if (!again && (!Q.clock.catch || diff(Q.clock.catch, t0) >= 4) && roll("catch" + t0) < 0.34) {
+      const y = add(t0, -1), todayIds = new Set(items(t0).map((x) => x.t.id));
+      const c = items(y).filter(({ t, r }) => t.type === "count" && t.target && t.rep && t.rep.f !== "none" && !t.quest && todayIds.has(t.id) && !(r && (r.st === "moved" || r.st === "cancel")) && ((r && r.cur) || 0) < t.target * 0.7)
+        .sort((a, b) => ((a.r && a.r.cur) || 0) / a.t.target - ((b.r && b.r.cur) || 0) / b.t.target)[0];
+      if (c) {
+        const t = c.t, cur = (c.r && c.r.cur) || 0, gap = t.target - cur, step = t.target >= 2000 ? 500 : t.target >= 20 ? 5 : 1;
+        const tg = Math.ceil((t.target + gap / 2) / step) * step, unit = t.unit || "";
+        const giver = /крок/i.test(unit) ? "sobriety" : /роздач/i.test(unit) ? "gambling" : /хв/i.test(unit) ? "silence" : "supreme";
+        Q.clock.catch = t0;
+        Q.list.push({ id: "c" + t0 + t.id, pid: "catch:" + t.id + ":" + t0, rar: "rare", giver, t: `Надолужити: ${t.t}`, scope: "day", days: 1,
+          desc: `Учора ${fmtN(cur)} з ${fmtN(t.target)}. Сьогодні — ${fmtN(tg)} ${unit}: звична норма й половина вчорашнього недобору.`,
+          type: "count", target: tg, unit, xp: ECON.quest.rare[0], cats: null, limitPct: 0, limit: 0, vow: null, app: t.app && t.src === "app" ? t.app.n : null, appMax: null, weight: null,
+          offer: `Учора «${t.t}» не дотягнула, брате. Не страшно — але борг краще віддати, поки свіжий. Сьогодні трохи більше, ніж зазвичай.`,
+          accept: "От і добре. До вечора.", decline: "Як знаєш. Тоді просто зроби свою норму.", done: "Борг віддано. Отак і тримається ритм.",
+          st: "offer", offerOn: t0, cur: 0 });
+        saveQ(); return;
+      }
+    }
     /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу */
     const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !Q.list.some((q) => q.pid === p.id));
     if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }

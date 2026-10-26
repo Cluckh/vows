@@ -1603,3 +1603,10 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .xp-list li em{font-style:normal;color:var(--gold);text-align:right;display:inline-flex;align-items:center;justify-content:flex-end;gap:3px}
 .xp-list .gd-coin{width:14px;height:14px}
 .dsheet .st-h--sub em{font-style:normal;color:var(--gold);margin-left:6px;letter-spacing:0}
+/* слова рідкості в репліках, варіантах, картках */
+.rw--rare{color:var(--q-rare)}.rw--legend{color:var(--q-legend)}.rw--myth{color:var(--q-myth);text-shadow:0 0 12px color-mix(in srgb,var(--q-myth) 45%,transparent)}
+.hall__acts button .rw{font-weight:inherit}
+.rw--common{color:var(--rar-white,#f6f5f2)}
+.rl-slot.is-on b{color:var(--rc)}
+.gd-sheet .rl-big.rl--common + .sheet__title{color:#f6f5f2}.gd-sheet .rl-big.rl--rare + .sheet__title{color:var(--q-rare)}
+.gd-sheet .rl-big.rl--legend + .sheet__title{color:var(--q-legend)}.gd-sheet .rl-big.rl--myth + .sheet__title{color:var(--q-myth)}

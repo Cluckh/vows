@@ -1641,7 +1641,9 @@
     if (!ev) return true;
     S.ev[ev.id] = today(); saveS();
     h.stage(ev.giver || "supreme", ev.glow ? { glow: ev.glow } : {});
-    return h.runDialog({ n: ev.n });
+    const res = await h.runDialog({ n: ev.n });
+    if (ev.gift && window.ORDO_GOLD) window.ORDO_GOLD.gift(ev.gift, ev.id);          // храмовник дарує реліквію
+    return res;
   }
 
   /* ============================================================ СТАРТ ====== */

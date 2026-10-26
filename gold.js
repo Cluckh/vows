@@ -199,13 +199,14 @@
   let artBusy = false;
   async function loadArts() {
     const V = window.ORDO_VAULT; if (artBusy || !V || !V.readSealedBlob) return;
-    const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)); if (!want.length) return;
+    const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(["chest", "shop"].filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]));
+    if (!want.length) return;
     artBusy = true; let ch = false;
     try {
       let cache = null; try { cache = await caches.open("ordo-art"); } catch (e) {}
       const miss = LS.get("ordo.k.artMiss", {});
-      for (const id of want) {
-        const n = artName("relic", id), key = new Request(`${location.origin}/__art/${n}`);
+      for (const [kind, id0] of want) {
+        const id = kind === "scene" ? "scene:" + id0 : id0, n = artName(kind, id0), key = new Request(`${location.origin}/__art/${n}`);
         let blob = null;
         if (cache) { const r = await cache.match(key); if (r) blob = await r.blob(); }
         if (!blob && !(miss[n] && Date.now() - miss[n] < 6 * 3600e3)) {
@@ -282,12 +283,12 @@
         <div class="dy-chips">${[100, 300, 500].filter((v) => v < b).map((v) => `<button type="button" data-gdv="${v}">${v}</button>`).join("")}<button type="button" data-gdv="${b}">усе · ${fmtN(b)}</button></div>
         <button type="button" class="btn btn--gold" id="gdOk" data-gd="ok" ${amt > 0 ? "" : "disabled"}>Вивести ${coin()}</button><button type="button" class="btn btn--ghost" data-gd="close">Скасувати</button>`;
     } else if (m === "shop") {
-      el.innerHTML = `${grip}<div class="gs-kicker">Крамниця Сенешаля</div><div class="sheet__title dy-sht">«Чесно зароблене — чесно й витрачай»</div>
+      el.innerHTML = `${grip}<div class="gs-kicker">Крамниця Сенешаля</div>${ART["scene:shop"] ? `<img class="gd-scene" src="${ART["scene:shop"]}" alt="">` : ""}<div class="sheet__title dy-sht">«Чесно зароблене — чесно й витрачай»</div>
         <p class="dy-note">У тебе ${coin()}<b>${fmtN(b)}</b></p>
         <ul class="gd-shop">${SHOP.map((it) => `<li><div><b>${esc(it.n)}</b><span>${esc(it.d)}</span></div><button type="button" class="btn btn--line" data-gdbuy="${it.id}" ${b >= it.p ? "" : "disabled"}>${coin()} ${it.p}</button></li>`).join("")}</ul>
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
     } else if (m === "chest") {
-      el.innerHTML = `${grip}<div class="gs-kicker">Скриня Сенешаля</div><div class="gd-chest is-shake"><svg viewBox="0 0 64 64" aria-hidden="true"><path class="ch-b" d="M8 30h48v24H8z"/><path class="ch-l" d="M8 30c0-12 10-18 24-18s24 6 24 18z"/><path class="ch-s" d="M8 30h48M30 26h4v10h-4z"/></svg></div><p class="dy-note gd-c">Сенешаль повертає ключ…</p>`;
+      el.innerHTML = `${grip}<div class="gs-kicker">Скриня Сенешаля</div><div class="gd-chest is-shake">${ART["scene:chest"] ? `<img src="${ART["scene:chest"]}" alt="">` : ""}<svg viewBox="0 0 64 64" aria-hidden="true"><path class="ch-b" d="M8 30h48v24H8z"/><path class="ch-l" d="M8 30c0-12 10-18 24-18s24 6 24 18z"/><path class="ch-s" d="M8 30h48M30 26h4v10h-4z"/></svg></div><p class="dy-note gd-c">Сенешаль повертає ключ…</p>`;
     } else if (m === "loot") {
       el.innerHTML = `${grip}<div class="gs-kicker">Скриня Сенешаля</div>${lootHTML(arg)}<button type="button" class="btn btn--gold" data-gd="close">Забрати</button>`;
     } else if (m === "relic") {
@@ -380,6 +381,12 @@
   });
   setTimeout(() => { if (pending().length) watchBank(); }, 6000);       // виведення в дорозі, а додаток перезапустили — стежимо далі
 
+  /* подарунок у події писаря: { gift: "id реліквії" } — один раз на подію */
+  function gift(id, ev) {
+    if (!relic(id) || G.proc["ev:" + ev]) return;
+    G.proc["ev:" + ev] = 1; const r = grant(id, "подія"); save();
+    if (r) { reveals.push(Object.assign(r, { why: "Дар храмовника" })); setTimeout(nextReveal, 800); }
+  }
   setTimeout(loadArts, 5000);
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, gift };
 })();

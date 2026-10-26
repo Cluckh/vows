@@ -1570,3 +1570,6 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .rl-bonus{text-align:center;font-family:var(--f-serif);font-size:15.5px;color:var(--gold);margin:2px 0 8px}
 .rl-lore{font-style:italic}
 .gd-sheet .rl-big + .sheet__title,.gd-sheet .gd-big + .sheet__title,.gd-sheet .gd-bless + .sheet__title{text-align:center}
+.gd-scene{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:16px;margin:8px 0 12px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.gd-chest img{width:180px;height:180px;object-fit:cover;border-radius:22px;box-shadow:0 0 40px color-mix(in srgb,var(--gold) 35%,transparent);animation:gdShake .5s ease-in-out infinite}
+.gd-chest img + svg{display:none}

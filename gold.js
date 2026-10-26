@@ -73,7 +73,9 @@
   }
   const sum = (o) => Object.values(o).reduce((a, x) => a + (typeof x === "number" ? x : x.amt || 0), 0);
   const earned = () => ledger().reduce((a, x) => a + x.g, 0) + sum(G.bon) + sum(G.inc);
-  const spent = () => Object.values(G.out).filter((o) => o.st !== "cancel").reduce((a, o) => a + o.amt, 0);
+  const VOID = new Set(["Dgfr0npIMXPwnwND1g", "V3fxyJBNAJgM_mQqIg"]);   // тестові перекази 26.10 (3 ₴ і 1 ₴) — до старту золота, не рахуються
+  const live = (o) => o.st !== "cancel" && !VOID.has(o.tx);
+  const spent = () => Object.values(G.out).filter(live).reduce((a, o) => a + o.amt, 0);
   const balance = () => earned() - spent();
   const pending = () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "pending");
 
@@ -265,10 +267,11 @@
     const feed = full.filter((x) => x.g >= 10 || x.bl).concat(Object.values(small))
       .concat(Object.entries(G.inc).map(([, v]) => ({ d: new Date(v.at).toISOString().slice(0, 10), t: v.why, g: v.amt })))
       .sort((a, c) => (c.d > a.d ? 1 : c.d < a.d ? -1 : 0)).slice(0, 5);
-    const outs = Object.values(G.out).filter((o) => o.st !== "cancel").sort((a, c) => c.at - a.at).slice(0, 4);
+    const outs = Object.values(G.out).filter(live).sort((a, c) => c.at - a.at).slice(0, 4);
     const tkR = tokens("reroll"), tkE = tokens("extend");
     let h = `<section class="st-sec gd"><div class="st-h">Золото Ордену</div>${scene("treasury") ? `<img class="gd-scene" src="${scene("treasury")}" alt="">` : ""}
-      <div class="gd-big">${coin("gd-coin--big")}<b>${fmtN(b)}</b><span>золота</span></div>
+      <div class="gd-big">${coin("gd-coin--big")}<b>${fmtN(Math.abs(b))}</b><span>${b < 0 ? "золота боргу" : "золота"}</span></div>
+      ${b < 0 ? `<p class="gd-wait">на білу картку прийшло більше, ніж зароблено, — борг закриється наступним золотом</p>` : ""}
       <div class="tr-row"><span>цього місяця зароблено <b>${fmtN(month)}</b></span>${W && W.bal != null ? `<span>біла картка <b>${fmtN(W.bal / 100)} ₴</b></span>` : ""}</div>
       ${pd.length ? `<p class="gd-wait">в дорозі на білу картку — <b>${fmtN(pd.reduce((a, p) => a + p.amt, 0))} ₴</b> · чекаю на поповнення у виписці</p>` : ""}
       ${tkR || tkE ? `<p class="gd-wait">жетони: ${tkR ? `перекидання <b>${tkR}</b>` : ""}${tkR && tkE ? " · " : ""}${tkE ? `відстрочки <b>${tkE}</b>` : ""}</p>` : ""}

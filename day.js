@@ -517,7 +517,9 @@
     put("sleep", "Сон зі «Здоровʼя»", back(14).filter((k) => raw(k).sleepMin).length >= 2, hr >= 11 && !raw(t0).sleepMin && !raw(add(t0, -1)).sleepMin, sl ? `остання ніч — ${human(sl)}` : "ще не приходив",
       "Перевір автоматизацію, що зранку шле сон (bed / wake).");
     const stuck = []; [add(t0, -1), t0].forEach((k) => Object.entries(raw(k).apps || {}).forEach(([n, a]) => { if (a.openAt && now - a.openAt > (n === "reading" ? 5 : 3) * 3600e3) stuck.push(`${appName(n)} з ${clock(a.openAt)}`); }));
-    put("apps", "Час у програмах", back(14).some((k) => Object.keys(raw(k).apps || {}).length), stuck.length > 0, stuck.length ? `відкрито без закриття: ${stuck.join(", ")}` : "відкриття й закриття доходять",
+    const lost = Object.entries(raw(t0).apps || {}).filter(([, a]) => a.lost).map(([n, a]) => `${appName(n)} ${a.lost}`), lostN = Object.values(raw(t0).apps || {}).reduce((x, a) => x + (a.lost || 0), 0);
+    put("apps", "Час у програмах", back(14).some((k) => Object.keys(raw(k).apps || {}).length), stuck.length > 0 || lostN >= 2,
+      stuck.length ? `відкрито без закриття: ${stuck.join(", ")}` : lost.length ? `подій без пари сьогодні: ${lost.join(", ")} — ці сесії не пораховано` : "відкриття й закриття доходять",
       "Не спрацювала автоматизація «Закрито» (для читання — «фокус вимикається») — перевір сіру команду: тригер і «Введення: Текст».");
     const B = LS.get("ordo.k.bank", null), bAt = B && B.at ? Date.parse(B.at) : 0;
     put("bank", "Виписка монобанку", !!bAt, awake && now - bAt > 8 * 3600e3, bAt ? `оновлена ${ago(now - bAt)} тому` : "ще не приходила",

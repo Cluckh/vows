@@ -1711,3 +1711,41 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .hall--peek .hall__scene::after{opacity:0;transition:opacity .5s ease}
 .hall--peek .hall__rays{opacity:0}
 .kc__arch{margin-top:18px}
+
+/* жетони й скриня — іконками */
+.gd-tk{display:inline-grid;place-items:center;width:30px;height:30px;flex:none;border-radius:50%;color:var(--gold-2);
+  background:radial-gradient(circle at 35% 30%,rgba(255,241,191,.22),rgba(220,177,79,.08) 60%,transparent 70%);box-shadow:inset 0 0 0 1.5px rgba(220,177,79,.55),0 0 10px rgba(220,177,79,.15)}
+.gd-tk svg{width:17px;height:17px}
+.gd-tk--extend{color:#cfe0ff;box-shadow:inset 0 0 0 1.5px rgba(160,190,255,.5),0 0 10px rgba(160,190,255,.15);background:radial-gradient(circle at 35% 30%,rgba(220,232,255,.2),rgba(120,150,220,.08) 60%,transparent 70%)}
+.gd-tk--reroll{color:#ffe08a}
+.gd-tks{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;margin:6px 0 2px}
+.gd-tks>span{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-serif);font-size:15px;color:var(--ash)}
+.gd-tks b{color:var(--bone)}
+.rl-bonus .gd-tk{width:22px;height:22px;vertical-align:-6px;margin-right:2px}
+.rl-bonus .gd-tk svg{width:13px;height:13px}
+.gd-tkbig{display:flex;justify-content:center;margin:12px 0 6px}
+.gd-tk--big{width:96px;height:96px}
+.gd-tk--big svg{width:52px;height:52px}
+/* скриня: світіння кольором здобичі */
+.gd-chest{position:relative;isolation:isolate}
+.gd-chest::before{content:"";position:absolute;left:50%;top:50%;width:300px;height:300px;margin:-150px 0 0 -150px;border-radius:50%;z-index:-1;pointer-events:none;
+  background:radial-gradient(circle,var(--rc,#fff) 0%,color-mix(in srgb,var(--rc,#fff) 35%,transparent) 30%,transparent 66%);opacity:0;transform:scale(.4);transition:opacity .45s ease,transform .55s var(--ease)}
+.gd-chest.is-glow::before{opacity:.42;transform:scale(.9)}
+.gd-chest.rar-rare::before{opacity:.5;transform:scale(1)}
+.gd-chest.rar-legend::before{opacity:.62;transform:scale(1.12)}
+.gd-chest.rar-myth::before{opacity:.78;transform:scale(1.26)}
+.gd-chest.is-glow{animation:chestPop .55s var(--ease)}
+.gd-chest img{animation:none;transition:box-shadow .45s ease}
+.gd-chest.is-glow img{box-shadow:0 0 34px 4px color-mix(in srgb,var(--rc) 70%,transparent),0 0 0 1.5px color-mix(in srgb,var(--rc) 80%,transparent)}
+.gd-chest.is-glow svg{stroke:var(--rc);filter:drop-shadow(0 0 12px var(--rc))}
+@keyframes chestPop{0%{transform:scale(1)}35%{transform:scale(1.07)}100%{transform:scale(1)}}
+.gd-chest__why{min-height:1.4em}
+.gd-loot{position:relative;isolation:isolate;padding-top:4px}
+.gd-loot::before{content:"";position:absolute;left:50%;top:70px;width:320px;height:320px;margin:-160px 0 0 -160px;border-radius:50%;z-index:-1;pointer-events:none;
+  background:radial-gradient(circle,color-mix(in srgb,var(--rc) 55%,transparent) 0%,transparent 62%);animation:lootGlow 2.6s ease-in-out infinite}
+.gd-loot.rar-common::before{opacity:.45}
+.gd-loot__k{text-align:center;margin:0 0 2px;font-family:var(--f-display);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--rc)}
+@keyframes lootGlow{0%,100%{transform:scale(.94)}50%{transform:scale(1.04)}}
+@media (prefers-reduced-motion:reduce){.gd-chest.is-glow,.gd-loot::before{animation:none}}
+.gd-tk--btn{width:22px;height:22px;margin-right:8px;vertical-align:-6px}
+.gd-tk--btn svg{width:13px;height:13px}

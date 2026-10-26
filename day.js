@@ -741,13 +741,13 @@
     const qd = (rar) => Q.list.filter((q) => q.st === "done" && (!rar || q.rar === rar)).length;
     const f = faith();
     /* новий контент: слова храмовників, трапеза, ранки, ніч, читання, кроки, блискавичні й ланцюжкові квести */
-    const ar = Object.values(S.arch || {}), meals = Object.keys(S.journal).sort().filter((k) => S.journal[k].sent && S.journal[k].meal);
+    const ar = Object.values(S.arch || {}).filter(realArch), meals = Object.keys(S.journal).sort().filter((k) => S.journal[k].sent && S.journal[k].meal);
     let gRun = 0, gBest = 0, prev = null;
     meals.forEach((k) => { const g = S.journal[k].meal === "g"; gRun = g ? (prev && add(prev, 1) === k ? gRun + 1 : 1) : 0; if (!g) prev = null; else prev = k; gBest = Math.max(gBest, gRun); });
     const stepDays = (n) => Object.values((HL && HL.days) || {}).filter((d) => d.steps >= n).length;
     const fresh = {
       heard: ar.length, legendH: ar.filter((e) => e.rar === "legend").length, mythH: ar.filter((e) => e.rar === "myth").length,
-      gifts: Object.keys(X.e).filter((i) => i.startsWith("mo:")).length,
+      gifts: Object.keys(X.e).filter((i) => i.startsWith("mo:") && !isTestMo(i.slice(3))).length,
       meals: meals.length, greenBest: gBest,
       mornings: Object.values(S.sleep).filter((x) => x && !x.skip && (x.min || x.q || x.mood || x.wakes != null || x.dream)).length,
       siren: Object.values(S.night).filter((x) => x && x.kind === "siren").length,
@@ -819,7 +819,19 @@
   /* групи нагород у Літописі; старі без g — за префіксом */
   const ACH_G = [["d", "Справи"], ["q", "Квести"], ["v", "Вірність"], ["b", "Сповідь, тіло, звання"], ["w", "Слова храмовників"], ["m", "Трапеза"], ["s", "Ранки й ночі"], ["r", "Читання"], ["f", "Кроки"]];
   const achG = (a) => a.g || (/^(first|t\d|pd|early|ch)/.test(a.id) ? "d" : /^q/.test(a.id) ? "q" : /^(f\d|rise|fmon)/.test(a.id) ? "v" : "b");
+  /* 26.10 — день тестів: досвід і золото тестових сцен та медалі «Слів храмовників», здобуті на них, не рахуються (і при злитті — boot.js) */
+  const TEST_DAY = "2026-10-26", isTestMo = (id) => /^(t\d?-|test-)/.test(id || "");
+  const WORD_ACH = ["mo1", "mo15", "mo50", "mgift", "mleg", "mmyth"];
+  function purge(x, ach) {
+    let n = 0;
+    if (x && x.e) Object.keys(x.e).forEach((k) => { if (k.startsWith("mo:") && (x.e[k].d <= TEST_DAY || isTestMo(k.slice(3)))) { delete x.e[k]; n++; } });
+    if (ach) WORD_ACH.forEach((id) => { if (ach[id] && ach[id] <= TEST_DAY) { delete ach[id]; n++; if (x && x.e) delete x.e["a:" + id]; } });
+    if (x && x.e && !ach) WORD_ACH.forEach((id) => { const e = x.e["a:" + id]; if (e && e.d <= TEST_DAY) { delete x.e["a:" + id]; n++; } });
+    return n;
+  }
+  const realArch = (e) => e && e.d > TEST_DAY && !isTestMo(e.mid);
   function settleAch() {
+    if (purge(X, ACH)) { saveA(); saveX(); }
     const c = ctx(), fresh = [];
     ACHS.forEach((a) => { if (!ACH[a.id] && a.ok(c)) { ACH[a.id] = today(); fresh.push(a); } });
     ACHS.forEach((a) => { if (ACH[a.id] && a.xp) X.e[`a:${a.id}`] = { d: ACH[a.id], xp: a.xp, src: "ach", why: a.n }; });
@@ -978,7 +990,7 @@
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: ECON.quest[rar] ? ECON.quest[rar][0] : p.xp || 0,
       cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
-      flash: /^\d\d:\d\d$/.test(p.flash || "") ? p.flash : null, next: p.next && p.next.t ? p.next : null, step: p.step || 1,
+      chest: !!p.chest, flash: /^\d\d:\d\d$/.test(p.flash || "") ? p.flash : null, next: p.next && p.next.t ? p.next : null, step: p.step || 1,
       st: "offer", offerOn: today(), cur: 0 };
   }
   /* розклад: рідкісні ~2–3 на тиждень, легендарні ~раз на 10 днів, міфічні ~раз на місяць; плюс тригери */
@@ -1056,7 +1068,7 @@
     const open = q.offer || pick(lines) || "Брате, маю для тебе доручення.";
     if ((await h.say(fill(open, { rar: RAR[q.rar].n.toLowerCase() }))) === "closed") return false;
     const G = window.ORDO_GOLD, rr = G && G.can("reroll");                  // реліквія чи жетон перекидання — можна попросити інше доручення
-    const i = await h.choose(questCard(q), rr ? ["Приймаю", "Не цього разу", "Інше 🎲"] : ["Приймаю", "Не цього разу"], "hall__acts--row");
+    const i = await h.choose(questCard(q), rr ? ["Приймаю", "Не цього разу", "Перекинути"] : ["Приймаю", "Не цього разу"], "hall__acts--row");
     if (i === "closed") return false;
     if (i === 2) {
       const nq = draw(q.rar); if (nq && G.use("reroll")) { q.st = "rerolled"; q.at = Date.now(); Q.list.push(nq); saveQ(); await h.say("Добре. Маю для тебе інше."); return offerScene(nq); }
@@ -1344,7 +1356,7 @@
     const gl = rarOk(m.rar) === "common" ? null : rarOk(m.rar);
     h.stage(m.who || "supreme", Object.assign({}, gl ? { glow: gl } : {}, art ? { scene: art } : {}));
     const res = await h.runDialog({ n: m.n });
-    if (!replay && m.reward && !X.e["mo:" + m.id]) {
+    if (!replay && m.reward && !isTestMo(m.id) && !X.e["mo:" + m.id]) {
       const before = totalXP(), [xp, gold] = MO_REW[rarOk(m.rar)];
       X.e["mo:" + m.id] = { d: today(), xp, gold, src: "moment", why: m.title || "Слово храмовника" }; saveX();
       after(before); toast(`Дар храмовника: <b>+${xp}</b> досвіду · <b>+${gold}</b> золота`, "is-gift");
@@ -1992,7 +2004,7 @@
       ${q.desc ? `<p class="dy-note">${esc(q.desc)}</p>` : ""}
       <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : ""} · +${q.xp} досвіду</div>
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
-      ${q.st === "active" && q.until && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">Відстрочка +1 день ⏳</button>` : ""}
+      ${q.st === "active" && q.until && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
       ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
       <button class="btn btn--ghost" type="button" data-dqs="close">Закрити</button>`;
@@ -2154,5 +2166,5 @@
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
   window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
-    _state: () => ({ S, Q, X, ACH }), _writer: writerState };
+    purge, _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

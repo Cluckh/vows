@@ -185,8 +185,10 @@
       Object.keys(b.out || {}).forEach((k) => { if (a.out && a.out[k] && (rk[b.out[k].st] || 0) > (rk[a.out[k].st] || 0)) go[k] = b.out[k]; });
       const un = (k) => Object.assign({}, b[k], a[k]), own = un("own"); Object.keys(b.own || {}).forEach((k) => { if (a.own && a.own[k] && b.own[k].at < a.own[k].at) own[k] = b.own[k]; });
       const eqs = (b.eqAt || 0) > (a.eqAt || 0) ? { eq: b.eq, eqAt: b.eqAt } : { eq: a.eq || b.eq || [], eqAt: a.eqAt || b.eqAt };
-      out["ordo.gold"] = JSON.stringify(Object.assign({}, b, a, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), wk: un("wk"), own, starter: a.starter || b.starter,
-        lv: Math.max(a.lv || 0, b.lv || 0) || undefined, ri: Math.max(a.ri || 0, b.ri || 0) || undefined }, eqs));
+      const G2 = Object.assign({}, b, a, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), wk: un("wk"), own, starter: a.starter || b.starter,
+        lv: Math.max(a.lv || 0, b.lv || 0) || undefined, ri: Math.max(a.ri || 0, b.ri || 0) || undefined }, eqs);
+      if (window.ORDO_GOLD && window.ORDO_GOLD.purge) window.ORDO_GOLD.purge(G2);      // тестові покупки 26.10 не воскресають з іншого пристрою
+      out["ordo.gold"] = JSON.stringify(G2);
     }
     if (L["ordo.books"] || R["ordo.books"]) {          // книжки: опис — новіша правка; сторінка дня — новіший запис; поточна — новіший вибір
       const a = P(L, "ordo.books", {}), b = P(R, "ordo.books", {}), list = Object.assign({}, b.list, a.list), log = {};
@@ -200,11 +202,14 @@
     }
     if (L["ordo.xp"] || R["ordo.xp"]) {
       const a = P(L, "ordo.xp", {}), b = P(R, "ordo.xp", {});
-      out["ordo.xp"] = JSON.stringify(Object.assign({}, b, a, { e: Object.assign({}, b.e, a.e), knighted: a.knighted || b.knighted }));
+      const X2 = Object.assign({}, b, a, { e: Object.assign({}, b.e, a.e), knighted: a.knighted || b.knighted });
+      if (window.ORDO_DAY && window.ORDO_DAY.purge) window.ORDO_DAY.purge(X2, null);
+      out["ordo.xp"] = JSON.stringify(X2);
     }
     if (L["ordo.ach"] || R["ordo.ach"]) {
       const a = P(L, "ordo.ach", {}), b = P(R, "ordo.ach", {}), m = Object.assign({}, b, a);
       Object.keys(b).forEach((k) => { if (a[k] && b[k] < a[k]) m[k] = b[k]; });
+      if (window.ORDO_DAY && window.ORDO_DAY.purge) window.ORDO_DAY.purge(null, m);
       out["ordo.ach"] = JSON.stringify(m);
     }
     /* ранковий вступ — пізніша дата; тренування — новіший запис; рішення сторожі, вичерпані вікна, латки — обʼєднання */

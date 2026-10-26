@@ -540,7 +540,14 @@
       if (what === "talk") ok = await runDialog(fresh("talk." + vowId, k.talks, 3).v);
       if (what === "arch") ok = await archiveMenu(vowId);
       if (!ok) return;
+      if ((what === "tale" || what === "talk") && Math.random() < 0.08) await keeperChest(vowId, k);   // зрідка після історії — скриня від хранителя (не частіше разу на день)
     }
+  }
+  async function keeperChest(vowId, k) {
+    const GD = window.ORDO_GOLD, A = API(), day = A.todayKey ? A.todayKey() : new Date().toISOString().slice(0, 10);
+    if (!GD || !GD.freeChest || GD.chestUsed("talk:" + day)) return;
+    await say(`Постривай, брате. Я дещо приберіг для тебе — ось, тримай скриню. Відкриєш, коли вийдеш із зали.`);
+    if (GD.freeChest("talk:" + day, `${(k && k.name) || "Хранитель"} лишив тобі скриню`, "Скриня від хранителя")) close();
   }
   /* «Що ти мені казав»: архів слів і сцен храмовника — переглянути знову */
   async function archiveMenu(id, back) {

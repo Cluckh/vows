@@ -545,7 +545,7 @@
     task: { common: [8, 2], rare: [15, 3], legend: [30, 6], myth: [60, 12] },              // справа дня: [досвід, золото] за виконання
     month: { common: [60, 40], rare: [120, 80], legend: [240, 160], myth: [480, 320] },     // ціль місяця
     year: { common: [200, 150], rare: [400, 300], legend: [800, 600], myth: [1600, 1200] }, // ціль року
-    quest: { rare: [80, 30], legend: [300, 120], myth: [1000, 400] },                       // квест (досвід — як задав писар)
+    quest: { rare: [150, 100], legend: [400, 250], myth: [1200, 800] },                     // квест: завжди більше за ціль місяця тієї ж рідкості, менше за ціль року
     day: { pd: [25, 20], gy: [20, 10], jr: [10, 5], st: [10, 5], er: [5, 3], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
     vowDay: [4, 1],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
     milestone: { 10: [60, 30], 25: [120, 60], 75: [250, 150], 180: [500, 350], 365: [1000, 1000], 500: [1300, 1200], 730: [1800, 1600], 1000: [2500, 2500] },
@@ -723,7 +723,7 @@
   }
 
   /* ============================================================ КВЕСТИ ===== */
-  const RAR = { rare: { n: "Рідкісний", xp: 80 }, legend: { n: "Легендарний", xp: 300 }, myth: { n: "Міфічний", xp: 1000 } };
+  const RAR = { rare: { n: "Рідкісний", xp: 150 }, legend: { n: "Легендарний", xp: 400 }, myth: { n: "Міфічний", xp: 1200 } };
   const pool = () => (D().QUESTS || []).concat(LS.get("ordo.k.drop", {}).quests || []);
   function untilFor(scope, from, days) {
     if (days) return add(from, days - 1);
@@ -819,7 +819,7 @@
     if (!c.length) return null;
     const p = c[Math.floor(roll(today() + rar + Q.list.length) * c.length)]; rar = p.rar;
     return { id: uid(), pid: p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
-      type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: p.xp || RAR[rar].xp,
+      type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: ECON.quest[rar] ? ECON.quest[rar][0] : p.xp || 0,
       cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
       st: "offer", offerOn: today(), cur: 0 };
@@ -1674,6 +1674,7 @@
       S.seeded = seed.v; saveS();
     }
     appMigrate();
+    Q.list.forEach((q) => { const v = ECON.quest[q.rar]; if (v && q.xp !== v[0]) { q.xp = v[0]; q.at = Date.now(); saveQ(); } });     // досвід квестів — за таблицею економіки
     Object.values(S.tasks).forEach((t) => { const r = { easy: "common", normal: "rare", hard: "legend" }[t.diff]; if (r || !t.diff) { t.diff = r || "rare"; t.mt = Date.now(); saveS(); } });     // «вага» → рідкість
     /* «Monthly review» — разом із ревю місяця, зранку 1-го (раніше — останній день місяця) */
     const mr = S.tasks["rm-monthly-review"];

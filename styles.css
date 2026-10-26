@@ -1582,3 +1582,5 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .lv-big{text-align:center;font-family:var(--f-display);font-size:72px;line-height:1;color:var(--gold);text-shadow:0 0 30px color-mix(in srgb,var(--gold) 55%,transparent);margin:6px 0 2px;animation:rlIn .9s cubic-bezier(.2,1.4,.4,1) both}
 .gd-scene--tall{aspect-ratio:4/3}
 .gd-sheet .lv-big + .sheet__title{text-align:center}
+.gd-sync{display:block;margin:8px auto 2px;background:none;border:0;font-family:var(--f-serif);font-size:14px;color:var(--ash);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--gold) 35%,transparent);text-underline-offset:3px}
+.gd-sync:disabled{text-decoration:none;color:var(--gold)}

@@ -272,6 +272,7 @@
       ${pd.length ? `<p class="gd-wait">в дорозі на білу картку — <b>${fmtN(pd.reduce((a, p) => a + p.amt, 0))} ₴</b> · чекаю на поповнення у виписці</p>` : ""}
       ${tkR || tkE ? `<p class="gd-wait">жетони: ${tkR ? `перекидання <b>${tkR}</b>` : ""}${tkR && tkE ? " · " : ""}${tkE ? `відстрочки <b>${tkE}</b>` : ""}</p>` : ""}
       <div class="dy-acts gd-acts"><button type="button" class="btn btn--gold" data-gd="shop">Крамниця Сенешаля</button><button type="button" class="btn btn--line" data-gd="out" ${b > 0 ? "" : "disabled"}>На білу картку</button></div>
+      <button type="button" class="gd-sync" data-gd="sync" ${syncing ? "disabled" : ""}>${syncing ? "оновлюю виписку… (до хвилини)" : `↻ оновити виписку${T() && T().at ? ` · ${(() => { const B = LS.get("ordo.k.bank", {}); return B && B.at ? new Date(B.at).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" }) : ""; })()}` : ""}`}</button>
       ${feed.length ? `<div class="st-h st-h--sub">Нещодавно</div><ul class="tr-top gd-list">${feed.map((x) => `<li><span>${x.bl ? "✦ " : ""}${esc(x.t)}</span><b>+${fmtN(x.g)}</b></li>`).join("")}</ul>` : ""}
       ${outs.length ? `<div class="st-h st-h--sub">Виведено й витрачено</div><ul class="tr-top gd-list">${outs.map((o) => `<li><span>${o.kind === "white" ? (o.st === "pending" ? "на білу картку · чекаю" : "на білу картку") : esc(o.item || "крамниця")}</span><b>−${fmtN(o.amt)}</b></li>`).join("")}</ul>` : ""}
       <p class="tr-at">золото — за ідеальні дні, квести, віхи обітниць, цілі, зал. 1 золото = 1 ₴ на білій картці</p></section>`;
@@ -412,20 +413,29 @@
     if (nx && nx.id && !nx.dup && !ART[nx.id] && !nx.waited) { nx.waited = 1; loadArts(); revealT = setTimeout(nextReveal, 2500); return; }   // спершу — справжній арт
     show("reveal", reveals.shift()); fx("date");
   }
-  /* швидка звірка: попросити свіжу виписку одразу й перечитувати її кілька хвилин, поки поповнення не зʼявиться */
-  function watchBank() {
-    const V = window.ORDO_VAULT; polls.forEach(clearTimeout); polls = [];
-    if (V && V.dispatch) V.dispatch("bank");
-    [45, 75, 105, 140, 180, 240, 300, 420].forEach((s) => polls.push(setTimeout(async () => {
-      if (!pending().length) return;
-      if (T() && T().load) await T().load(true);
-      if (reconcile()) { refreshViews(); const d = Object.values(G.out).filter((o) => o.done && Date.now() - o.done < 30 * 60e3); if (d.length) toast(`${coin()}<b>${fmtN(d[d.length - 1].amt)} ₴</b> на білій картці`); }
-    }, s * 1000)));
+  /* швидка звірка з банком. Орден не бачить переказу, доки GitHub не стягне свіжу виписку з монобанку (~40–60 с на запит),
+     тож поки є виведення в дорозі — просимо виписку кілька разів (не частіше ніж раз на ~90 с: ліміт API банку) і перечитуємо її між запитами.
+     Також — одразу, щойно повертаєшся в Орден після монобанку, і кнопкою «Оновити». */
+  let lastAsk = 0, syncing = false;
+  function askBank() { const V = window.ORDO_VAULT; if (!V || !V.dispatch || Date.now() - lastAsk < 85e3) return; lastAsk = Date.now(); LS.set("ordo.k.bankAsk", Date.now()); V.dispatch("bank"); }
+  async function readBank() {
+    if (T() && T().load) await T().load(true);
+    if (reconcile()) { refreshViews(); const d = Object.values(G.out).filter((o) => o.done && Date.now() - o.done < 60 * 60e3).sort((a, b) => b.done - a.done); if (d.length) toast(`${coin()}<b>${fmtN(d[0].amt)} ₴</b> на білій картці`); }
+    else if (syncing) refreshViews();
   }
+  function watchBank(manual) {
+    polls.forEach(clearTimeout); polls = [];
+    syncing = true; refreshViews(); askBank();
+    const asks = [100, 220, 400], reads = [45, 65, 85, 150, 170, 270, 290, 450, 470, 600];
+    asks.forEach((s) => polls.push(setTimeout(() => { if (manual && s > 100 && !pending().length) return; if (pending().length || manual) askBank(); }, s * 1000)));
+    reads.forEach((s, i) => polls.push(setTimeout(async () => { if (!pending().length && !manual && i > 2) return; await readBank(); if (i === reads.length - 1 || (manual && i >= 2 && !pending().length)) { syncing = false; refreshViews(); } }, s * 1000)));
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && pending().length) { if (Date.now() - lastAsk > 30e3) lastAsk = 0; watchBank(); } });     // повернувся з монобанку — одразу питаємо банк
   function refreshViews() { const A = API(); if (A.renderStats && A.tab && A.tab() === "stats") A.renderStats(); if (DAY() && DAY().render) DAY().render(); }
 
   document.addEventListener("click", (e) => {
     if (!e.target.closest || e.target.closest("#gdSheet")) return;
+    const sy = e.target.closest("[data-gd='sync']"); if (sy) { lastAsk = 0; watchBank(true); return; }
     const b = e.target.closest("[data-gd='out'], [data-gd='shop']"); if (b) { amt = 0; show(b.dataset.gd); return; }
     const r = e.target.closest("[data-rl]"); if (r) { show("relic", r.dataset.rl); return; }
     const x = e.target.closest("[data-rlx]"); if (x) show("locked", x.dataset.rlx);

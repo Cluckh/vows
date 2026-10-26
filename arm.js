@@ -151,7 +151,7 @@
     const Y = DY(), A = AR(), seedTo = A.seedTo || "2026-10-21", h = (A.hist || {})[key] || [0, 0, 0];
     const a = `${key}-01`, end = keyOf(new Date(+key.slice(0, 4), +key.slice(5, 7), 0)), from = a > seedTo ? a : add(seedTo, 1);
     const td = Y && Y.trainDays && from <= end ? Y.trainDays(from, end) : { gym: [], cardio: [] };
-    return { gym: (key <= seedTo.slice(0, 7) ? h[0] + (h[2] || 0) : 0) + td.gym.length, cardio: (key <= seedTo.slice(0, 7) ? h[1] : 0) + td.cardio.length };
+    return { gym: (key <= seedTo.slice(0, 7) ? h[0] : 0) + td.gym.length, cardio: (key <= seedTo.slice(0, 7) ? h[1] : 0) + td.cardio.length };
   }
   function months() {
     const A = AR(), out = [], t0 = today(); let k = (A.since || "2026-06-12").slice(0, 7);
@@ -369,5 +369,14 @@
   }
   /* таблиця для аркуша залу з Дня: план Северина (вправи й ваги) */
   const planTable = () => { try { const P = plan(); return P && P.ex.length ? planSets(P) : null; } catch (e) { return null; } };
-  window.ORDO_ARM = { renderArmory, plan, planTable, stats, catalog, counts, count, liftHit, gameDoneFor, libBooks, libGames, openLib: () => show("lib"), writer, reload };
+  /* звідки медаль (для картки нагороди): що саме її відкрило — особливо те, що було до Ордену */
+  function achWhy(id) {
+    const G = (AR().goal || {}).gym || 8, seedTo = (AR().seedTo || "2026-10-21").slice(0, 7);
+    if (id === "gmon") { const L = months().filter((m) => m.gym >= G); return L.length ? "За " + L.map((m) => `${MN[+m.key.slice(5, 7) - 1].toLowerCase()} — ${m.gym} залів${m.key <= seedTo ? " (з логу до Ордену)" : ""}`).join(", ") : ""; }
+    if (/^gm\d/.test(id)) { const L = libGames().filter((g) => g.st === "done"); return L.length ? `Пройдено: ${L.map((g) => g.t).join(", ")}` : ""; }
+    if (id === "bk1" || id === "bk5" || id === "kq" || id === "rd12") { const L = libBooks().filter((b) => b.st === "done" && (id !== "kq" || b.knight)); return L.length ? `Прочитано: ${L.map((b) => `«${b.t}»${b.end ? " · " + human(b.end) : ""}`).join(", ")}` : ""; }
+    if (id === "g100" || id === "cd10") { const ms = months(), i = id === "g100" ? "gym" : "cardio"; return `${ms.map((m) => `${MN[+m.key.slice(5, 7) - 1].slice(0, 3).toLowerCase()} ${m[i]}`).join(" · ")} (до ${human(AR().seedTo || "2026-10-21")} — з логу)`; }
+    return "";
+  }
+  window.ORDO_ARM = { renderArmory, plan, planTable, achWhy, months, stats, catalog, counts, count, liftHit, gameDoneFor, libBooks, libGames, openLib: () => show("lib"), writer, reload };
 })();

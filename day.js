@@ -1853,6 +1853,7 @@
       h += `<div class="ach-big tier-${got ? a.tier || "gold" : "ash"}${got ? " is-on" : ""}">${achFace(a, true)}</div>
         <div class="gs-kicker ach-k rar-${{ legend: "legend", myth: "myth" }[a.tier] || "common"}">${TIERN[a.tier] || "золота"} нагорода · ${esc(gname.toLowerCase())}</div>
         <div class="sheet__title dy-sht">${esc(a.n)}</div><p class="dy-note dy-note--t">${esc(a.h)}</p>
+        ${(() => { const w = window.ORDO_ARM && window.ORDO_ARM.achWhy ? window.ORDO_ARM.achWhy(a.id) : ""; return w ? `<p class="ach-src">${esc(w)}</p>` : ""; })()}
         ${got ? `<p class="ach-when">здобуто ${human(got)}</p>` : pr ? `<div class="gl-bar ach-bar"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i></div><p class="ach-when">${fmtN(pr[0])} з ${fmtN(pr[1])}</p>` : `<p class="ach-when">ще попереду</p>`}
         <p class="ach-rew">${a.xp || gold ? `${got ? "Дала" : "Дасть"}${a.xp ? ` <b>+${fmtN(a.xp)}</b> досвіду` : ""}${gold ? `${a.xp ? " ·" : ""} <b>+${gold}</b> золота` : ""}` : "Почесна — без досвіду, лише честь"}</p>
         <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;

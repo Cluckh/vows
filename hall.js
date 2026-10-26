@@ -197,6 +197,7 @@
       <div class="hall__fig" id="hallFig"></div>
       <div class="hall__plate" id="hallPlate"></div>
       <div class="hall__box" id="hallBox"><p class="hall__say" id="hallSay"></p><div class="hall__acts" id="hallActs"></div><div class="hall__tap" id="hallTap">торкнись, щоб продовжити</div></div>
+      <button class="hall__peek" id="hallPeek" type="button" aria-label="Роздивитись картину"><svg><use href="#i-eye"/></svg></button>
       <button class="hall__x" id="hallX" type="button" aria-label="Закрити"><svg><use href="#i-x"/></svg></button>`;
     document.body.appendChild(hall);
     /* свайп униз — вийти із зали (як хрестик); варіанти, що гортаються, не чіпаємо */
@@ -228,6 +229,8 @@
     hall.addEventListener("touchend", gEnd); hall.addEventListener("touchcancel", gEnd);
     hall.addEventListener("click", (e) => {
       if (e.target.closest("#hallX")) { close(); return; }
+      if (e.target.closest("#hallPeek")) { hall.classList.add("hall--peek"); return; }   // сцена: сховати слова, роздивитись картину
+      if (hall.classList.contains("hall--peek")) { hall.classList.remove("hall--peek"); return; }
       if (e.target.closest("#hallFig, #hallPlate") && card(curWho)) return;   // портрет → картка храмовника
       if (e.target.closest(".hall__acts button")) return;
       if (typing) { typing(); return; }            // докрутити текст
@@ -259,6 +262,9 @@
     curWho = entry(who.id) ? who.id : "";
     $("hallPlate").innerHTML = `<b>${esc(who.name || k.name || "")}${curWho ? `<i class="hall__info" aria-hidden="true">i</i>` : ""}</b><span>${esc(who.title || k.title || "")}</span>${(who.bio || k.bio) ? `<em>${esc(who.bio || k.bio)}</em>` : ""}`;
     hall.classList.toggle("hall--supreme", who.id === "supreme");
+    let sc = hall.querySelector(".hall__scene");                                 // легендарна чи міфічна сцена — картина на весь фон, діалог поверх
+    if (!sc) { sc = document.createElement("div"); sc.className = "hall__scene"; sc.setAttribute("aria-hidden", "true"); hall.insertBefore(sc, hall.querySelector(".hall__rays")); }
+    if (who.scene) { sc.style.backgroundImage = `url("${who.scene}")`; hall.classList.add("hall--scene"); } else { hall.classList.remove("hall--scene"); sc.style.backgroundImage = ""; } hall.classList.remove("hall--peek");
     if (who.glow) hall.dataset.glow = who.glow; else delete hall.dataset.glow;      // сяйво рідкості квесту
     if (!hall.classList.contains("open")) {
       hall.classList.add("open"); document.body.classList.add("in-hall");
@@ -286,6 +292,7 @@
         ${e.motto ? `<blockquote class="kc__motto">«${esc(e.motto)}»</blockquote>` : ""}${stat ? `<p class="kc__stat">${stat}</p>` : ""}
         ${e.sign ? `<h3 class="kc__h">Знак</h3><p class="kc__p">${esc(e.sign)}</p>` : ""}
         ${(e.about || []).length ? `<h3 class="kc__h">Хто він</h3>${e.about.map((t) => `<p class="kc__p">${esc(t)}</p>`).join("")}` : ""}
+        ${hasArch(id) ? `<button class="kc__arch btn btn--line" type="button">Його слова тобі · ${window.ORDO_DAY.archiveFor(id).length}</button>` : ""}
         <button class="kc__back btn btn--ghost" type="button">Повернутись</button>
       </div><button class="kc__x" type="button" aria-label="Закрити"><svg><use href="#i-x"/></svg></button>`;
     document.body.appendChild(el);
@@ -322,6 +329,10 @@
       ev.stopPropagation();
       const b = ev.target.closest(".kc__views button");
       if (b && img) { el.querySelectorAll(".kc__views button").forEach((x) => x.classList.toggle("on", x === b)); img.parentNode.classList.toggle("full", b !== el.querySelector(".kc__views button")); img.src = b.dataset.v; return; }
+      if (ev.target.closest(".kc__arch")) { shut(); setTimeout(async () => {               // архів його слів — у залі
+        const wasOpen = isOpen(), v = (D().VOWS || []).find((x) => x.id === id);
+        show(v ? { id, icon: v.icon } : id === "supreme" ? SUPREME : id === "seneschal" ? Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {}) : Object.assign({ id: "chronicler", head: "hood" }, D().CHRONICLER || {}));
+        const ok = await archiveMenu(id, wasOpen ? "Назад" : "Дякую"); if (ok && !wasOpen && isOpen()) close(); }, 360); return; }
       if (ev.target.closest(".kc__x, .kc__back")) shut();
     });
     requestAnimationFrame(() => el.classList.add("open"));
@@ -413,9 +424,11 @@
       if (!isOpen()) return;
       const T = P.tools;
       const tales = ((D().KEEPERS || {}).supreme || {}).tales || [];
-      const opts = [T.wait, T.breath, T.stake].concat(tales.length ? [T.tale || "Розкажи історію"] : []).concat([T.done]);
+      const arch = hasArch("supreme");
+      const opts = [T.wait, T.breath, T.stake].concat(tales.length ? [T.tale || "Розкажи історію"] : []).concat(arch ? ["Твої слова для мене"] : []).concat([T.done]);
       const i = await ask(P.ask, opts, "hall__acts--tools");
       if (i === "closed") return;
+      if (arch && i === opts.length - 2) { if (!(await archiveMenu("supreme"))) return; show(SUPREME); continue; }
       if (i === 0) { if ((await watch(P)) === "closed") return; }
       else if (i === 1) { if ((await breathe(P)) === "closed") return; }
       else if (i === 2) { if ((await stake(P)) === "closed") return; }
@@ -507,6 +520,7 @@
       if (k.gains && k.gains.length) opts.push(["gain", "Що мені дає цей стрік?"]);
       if (k.tales && k.tales.length) opts.push(["tale", "Розкажи історію"]);
       if (k.talks && k.talks.length) opts.push(["talk", "Поговорімо"]);
+      if (hasArch(vowId)) opts.push(["arch", "Що ти мені казав"]);
       opts.push(["line", "Ще слово, брате"], ["bye", "Дякую, брате"]);
       const i = await ask(lead || pick(MENU_Q), opts.map((o) => o[1]), "hall__acts--list"); lead = null;
       if (i === "closed") return;
@@ -517,9 +531,21 @@
       if (what === "gain") ok = await tellGain(v, k);
       if (what === "tale") ok = await runDialog(fresh("tale." + vowId, k.tales, 3).v);
       if (what === "talk") ok = await runDialog(fresh("talk." + vowId, k.talks, 3).v);
+      if (what === "arch") ok = await archiveMenu(vowId);
       if (!ok) return;
     }
   }
+  /* «Що ти мені казав»: архів слів і сцен храмовника — переглянути знову */
+  async function archiveMenu(id, back) {
+    const DY = window.ORDO_DAY, L = DY && DY.archiveFor ? DY.archiveFor(id).slice(0, 10) : []; if (!L.length) return true;
+    for (;;) {
+      const i = await ask("Що з мого хочеш почути знову?", L.map((e) => `${e.d.slice(8, 10)}.${e.d.slice(5, 7)} · ${e.title}`).concat([back || "Назад"]), "hall__acts--list");
+      if (i === "closed") return false; if (i >= L.length) return true;
+      await DY.replayArchive(L[i].key); if (!isOpen()) return false;
+      { const v = (D().VOWS || []).find((x) => x.id === id); show(v ? { id, icon: v.icon } : id === "supreme" ? SUPREME : id === "seneschal" ? Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {}) : Object.assign({ id: "chronicler", head: "hood" }, D().CHRONICLER || {})); }
+    }
+  }
+  const hasArch = (id) => !!(window.ORDO_DAY && window.ORDO_DAY.archiveFor && window.ORDO_DAY.archiveFor(id).length);
   /* що дає стрік: де ти вже є і що попереду */
   function gainAt(k, s) {
     const g = (k.gains || []).slice().sort((a, b) => a.d - b.d);

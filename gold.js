@@ -59,13 +59,14 @@
     if (E.day[p]) return E.day[p][1];                                           // ідеальний день, зал, сповідь, кроки, підйом
     if (p === "v") return E.vowDay[1];                                          // чистий день обітниці
     if (p === "a") return E.ach[1];
+    if (p === "mo") return e.gold || 0;                                           // нагорода за момент від писаря
     if (p === "g") return e.xp >= 400 ? 300 : 80;                               // старі записи цілей без ціни
     if (p === "gm") return Math.round(e.xp / 2);                                // ревю: відсоток виконаного
     if (p === "vm") { const m = +id.split(":")[2], v = E.milestone[m]; return v ? v[1] : Math.round(m * 1.5); }
     if (p === "q") { const q = Q.list.find((x) => "q:" + x.id === id), b = (E.quest[q && q.rar] || E.quest.rare)[1]; return q && q.st === "part" ? Math.round(b * Math.min(1, (q.cur || 0) / (q.target || 1)) * 0.6) : b; }     // частково — як і досвід: частка прогресу × 0.6
     return 0;
   }
-  const CAT = { pd: "day", jr: "day", t: "day", gy: "body", st: "body", er: "body", q: "quest", vm: "vow", v: "vow" };
+  const CAT = { mo: "day", pd: "day", jr: "day", t: "day", gy: "body", st: "body", er: "body", q: "quest", vm: "vow", v: "vow" };
   function ledger() {
     const Dy = DAY(); if (!Dy || !Dy._state) return [];
     const { X, Q, S } = Dy._state();

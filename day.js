@@ -1646,6 +1646,9 @@
       S.seeded = seed.v; saveS();
     }
     appMigrate();
+    /* «Monthly review» — разом із ревю місяця, зранку 1-го (раніше — останній день місяця) */
+    const mr = S.tasks["rm-monthly-review"];
+    if (mr && mr.rep && mr.rep.f === "mlast" && !(S.mig && S.mig.mr1)) { mr.rep = { f: "month", n: 1 }; mr.start = "2026-11-01"; mr.mt = Date.now(); S.mig = Object.assign({}, S.mig, { mr1: 1 }); saveS(); }
     /* квести повернення, прийняті до виправлення, рахували й день зриву — зсуваємо на день уперед */
     Q.list.forEach((q) => { if (q.st === "active" && !q.shifted && !q.cur && q.from === (q.offerOn || q.from) && ((pool().find((p) => p.id === q.pid) || {}).tags || []).includes("return")) {
       q.from = add(q.from, 1); q.until = add(q.until, 1); q.shifted = 1; q.at = Date.now(); saveQ(); } });

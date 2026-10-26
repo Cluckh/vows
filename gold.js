@@ -289,7 +289,7 @@
         const id = kind === "relic" ? id0 : kind + ":" + id0, n = artName(kind, id0), key = new Request(`${location.origin}/__art/${n}`);
         let blob = null;
         if (cache) { const r = await cache.match(key); if (r) blob = await r.blob(); }
-        if (!blob && !(miss[n] && Date.now() - miss[n] < 6 * 3600e3)) {
+        if (!blob && !(miss[n] && Date.now() - miss[n] < 1800e3)) {
           try { blob = await V.readSealedBlob(`art/sealed/${n}.json`); } catch (e) {}
           if (blob) { delete miss[n]; if (cache) await cache.put(key, new Response(blob, { headers: { "Content-Type": blob.type } })); } else miss[n] = Date.now();
         }

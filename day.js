@@ -1743,9 +1743,10 @@
         h += `<p class="dy-note">Пиши по ходу: вправа, підходи, відчуття. Кожна літера зберігається сама — можна закривати й повертатися.</p>
           <textarea class="dy-in gy-text" id="gyText" rows="9" placeholder="напр.: жим 60×8, 60×8, 62.5×6 · плече ок">${esc(w.text || "")}</textarea>
           <div class="gy-saved" id="gySaved">${w.at ? `збережено о ${clock(w.at)}` : ""}</div>`;
-        if (lift && (sh.table || GYM.log[sh.k])) {
+        if (lift && (sh.table || GYM.log[sh.k] || (window.ORDO_ARM && (D().ARMORY || {}).ex))) {          // зал: таблиця одразу — план Зброярні
           if (!sh.gym) {
             const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k && x.ex.length), adv = gymAdvice(sh.k);
+            if (!ex && !sh.plan && window.ORDO_ARM && window.ORDO_ARM.planTable) sh.plan = window.ORDO_ARM.planTable();     // з Дня — теж план Зброярні
             const tpl = ex ? ex : sh.plan && sh.plan.length ? { ex: sh.plan.map((e) => ({ n: e.n, sets: e.sets.map((x) => ({ r: x.r, w: x.w })) })) } : { ex: (adv && ss.length ? (ss.length > 1 && !ss[ss.length - 1].ex.some((e) => ss[ss.length - 2].ex.some((f) => f.n.toLowerCase() === e.n.toLowerCase())) ? ss[ss.length - 2] : ss[ss.length - 1]).ex : [{ n: "", sets: [{}] }]).map((e) => ({ n: e.n, sets: (e.sets || [{}]).map((x) => ({ r: x.r, w: x.w, hint: true })) })) };
             sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" })); sh.gymTpl = gymSig(sh.gym);
           }

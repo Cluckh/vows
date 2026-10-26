@@ -1646,3 +1646,12 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .wt-list span{display:block;font-family:var(--f-serif);font-size:14.5px;color:var(--ash)}
 .wt-list p{margin:6px 0 0;font-family:var(--f-serif);font-size:14.5px;color:var(--bone);opacity:.85}
 .wt-off{opacity:.7}
+/* полиця читання */
+.bk{margin:4px 0 16px;padding:14px;border:1px solid var(--edge);border-radius:16px;background:rgba(205,163,73,.04)}
+.bk-h{display:flex;align-items:center;gap:10px;font-family:var(--f-serif)}
+.bk-h svg{width:22px;height:22px;flex:none;color:var(--gold)}
+.bk-h b{flex:1;min-width:0;font-size:17px;font-weight:500;color:var(--bone)}
+.bk-h span{font-size:14.5px;color:var(--ash);white-space:nowrap}
+.bk-row{display:flex;gap:8px;margin:10px 0 4px}.bk-row .dy-in{flex:1;min-width:0}.bk-row .btn{flex:none;width:auto;padding-left:18px;padding-right:18px;margin:0}
+.bk .gs-h{margin-top:0}.bk>.dy-in{width:100%}
+.bk-line svg{width:15px;height:15px;color:var(--gold);vertical-align:-2px;margin-right:5px}

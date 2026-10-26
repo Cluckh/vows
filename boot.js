@@ -188,6 +188,16 @@
       out["ordo.gold"] = JSON.stringify(Object.assign({}, b, a, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), wk: un("wk"), own, starter: a.starter || b.starter,
         lv: Math.max(a.lv || 0, b.lv || 0) || undefined, ri: Math.max(a.ri || 0, b.ri || 0) || undefined }, eqs));
     }
+    if (L["ordo.books"] || R["ordo.books"]) {          // книжки: опис — новіша правка; сторінка дня — новіший запис; поточна — новіший вибір
+      const a = P(L, "ordo.books", {}), b = P(R, "ordo.books", {}), list = Object.assign({}, b.list, a.list), log = {};
+      Object.keys(b.list || {}).forEach((id) => { if (a.list && a.list[id] && (b.list[id].mt || 0) > (a.list[id].mt || 0)) list[id] = b.list[id]; });
+      new Set(Object.keys(a.log || {}).concat(Object.keys(b.log || {}))).forEach((d) => {
+        const A2 = (a.log || {})[d] || {}, B2 = (b.log || {})[d] || {}; log[d] = Object.assign({}, B2, A2);
+        Object.keys(B2).forEach((id) => { if (A2[id] && ((B2[id] || {}).at || 0) > ((A2[id] || {}).at || 0)) log[d][id] = B2[id]; });
+      });
+      const cur = (b.curAt || 0) > (a.curAt || 0) ? { cur: b.cur, curAt: b.curAt } : { cur: a.cur !== undefined ? a.cur : b.cur, curAt: a.curAt || b.curAt };
+      out["ordo.books"] = JSON.stringify(Object.assign({}, b, a, { list, log }, cur));
+    }
     if (L["ordo.xp"] || R["ordo.xp"]) {
       const a = P(L, "ordo.xp", {}), b = P(R, "ordo.xp", {});
       out["ordo.xp"] = JSON.stringify(Object.assign({}, b, a, { e: Object.assign({}, b.e, a.e), knighted: a.knighted || b.knighted }));

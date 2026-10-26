@@ -154,12 +154,43 @@
   const APPN = { reading: "читання", youtube: "YouTube", reddit: "Reddit", duolingo: "Duolingo" }, appName = (n) => APPN[n] || n;
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
   /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
-  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$|по голоду|без перебор/i.test((q.unit || "").trim());
+  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   const appMin = (k, n) => { const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
   /* старі цілі Duolingo («Зробити»/«Число» за назвою) — у «час у програмі», 10 хв на день */
   const appMigrate = () => Object.values(S.tasks).forEach((t) => { if (!t.del && !t.app && srcOf(t) === "app" && !(t.type === "count" && /xp/i.test(t.unit || ""))) {
     Object.assign(t, { src: "app", app: { n: "duolingo", min: DUO_MIN, lim: false }, type: "do", mt: Date.now() }); saveS(); } });
+
+  /* ============================================================ КНИЖКИ ===== */
+  /* паперові книжки: назва, сторінок, звідки почав; щодня — сторінка, до якої дійшов ({ p, at }). Прочитано за день — приріст сторінок */
+  let BK = LS.get("ordo.books", null); if (!BK || typeof BK !== "object") BK = { list: {}, cur: null, log: {} };
+  BK.list = BK.list || {}; BK.log = BK.log || {};
+  const saveBK = () => LS.set("ordo.books", BK);
+  const bkAt = (d, id) => { const e = BK.log[d] && BK.log[d][id]; return e == null ? null : typeof e === "number" ? e : e.p; };
+  function bookPage(id, before) {                               // остання записана сторінка (до дня before, якщо задано)
+    const b = BK.list[id]; let p = b ? b.from || 0 : 0;
+    Object.keys(BK.log).sort().forEach((d) => { if (before && d >= before) return; const v = bkAt(d, id); if (v != null) p = v; });
+    return p;
+  }
+  const pagesOn = (k) => Object.keys(BK.log[k] || {}).reduce((a, id) => a + Math.max(0, (bkAt(k, id) || 0) - bookPage(id, k)), 0);
+  const periodPages = (a, b) => Object.keys(BK.log).reduce((n, d) => n + (d >= a && d <= b ? pagesOn(d) : 0), 0);
+  const seriesOf = (t) => (t || "").toLowerCase().replace(/[,.:;—–-]?\s*(т\.|том|vol\.?|частина|ч\.|книга)\s*\d+.*$/i, "").replace(/[,.\s]+\d+\s*$/, "").trim();
+  const curBook = () => (BK.cur && BK.list[BK.cur] && !BK.list[BK.cur].end ? BK.list[BK.cur] : null);
+  function setPage(id, page, k) {
+    const b = BK.list[id]; if (!b || !(page >= 0)) return;
+    page = Math.round(Math.min(b.pages || 1e5, page));
+    (BK.log[k] = BK.log[k] || {})[id] = { p: page, at: Date.now() };
+    if (b.pages && page >= b.pages) { b.end = b.end || k; if (BK.cur === id) { BK.cur = null; BK.curAt = Date.now(); } }
+    else if (b.end && page < (b.pages || 0)) b.end = null;
+    b.mt = Date.now(); saveBK();
+  }
+  /* для цілей: «Дочитати 2 томи Темні віки» — скільки дочитано книжок цієї серії і як іде поточна */
+  function booksFor(text) {
+    const s = (text || "").toLowerCase(), all = Object.values(BK.list).filter((b) => b.t && seriesOf(b.t).length >= 3 && s.includes(seriesOf(b.t)));
+    const m = s.match(/(\d+)\s*(том|книж|част)/), need = m ? +m[1] : 1, done = all.filter((b) => b.end).length, now = all.find((b) => !b.end);
+    return all.length ? { need, done, ok: done >= need, now: now ? { t: now.t, page: bookPage(now.id), pages: now.pages || 0 } : null } : null;
+  }
+  const isRead = (t) => !!t && ((t.app && t.app.n === "reading" && srcOf(t) === "app") || /\bread\b|читан|читати|книж/i.test(t.t || ""));
 
   /* ========================================================== ЗДОРОВʼЯ ===== */
   /* день: кроки зі «Здоровʼя» + сон, записаний уранці в додатку, + час першого відкриття (підйом) */
@@ -790,6 +821,11 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      if (q.st === "active" && q.type === "count" && /сторін/i.test(q.unit || "")) {          // паперові книжки: сума прочитаних сторінок за час квесту
+        const n = periodPages(q.from, q.until < today() ? q.until : today());
+        if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
       if (q.st === "active" && q.type === "count" && /по голоду|без перебор/i.test(q.unit || "")) {   // трапеза дня зі сповіді: «по голоду» — лише зелені дні, «без переборів» — зелені й жовті
         const ok = /по голоду/i.test(q.unit) ? (m) => m === "g" : (m) => m === "g" || m === "y";
         let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) { const J = S.journal[k]; if (J && J.sent && ok(J.meal)) n++; }
@@ -1118,11 +1154,29 @@
         ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em></span>` : ""}
         ${(() => { if (srcOf(t) !== "app" || t.type === "count" || k > today()) return ""; const a = appOf(t), m = Math.floor(appMin(k, a.n));
           return appBar(m, a.min, a.lim); })()}
+        ${isRead(t) && k <= today() ? bookLine(k) : ""}
         ${(() => { const sp = srcOf(t) === "bank" && k <= today() ? bankSpent(t, k) : null; return sp == null ? "" : `<span class="dy-num${sp > (t.bank.limit || 0) ? " is-over" : ""}">витрачено ${T().money(sp)} <em>/ ліміт ${T().money(t.bank.limit || 0)}</em></span>`; })()}
         <span class="dy-meta">${metaOf(t, r, k)}</span></div>
       ${cnt && !ro && st !== "done" && st !== "moved" && st !== "cancel" ? `<button type="button" class="gs-plus" data-dplus="${t.id}" aria-label="Додати">+</button>` : ""}
       ${xp ? `<span class="dy-xp">+${xp}</span>` : ""}</li>`;
   }
+  /* міні-полиця в справі читання: книжка, сторінка, на якій зупинився; нова книжка — назва, сторінок, звідки */
+  function bookBlock(k) {
+    const b = curBook(), others = Object.values(BK.list).filter((x) => !x.end && (!b || x.id !== b.id)), n = pagesOn(k);
+    if (sh.bkNew || !b) return `<div class="bk"><div class="gs-h">${b ? "Інша книжка" : "Що читаєш?"}</div>
+      <input class="dy-in" id="bkT" placeholder="назва, напр. Темні віки, т.1" autocomplete="off">
+      <div class="bk-row"><input class="dy-in" id="bkN" inputmode="numeric" placeholder="сторінок усього"><input class="dy-in" id="bkF" inputmode="numeric" placeholder="зараз на сторінці"></div>
+      <button type="button" class="btn btn--gold" data-ds="bkadd">Почати читати</button>
+      ${others.length ? `<p class="dy-note">Або повернись до розпочатої:</p><div class="dy-chips dy-chips--wrap">${others.map((x) => `<button type="button" data-bk="${x.id}">${esc(x.t)}</button>`).join("")}</div>` : ""}
+      ${b ? `<button type="button" class="btn btn--ghost" data-ds="bkcancel">Назад</button>` : ""}</div>`;
+    const pg = bookPage(b.id), pr = b.pages ? Math.min(1, pg / b.pages) : 0;
+    return `<div class="bk"><div class="bk-h"><svg><use href="#i-book"/></svg><b>${esc(b.t)}</b><span>с. ${fmtN(pg)}${b.pages ? ` з ${fmtN(b.pages)}` : ""}</span></div>
+      <div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div>
+      <div class="bk-row"><input class="dy-in" id="bkP" inputmode="numeric" placeholder="на якій сторінці?"><button type="button" class="btn btn--gold" data-ds="bkset">Записати</button></div>
+      <p class="dy-note">${n ? `${k === today() ? "Сьогодні" : "Того дня"}: <b>+${fmtN(n)}</b> стор.` : "Запиши сторінку, на якій зупинився, — Орден порахує прочитане."}${b.pages && pg < b.pages ? ` Лишилось ${fmtN(b.pages - pg)}.` : ""}</p>
+      <div class="dy-acts"><button type="button" class="btn btn--line" data-ds="${sh.bkSure ? "bkend" : "bksure"}">${sh.bkSure ? "Так, дочитав ✓" : "Дочитав"}</button><button type="button" class="btn btn--ghost" data-ds="bknew">Інша книжка</button></div></div>`;
+  }
+  const bookLine = (k) => { const b = curBook(), n = pagesOn(k); return b || n ? `<span class="dy-num bk-line"><svg><use href="#i-book"/></svg>${b ? `${esc(b.t)} · с. ${fmtN(bookPage(b.id))}${b.pages ? `/${fmtN(b.pages)}` : ""}` : "книжку дочитано"}${n ? ` · <b>+${fmtN(n)}</b> стор.` : ""}</span>` : ""; };
   /* час у програмі: смужка й «ще N хв» (мета) або «залишилось N хв» (ліміт) */
   function appBar(m, goal, lim) {
     if (!(goal > 0) && !lim) return "";
@@ -1341,6 +1395,7 @@
         <div class="sheet__stat">${[repText(t), t.time, RARN[rarOf(t)] + " · " + ECON.task[rarOf(t)][0] + " досв"].filter(Boolean).join(" · ")}${ch ? ` · поспіль ${ch}` : ""}</div>
         ${t.notes ? `<p class="dy-note dy-note--t">${esc(t.notes)}</p>` : ""}
         ${t.link === "goals" ? `<button type="button" class="btn btn--line" data-ds="goals">Відкрити Цілі</button>` : ""}`;
+      if (isRead(t) && !fut) h += bookBlock(k);
       if (cnt) h += `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dsC" inputmode="decimal" value="${(r && r.cur) || 0}"><span class="dy-unit">/ ${fmtN(t.target)} ${esc(t.unit || "")}</span></div>`;
       if (!fut) {
         h += `<div class="dy-acts">`;
@@ -1584,8 +1639,24 @@
     }
     const jd = e.target.closest("[data-jday]"); if (jd && sh.mode === "journal") { jFlush(); if (sh.edit && sh.mealWas !== undefined && S.journal[sh.k]) { S.journal[sh.k].meal = sh.mealWas; saveS(); } sh.mealWas = undefined; sh.k = jd.dataset.jday; sh.edit = false; renderSheet(); return; }
     const mv = e.target.closest("[data-dmv]"); if (mv) { moveTo(mv.dataset.dmv); return; }
+    const bkc = e.target.closest("[data-bk]"); if (bkc && BK.list[bkc.dataset.bk]) { BK.cur = bkc.dataset.bk; BK.curAt = Date.now(); sh.bkNew = false; saveBK(); buzz("light"); renderSheet(); render(); return; }
     const b = e.target.closest("[data-ds]"); if (!b) return;
     const a = b.dataset.ds, k = sh.k, id = sh.id, before = totalXP();
+    if (a === "bknew" || a === "bkcancel") { sh.bkNew = a === "bknew"; sh.bkSure = false; renderSheet(); return; }
+    if (a === "bksure") { sh.bkSure = true; buzz("light"); renderSheet(); return; }
+    if (a === "bkadd") {
+      const tt = (($("bkT") || {}).value || "").trim(), pages = Math.round(numIn(($("bkN") || {}).value) || 0), from = Math.round(numIn(($("bkF") || {}).value) || 0);
+      if (!tt) { const i = $("bkT"); if (i) i.focus(); return; }
+      const nid = "b" + uid(); BK.list[nid] = { id: nid, t: tt, pages: pages || null, from: Math.max(0, from), start: k, mt: Date.now() }; BK.cur = nid; BK.curAt = Date.now();
+      saveBK(); sh.bkNew = false; fx("yes"); buzz("medium"); renderSheet(); render(); return;
+    }
+    if (a === "bkset" || a === "bkend") {
+      const bk = curBook(); if (!bk) return;
+      const pg = a === "bkend" ? bk.pages || bookPage(bk.id) : numIn(($("bkP") || {}).value);
+      if (!(pg >= 0)) { const i = $("bkP"); if (i) i.focus(); return; }
+      setPage(bk.id, pg, k); if (a === "bkend") { bk.end = bk.end || k; bk.mt = Date.now(); if (BK.cur === bk.id) { BK.cur = null; BK.curAt = Date.now(); } saveBK(); sh.bkNew = true; } sh.bkSure = false;
+      fx("yes"); buzz("medium"); renderSheet(); after(before); const A = API(); if (A.goalsSync) A.goalsSync(); return;
+    }
     if (a === "close") { closeSheet(); return; }
     if (a === "wclear") { LS.set("ordo.k.errs", []); renderSheet(); render(); return; }
     if (a === "back") { sh.mode = "item"; renderSheet(); return; }
@@ -1791,6 +1862,7 @@
       poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
       health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
+      books: { now: curBook() ? { t: curBook().t, page: bookPage(curBook().id), pages: curBook().pages } : null, done: Object.values(BK.list).filter((b) => b.end).map((b) => ({ t: b.t, end: b.end })), pages14: days14.map((k) => ({ d: k, p: pagesOn(k) })).filter((x) => x.p) },
       seenEvents: Object.keys(S.ev || {})
     };
   }
@@ -1838,6 +1910,7 @@
     }
     appMigrate();
     Q.list.forEach((q) => { const v = ECON.quest[q.rar]; if (v && q.xp !== v[0]) { q.xp = v[0]; q.at = Date.now(); saveQ(); } });     // досвід квестів — за таблицею економіки
+    if (!(S.mig && S.mig.read10)) { Object.values(S.tasks).forEach((t) => { if (!t.del && !t.end && t.type === "do" && !t.src && /^read\b|^читан/i.test((t.t || "").trim())) Object.assign(t, { src: "app", app: { n: "reading", min: 10, lim: false }, mt: Date.now() }); }); S.mig = Object.assign({}, S.mig, { read10: 1 }); saveS(); }     // денне читання — 10 хв у фокусі «Читання»
     Object.values(S.tasks).forEach((t) => { const r = { easy: "common", normal: "rare", hard: "legend" }[t.diff]; if (r || !t.diff) { t.diff = r || "rare"; t.mt = Date.now(); saveS(); } });     // «вага» → рідкість
     /* «Monthly review» — разом із ревю місяця, зранку 1-го (раніше — останній день місяця) */
     const mr = S.tasks["rm-monthly-review"];
@@ -1870,6 +1943,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

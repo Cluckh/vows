@@ -1071,13 +1071,13 @@ window.ORDO_START = function () {
   }
   /* звідки місячна чи річна ціль бере число: вручну, з привʼязаних денних цілей, зі «Здоровʼя» (кроки, медитації, вага) чи з HM3.
      Старі цілі без поля src — за назвою */
-  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації", faith: "дні вірності", journal: "сповіді" },
+  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації", faith: "дні вірності", journal: "сповіді", pages: "сторінки" },
                  measure: { "": "вручну", steps: "кроки (середнє)", poker: "роздачі (середнє)", weight: "вага", jar: "скарбничка" } };
   function goalSrc(it) {
     if (it.src != null) return it.src;
     if (it.link && it.link.length) return "link";
     const s = it.t || "";
-    return /крок/i.test(s) ? "steps" : /роздач/i.test(s) ? "poker" : /медит|calm/i.test(s) ? "mind" : tyOf(it) === "measure" && /ваг/i.test(s) ? "weight" : "";
+    return /сторін/i.test(s) && tyOf(it) === "count" ? "pages" : /крок/i.test(s) ? "steps" : /роздач/i.test(s) ? "poker" : /медит|calm/i.test(s) ? "mind" : tyOf(it) === "measure" && /ваг/i.test(s) ? "weight" : "";
   }
   const periodOf = (key) => key.length === 4 ? [`${key}-01-01`, `${key}-12-31`] : [`${key}-01`, `${key}-${pad(daysIn(key))}`];
   /* число з джерела: лічильник — сума за період, мірило — середнє на день або вага */
@@ -1087,6 +1087,7 @@ window.ORDO_START = function () {
     if (src === "link") return t === "count" ? (it.linkBase || 0) + DY.linkCount(it.link || [], a, b) : null;
     if (src === "faith") return t === "count" && DY.faithCount ? DY.faithCount(a, b) : null;
     if (src === "journal") return t === "count" && DY.journalCount ? DY.journalCount(a, b) : null;
+    if (src === "pages") return t === "count" && DY.periodPages ? DY.periodPages(a, b) : null;
     if (src === "weight") return t === "measure" ? DY.weightOn(b < todayKey() ? b : todayKey(), it.wmode || "avg7") : null;
     if (src === "jar") { const T = window.ORDO_TREASURY, acc = T && T.accs && T.accs().find((x) => x.label === it.jar); return t === "measure" && acc ? Math.round(acc.bal) / 100 : null; }
     const f = { steps: DY.periodSteps, poker: DY.periodHands, mind: DY.periodMind }[src], ps = f && f(key);
@@ -1099,6 +1100,20 @@ window.ORDO_START = function () {
     if (t === "count") { if (link ? it.cur === v : (it.cur || 0) >= v) return; it.cur = v; } else if (lv && lv.v === v) return;
     it.hist = it.hist || []; const td = todayKey();
     if (lv && lv.d === td) lv.v = v; else it.hist.push({ d: td, v });
+  }
+  /* етапи з книжок: «300 сторінок» — сторінки з полиці (те, що було набрано до привʼязки, лишається базою);
+     «Дочитати 2 томи Темні віки» — закривається, коли дочитано стільки книжок цієї серії */
+  const pagesPart = (p) => p.target && /сторін/i.test(p.t || ""), bookPart = (p) => !p.target && /дочит|прочит/i.test(p.t || "");
+  function partsFill(it, key) {
+    const DY = window.ORDO_DAY; if (tyOf(it) !== "stages" || !DY || !DY.periodPages) return;
+    const [a, b] = periodOf(key);
+    (it.parts || []).forEach((p) => {
+      if (pagesPart(p)) {
+        if (!p.pfrom) { p.pfrom = todayKey() > a ? todayKey() : a; p.pbase = p.cur || 0; }
+        const v = (p.pbase || 0) + DY.periodPages(p.pfrom > a ? p.pfrom : a, b);
+        if (v !== (p.cur || 0)) { p.cur = v; p.done = partDone(p) ? (p.done || todayKey()) : null; }
+      } else if (bookPart(p) && DY.booksFor) { const r = DY.booksFor(p.t); if (r && r.ok && !p.done) { p.done = todayKey(); p.auto = 1; } }
+    });
   }
   /* ручна поправка привʼязаної цілі зсуває базу, а не губиться при наступному перерахунку */
   function rebase(it, key) { const DY = window.ORDO_DAY, [a, b] = periodOf(key); if (DY && goalSrc(it) === "link") it.linkBase = Math.max(0, (it.cur || 0) - DY.linkCount(it.link || [], a, b)); }
@@ -1134,7 +1149,7 @@ window.ORDO_START = function () {
     let fresh = 0;
     ["y", "m"].forEach((kind) => Object.keys(G[kind]).forEach((key) => {
       const P = G[kind][key]; if (P.res) return;
-      P.items.forEach((it) => { stepsFill(it, key); if (settle(it, kind, key)) fresh++; });
+      P.items.forEach((it) => { stepsFill(it, key); partsFill(it, key); if (settle(it, kind, key)) fresh++; });
     }));
     saveG(); return fresh;
   }
@@ -1250,7 +1265,8 @@ window.ORDO_START = function () {
     if (t === "stages") {
       return `<ul class="gl-parts">${(it.parts || []).map((p) => {
         const dn = partDone(p);
-        const right = p.target ? `<span class="gl-part__n">${fmtN(p.cur || 0)}/${fmtN(p.target)}</span>` : "";
+        const bk = bookPart(p) && window.ORDO_DAY && window.ORDO_DAY.booksFor ? window.ORDO_DAY.booksFor(p.t) : null;
+        const right = p.target ? `<span class="gl-part__n">${fmtN(p.cur || 0)}/${fmtN(p.target)}</span>` : bk ? `<span class="gl-part__n">${bk.done}/${bk.need}${bk.now && !dn ? ` · с. ${fmtN(bk.now.page)}${bk.now.pages ? `/${fmtN(bk.now.pages)}` : ""}` : ""}</span>` : "";
         const attr = !locked && !p.target ? `data-part="${kind}|${key}|${it.id}|${p.id}" role="button"` : "";
         return `<li class="gl-part ${dn ? "is-done" : ""}" ${attr}><span class="gl-part__m"></span><span class="gl-part__t">${esc(p.t)}</span>${right}</li>`;
       }).join("")}</ul>`;
@@ -1514,7 +1530,7 @@ window.ORDO_START = function () {
     const P = per(gs.kind, gs.key), it = P.items.find((i) => i.id === gs.id); if (!it || P.res) return;
     if (e.target.id === "gsTarget") { const v = numIn(e.target.value); if (v > 0) { it.target = v; if (tyOf(it) === "vows") unDone(it); gsAfter(it); } return; }
     const pc = e.target.closest("[data-pcur]");
-    if (pc) { const p = it.parts.find((x) => x.id === pc.dataset.pcur); const v = numIn(pc.value); if (p) { p.cur = v || 0; p.done = partDone(p) ? (p.done || todayKey()) : null; gsAfter(it); } }
+    if (pc) { const p = it.parts.find((x) => x.id === pc.dataset.pcur); const v = numIn(pc.value); if (p) { p.cur = v || 0; if (pagesPart(p) && p.pfrom && window.ORDO_DAY) { const [a, b] = periodOf(gs.key); p.pbase = Math.max(0, p.cur - window.ORDO_DAY.periodPages(p.pfrom > a ? p.pfrom : a, b)); } p.done = partDone(p) ? (p.done || todayKey()) : null; gsAfter(it); } }
   });
   on("gSheet", "keydown", (e) => {
     if (e.key !== "Enter" || !gs) return;

@@ -816,15 +816,12 @@
     const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !Q.list.some((q) => q.pid === p.id));
     if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
     const [trig, tag] = (Q.trig.shift() || "").split(":");
-    /* щоранку жереб: випасти може будь-яка рідкість, просто з різним шансом; одразу після попереднього того ж ґатунку — шанс менший.
-       У середньому: рідкісний ~2 на тиждень, легендарний ~раз на 10–12 днів, міфічний ~раз на місяць. Тригери (зрив, віха, три ідеальні дні) — понад жереб */
+    /* щоранку жереб: кожна рідкість кидається окремо, тож може випасти будь-яка, а щастя — то й дві-три одразу; одночасних квестів — без обмежень.
+       Одразу після попереднього того ж ґатунку шанс менший. У середньому: рідкісний ~2 на тиждень, легендарний ~раз на 10–12 днів, міфічний ~раз на 1,5 місяця.
+       Тригери (зрив, віха, три ідеальні дні) — понад жереб */
     const ODDS = { myth: [21, 0.03, 0.012], legend: [7, 0.12, 0.05], rare: [2, 0.35, 0.15] };     // [після скількох днів — повний шанс, повний, знижений]
-    const CAP = { rare: 3, legend: 2, myth: 1 };                                                  // більше одночасно активних — не пропонуємо
-    const busyR = (r) => Q.list.filter((q) => q.rar === r && q.st === "active").length >= CAP[r];
-    let rar = null;
-    if (trig) rar = trig;
-    else if (!again) for (const r of ["myth", "legend", "rare"]) { const [d, hi, lo] = ODDS[r]; if (!busyR(r) && roll(t0 + r[0]) < (since(r) >= d ? hi : lo)) { rar = r; break; } }
-    if (rar) { const q = draw(rar, tag); if (q) { Q.list.push(q); Q.clock[rar] = t0; } }
+    const rolled = again ? [] : ["myth", "legend", "rare"].filter((r) => { const [d, hi, lo] = ODDS[r]; return roll(t0 + r[0]) < (since(r) >= d ? hi : lo); });
+    (trig ? [[trig, tag]] : []).concat(rolled.map((r) => [r, null])).forEach(([r, tg]) => { const q = draw(r, tg); if (q) { Q.list.push(q); Q.clock[r] = t0; } });
     saveQ();
   }
   function trigger(rar, tag) { const t = tag ? `${rar}:${tag}` : rar; if (!Q.trig.includes(t)) { Q.trig.push(t); saveQ(); } }

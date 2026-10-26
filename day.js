@@ -1705,6 +1705,6 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); },
+  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

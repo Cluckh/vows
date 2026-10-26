@@ -1587,3 +1587,4 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .gd-sync:disabled{text-decoration:none;color:var(--gold)}
 .tabs .tab span{letter-spacing:.06em;font-size:11px;white-space:nowrap}
 .dy-it.st-done .dy-t,.dy-it.st-fix .dy-t{color:color-mix(in srgb,var(--rc,var(--ash)) 35%,var(--ash));text-shadow:none}
+.gs-title.rar-rare,.gs-title.rar-legend,.gs-title.rar-myth{color:var(--rc)}.gs-title.rar-myth{text-shadow:0 0 14px color-mix(in srgb,var(--rc) 45%,transparent)}

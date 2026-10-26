@@ -1352,10 +1352,12 @@ window.ORDO_START = function () {
     const it = P.items.find((i) => i.id === gs.id); if (!it) { closeGoalSheet(); return; }
     const t = tyOf(it), locked = !!P.res;
     let h = `<div class="gs-kicker">${locked ? "Запечатано · " : ""}${lbl}</div>
-      <div class="gs-title">${esc(it.t)}</div>`;
+      <div class="gs-title rar-${it.rar || "rare"}">${esc(it.t)}</div>`;
     if (!locked) h += `<div class="cmp__types gs-types">${Object.keys(GT).map((k) => `<button type="button" data-gty="${k}" class="${k === t ? "is-on" : ""}">${GT[k].name}</button>`).join("")}</div>`;
     if (!locked) { const E = window.ORDO_ECON, RN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" }, ek = gs.kind === "y" ? "year" : "month";
-      if (E) h += `<div class="gs-h">Рідкість</div><div class="cmp__ops gs-src gs-rar">${Object.keys(RN).map((r) => `<button type="button" data-grar="${r}" class="rar-${r}${(it.rar || "rare") === r ? " is-on" : ""}">${RN[r]} · ${E[ek][r][0]} досв · ${E[ek][r][1]} зол</button>`).join("")}</div>`; }
+      if (E) { const [xp, gold] = E[ek][it.rar || "rare"], old = it.done && it.done < "2026-10-26";
+        h += `<div class="gs-h">Рідкість</div><div class="cmp__ops gs-src gs-rar">${Object.keys(RN).map((r) => `<button type="button" data-grar="${r}" class="rar-${r}${(it.rar || "rare") === r ? " is-on" : ""}">${RN[r]} · ${E[ek][r][0]} досв · ${E[ek][r][1]} зол</button>`).join("")}</div>
+          <p class="cmp__hint">${old ? "Виконано до 26 жовтня, коли Орден ще не платив досвідом і золотом, — нагороди за неї нема." : it.done ? `Зараховано: ${xp} досвіду й ${gold} золота.` : `Коли виконаєш: ${xp} досвіду й ${gold} золота.`}</p>`; } }
     const withPlus = !locked && t === "count";
     h += `<p class="cmp__hint">${GT[t].hint}</p><div class="gs-detail${withPlus ? " gs-detail--plus" : ""}" data-stepbox="cur"><div>${detailHTML(it, gs.kind, gs.key, true)}</div>${withPlus ? plusBtn("cur", true) : ""}</div>`;
     if (!locked && (t === "count" || t === "measure")) {
@@ -1432,7 +1434,7 @@ window.ORDO_START = function () {
       gsAfter(it); return;
     }
     const grr = e.target.closest("[data-grar]");
-    if (grr) { it.rar = grr.dataset.grar; gsAfter(it); return; }
+    if (grr) { it.rar = grr.dataset.grar; gsAfter(it); if (window.ORDO_DAY && window.ORDO_DAY.xpSync) window.ORDO_DAY.xpSync(); return; }      // досвід і золото — за новою рідкістю
     const gsrc = e.target.closest("[data-gsrc]");
     if (gsrc) { it.src = gsrc.dataset.gsrc; if (it.src === "link" && !it.link) relink(it, gs.key, []); stepsFill(it, gs.key); gsAfter(it); return; }
     const gl = e.target.closest("[data-glink]");

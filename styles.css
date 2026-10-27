@@ -1988,3 +1988,10 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .sl-feel{margin:0 0 10px;justify-content:center}
 .sl-q--row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin-bottom:4px}
 .sl-q--row .sl-tog{margin:0;padding:7px 12px}
+/* квести — згорнута смуга з рідкостями */
+.dy-qs1{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;width:100%;padding:10px 12px;border:1px solid var(--edge);border-radius:12px;background:rgba(205,163,73,.04);text-align:left;margin:0 0 10px}
+.dy-qs1 .gl-sec__kind{margin-right:2px}
+.dy-qs1__r{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-serif);font-size:14px;color:var(--rc,var(--ash))}
+.dy-qs1__r i{width:8px;height:8px;border-radius:50%;background:var(--rc);box-shadow:0 0 6px var(--rc)}
+.dy-qs1>i{margin-left:auto;font-style:normal;color:var(--gold-2)}
+.dy-qsec.is-open .dy-qs1{margin-bottom:8px}

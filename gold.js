@@ -57,6 +57,8 @@
       Object.keys(g.own || {}).forEach((k) => { const o = g.own[k]; if (/Не міняти Орден/.test(o.src || "") && (o.at || 0) < rw) { delete g.own[k]; n++; if (g.eq) g.eq = g.eq.filter((x) => x !== k); } });
       ids.forEach((id) => { ["proc", "bon"].forEach((b) => Object.keys(g[b] || {}).forEach((k) => { if (k.includes("q:" + id)) { delete g[b][k]; n++; } }));
         ["inc", "tk"].forEach((b) => Object.keys(g[b] || {}).forEach((k) => { if (k.includes("q:" + id) && (g[b][k].at || 0) < rw) { delete g[b][k]; n++; } })); });
+      const rw2 = Dy.rwAt2 ? Dy.rwAt2() : 0;
+      if (rw2) ["use", "tk"].forEach((b) => Object.keys(g[b] || {}).forEach((k) => { const o = g[b][k]; if (o.kind === "extend" && (o.at || 0) >= rw && (o.at || 0) < rw2 && (b === "use" || o.d < 0)) { delete g[b][k]; n++; } }));   // відстрочки на обітниці-квесті — назад
       const lv = Dy.levelOf ? Dy.levelOf() : null;
       if (lv && g.lv > lv.L) {
         for (let L = lv.L + 1; L <= g.lv; L++) {

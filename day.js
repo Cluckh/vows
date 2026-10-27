@@ -976,8 +976,15 @@
     S.sleep[RW_DAY] = { reset: 1, at: Date.now() }; saveS(); LS.set("ordo.k.slAsk", "");
     S.mom = S.mom || {}; Object.keys(S.mom).forEach((k) => { if (S.mom[k] === RW_DAY) delete S.mom[k]; });
   }
+  /* відкат-2 27.10: на обітниці-квесті натиснули «Відстрочку» (не мала там бути) — строк назад до 14 днів, жетони/бонуси повертаються */
+  function rewind2() {
+    if (!(X.rw && X.rw[RW_DAY]) || X.rw[RW_DAY + ":2"]) return;
+    X.rw = Object.assign({}, X.rw, { [RW_DAY + ":2"]: Date.now() }); saveX();
+    Q.list.forEach((q) => { if (q.pid === "w-m-no-change" && q.st === "active" && q.from) { q.until = add(q.from, 13); q.at = Date.now(); } }); saveQ();
+    const GD = window.ORDO_GOLD; if (GD && GD.purge) { /* жетони повертає purge (і при злитті теж) */ }
+  }
   function settle() {
-    rewind();
+    rewind(); rewind2();
     restSeal();
     for (let k = add(today(), -3); k <= today(); k = add(k, 1)) settleTasks(k);
     settleDerived(); settleQuests();
@@ -1430,8 +1437,9 @@
         ${q.type === "budget" ? budgetLine(q) : ""}
         ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}${q.app && q.appMax == null && q.st === "active" && (q.cur || 0) < q.target ? ` · ще ${fmtN(q.target - (q.cur || 0))}` : ""}</em></span>` : ""}
         ${q.app && q.appMax != null && q.st === "active" && q.from <= today() ? `<span class="dy-q__app">сьогодні ${q.app === "reading" ? "читання" : `в ${esc(appName(q.app))}`}</span>${appBar(Math.floor(appMin(today(), q.app)), q.appMax, true)}` : ""}
+        ${q.hold && q.st === "active" && q.from ? (() => { const n = diff(q.from, q.until) + 1, d = Math.min(n, Math.max(0, diff(q.from, today()) + 1)); return `<div class="gl-bar"><i style="width:${Math.round((d / n) * 100)}%"></i></div><span class="dy-num">день ${d} <em>з ${n} · зарахується сам</em></span>`; })() : ""}
         <span class="dy-q__due">${q.st === "done" ? `виконано · +${q.xp}` : due}${q.st === "active" ? ` · +${q.xp}` : ""}</span></div>
-      ${q.st === "active" && !qAuto(q) ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
+      ${q.st === "active" && !qAuto(q) && !q.hold ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
   }
   /* ===================================================== ВІСТІ ПИСАРЯ ===== */
   /* усе, що писар пише, має рідкість: common (біле) · rare (жовте) · legend (помаранчеве) · myth (фіолетове) */
@@ -1640,7 +1648,11 @@
     const fails = k === today() ? Q.list.filter(canBreath) : [];
     if (fails.length) live.push(...fails);
     const segN = k === today() ? newsHTML() : "";
-    const segQ = (k === today() ? teaserHTML("day") : "") + (live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "");
+    /* квести згортаються: у згорнутому — одна смуга з рідкостями («рідкісні 2 · легендарний 1»), розгорнув — звичні банери */
+    const qOpen = LS.get("ordo.k.qOpen", false), RQ = ["myth", "legend", "rare"], RQN = { myth: "міфічн", legend: "легендарн", rare: "рідкісн" };
+    const qSum = RQ.map((r) => [r, live.filter((q) => q.rar === r && q.st === "active").length]).filter(([, n]) => n).map(([r, n]) => `<span class="dy-qs1__r rar-${r}"><i></i>${RQN[r]}${n > 1 ? "і" : r === "rare" ? "ий" : "ий"} ${n}</span>`).join("");
+    const qDoneN = live.filter((q) => q.st === "done").length, qFail = live.filter((q) => q.st === "fail").length;
+    const segQ = (k === today() ? teaserHTML("day") : "") + (live.length ? `<section class="dy-sec dy-qsec${qOpen ? " is-open" : ""}"><button type="button" class="dy-qs1" data-dqtog><span class="gl-sec__kind">Квести</span>${qSum}${qDoneN ? `<span class="dy-qs1__r">✓ ${qDoneN}</span>` : ""}${qFail ? `<span class="dy-qs1__r">друге дихання ${qFail}</span>` : ""}<i>${qOpen ? "‹" : "›"}</i></button>${qOpen ? `<ul class="dy-qs">${live.map(questHTML).join("")}</ul>` : ""}</section>` : "");
     h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">${k === today() ? "Справи дня" : k < today() ? "Того дня" : "Заплановано"}</span><span class="gl-sec__meta">${its.length ? `${doneN}/${its.length}` : ""}</span></div>`;
     if (!its.length) h += `<p class="gl-empty">${k < today() ? "Того дня справ не було." : "Справ на цей день немає."}</p>`;
     h += `<ul class="dy-list">${open.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
@@ -2250,6 +2262,7 @@
     if (e.target.closest("[data-dsleep]") && (view || today()) === today()) { openSheet("sleep", null, today()); return; }
     if (e.target.closest("[data-dwatch]")) { openSheet("watch", null, today()); return; }
     if (e.target.closest("[data-dnews]")) { if (!newsOpen) newsOpen = true; else newsI++; buzz("light"); render(); return; }     // перший тап — розгорнути, далі — наступне слово
+    if (e.target.closest("[data-dqtog]")) { LS.set("ordo.k.qOpen", !LS.get("ordo.k.qOpen", false)); buzz("light"); render(); return; }
     if (e.target.closest("[data-dnight]")) { nightOpen = !nightOpen; buzz("light"); render(); return; }
     if (e.target.closest("[data-dmore]")) { dayMore = !dayMore; buzz("light"); render(); return; }
     const gg = e.target.closest("[data-dgymgo]"); if (gg) { buzz("light"); openSheet("gym", gg.dataset.dgymgo, view || today()); return; }
@@ -2287,7 +2300,7 @@
       <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : q.st === "fail" ? (q.broke ? `порушено: ${esc(q.broke)}` : "не встиг") : ""} · +${q.xp} досвіду</div>
       ${canBreath(q) ? `<button class="btn btn--gold" type="button" data-dqs="breath">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("breath", "gd-tk--btn") : ""}Друге дихання — ще 2 дні, 85% мети</button>` : ""}
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
-      ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
+      ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
       ${q.st === "active" && q.hold ? `<p class="dy-note dy-note--t">Це обітниця на строк: виконано — коли витримаєш до ${human(q.until)} включно. Орден зарахує сам${q.from ? ` · день ${Math.min(diff(q.from, today()) + 1, diff(q.from, q.until) + 1)} з ${diff(q.from, q.until) + 1}` : ""}.</p>` : ""}
       ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : q.hold ? "" : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
@@ -2298,7 +2311,7 @@
       if (a === "close") { closeSheet(); el.onclick = null; return; }
       if (a === "done") { closeSheet(); el.onclick = null; qDone(q.id); return; }
       if (a === "cur") { const c = numIn(($("dqC") || {}).value); if (c != null) { q.cur = Math.max(0, c); q.at = Date.now(); if (q.target && q.cur >= q.target) { closeSheet(); el.onclick = null; qDone(q.id); return; } saveQ(); } closeSheet(); el.onclick = null; render(); return; }
-      if (a === "ext") { if (q.type !== "budget" && !q.flash && window.ORDO_GOLD.use("extend")) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b>`); } closeSheet(); el.onclick = null; render(); return; }
+      if (a === "ext") { if (q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD.use("extend")) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b>`); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "breath") { if (canBreath(q) && window.ORDO_GOLD.use("breath")) { secondWind(q); fx("yes"); buzz("medium"); toast(`Друге дихання: <b>${esc(q.t)}</b> — до ${human(add(today(), 1))}`, "is-gift"); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
     };
@@ -2466,7 +2479,7 @@
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
   window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
-    rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
+    rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

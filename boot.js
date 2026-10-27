@@ -240,11 +240,11 @@
     return out;
   }
 
-  let busy = false;
+  let busy = false, busyAt = 0;
   /* push: "now" — віддати, якщо є зміни; "force" — завжди; "pull" — лише підтягнути (перед стартом, щоб не чекати збереження) */
   async function syncNow(push) {
     if (busy || !token() || !LS.get(K.backup, null)) return { pulled: false };
-    busy = true; status("saving");
+    busy = true; busyAt = Date.now(); status("saving");
     let pulled = false; const pullOnly = push === "pull";
     try {
       for (let round = 0; round < 3; round++) {
@@ -282,8 +282,13 @@
   }
   const backupNow = () => syncNow("force");
   /* підтягнуті дані показуємо перезапуском — але не посеред дії */
-  let reloadPending = false;
-  function reloadWhenCalm() { if (document.hidden) location.reload(); else { reloadPending = true; guardWrites(); } }      // на очах не перезавантажуємо — коли згорнеш
+  let reloadPending = false, visAt = Date.now();
+  const calm = () => { const i = document.getElementById("intro"), a = document.activeElement;
+    return !(i && !i.hasAttribute("hidden")) && !document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open") && !(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)); };
+  /* щойно відкрив (≤15 с) і нічого не відкрито — перезапуск одразу, щоб не жити зі старим станом; інакше — коли згорнеш */
+  function reloadWhenCalm() { if (document.hidden || (calm() && (Date.now() - visAt < 15e3 || !document.hasFocus()))) location.reload(); else { reloadPending = true; guardWrites(); } }
+  /* вікно на компі лежало під іншими (браузер вважає його видимим) — повернувся в нього: спершу свіже */
+  window.addEventListener("focus", () => { visAt = Date.now(); if (reloadPending && calm()) location.reload(); });
   /* до перезапуску модулі тримають у памʼяті старий стан: кожен їхній запис зливаємо з щойно підтягнутим, а не затираємо його */
   let guarded = false;
   function guardWrites() {
@@ -547,8 +552,9 @@
     const vb = $("vaultBtn"); if (vb) vb.addEventListener("click", openVault);
     wireVault(); status(); setTimeout(pushRefresh, 4000); setTimeout(checkInbox, 1200);
     setInterval(() => { if (!document.hidden) syncNow("now"); }, SYNC_EVERY);
+    visAt = Date.now();
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) setTimeout(checkInbox, 600);
+      if (!document.hidden) { visAt = Date.now(); setTimeout(checkInbox, 600); }
       if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }
       else syncNow("now");
     });
@@ -581,7 +587,8 @@
       return r.status === 204;
     } catch (e) { return false; }
   }
-  window.ORDO_VAULT = { backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
+  /* сцени (події, моменти, квести) чекають, поки синхронізація не скаже, що вже бачено на іншому пристрої */
+  window.ORDO_VAULT = { hold: () => (busy && Date.now() - busyAt < 12e3 && Date.now() - visAt < 20e3) || reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
 
   async function boot() {
     let vault;

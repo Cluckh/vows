@@ -1295,11 +1295,15 @@
   let busy = false;
   /* катсцени в черзі: якщо екран зайнятий (аркуш нагороди, скриня, ритуал, картка) — не губимо, а пробуємо знову, щойно звільниться */
   let sceneT = null;
+  /* ще тягнемо копію з іншого пристрою (або вона вже тут, а памʼять стара) — побачене там не повториться тут; перевіряємо перед кожною сценою */
+  const held = () => !!(window.ORDO_VAULT && window.ORDO_VAULT.hold && window.ORDO_VAULT.hold());
   const scenesLater = () => { clearTimeout(sceneT); if (!document.hidden) sceneT = setTimeout(scenes, 2500); };
   async function scenes() {
     const A = API(); clearTimeout(sceneT);
+    const later = () => { if (H().isOpen()) H().close(); scenesLater(); };
     if (busy) return;
     if (!H() || H().isOpen() || (A.queueBusy && A.queueBusy())) return scenesLater();
+    if (held()) return scenesLater();
     const intro = $("intro"); if (intro && !intro.hasAttribute("hidden")) return scenesLater();
     if (document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc")) return scenesLater();
     busy = true;
@@ -1317,14 +1321,18 @@
         render();
       }
       if (!(await nightMorning())) return;
+      if (held()) return scenesLater();
       while (pendingBroke.length) { const q = pendingBroke.shift(), h = H(); h.stage(q.giver || "supreme", { glow: glowOf(q.rar) });
         if ((await h.say(`Брате. Ти попросив ${q.broke.replace(/^попросив\s+/i, "")}. Це нова фішка, а не лагодження — обітницю «${q.t}» порушено, квест провалено. Ми так домовлялись, чесно.`)) === "closed") return;
         if ((await h.say("Не карай себе. Фортецю, яку хочеться перебудовувати, ти любиш. Наступного разу — спершу поживи в ній.")) === "closed") return; }
       dailyRoll();
-      for (const q of Q.list.filter((x) => x.st === "offer")) { if (!(await offerScene(q))) break; }
+      for (const q of Q.list.filter((x) => x.st === "offer")) { if (held()) return later(); if (!(await offerScene(q))) break; }
       while (pendingDone.length) { const q = pendingDone.shift(); await doneScene(q); }
+      if (held()) return later();
       if (!(await eventScene())) return;
+      if (held()) return later();
       if (!(await momentScene("open"))) return;
+      if (held()) return later();
       if (window.ORDO_TREASURY) await window.ORDO_TREASURY.scenes();
       if (H().isOpen()) H().close();
       if (pendingUp) { const u = pendingUp; pendingUp = null; await rankScene(u); }

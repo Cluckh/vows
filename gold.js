@@ -50,6 +50,25 @@
   const TEST_CUT = 1793040399831;
   function purge(g) {
     const old = (o) => !!o && (o.at || 0) < TEST_CUT; let n = 0;
+    /* відкат 27.10: реліквія, бонуси й скриня за закритий квест «Не міняти Орден»; рівень і його нагороди, яких тепер нема */
+    const Dy = DAY(), rw = Dy && Dy.rwAt ? Dy.rwAt() : 0;
+    if (rw) {
+      const st = Dy._state ? Dy._state() : null, QL = st && st.Q ? st.Q.list : [], ids = QL.filter((q) => q.pid === "w-m-no-change" && q.st === "void").map((q) => q.id);
+      Object.keys(g.own || {}).forEach((k) => { const o = g.own[k]; if (/Не міняти Орден/.test(o.src || "") && (o.at || 0) < rw) { delete g.own[k]; n++; if (g.eq) g.eq = g.eq.filter((x) => x !== k); } });
+      ids.forEach((id) => { ["proc", "bon"].forEach((b) => Object.keys(g[b] || {}).forEach((k) => { if (k.includes("q:" + id)) { delete g[b][k]; n++; } }));
+        ["inc", "tk"].forEach((b) => Object.keys(g[b] || {}).forEach((k) => { if (k.includes("q:" + id) && (g[b][k].at || 0) < rw) { delete g[b][k]; n++; } })); });
+      const lv = Dy.levelOf ? Dy.levelOf() : null;
+      if (lv && g.lv > lv.L) {
+        for (let L = lv.L + 1; L <= g.lv; L++) {
+          if (g.inc && g.inc["lv:" + L] && (g.inc["lv:" + L].at || 0) < rw) delete g.inc["lv:" + L];
+          if (g.tk && g.tk["lv:" + L] && (g.tk["lv:" + L].at || 0) < rw) delete g.tk["lv:" + L];
+          if (g.proc) delete g.proc["chest:lv:" + L];
+          ["inc", "tk"].forEach((b) => { if (g[b] && g[b]["gc:lv:" + L] && (g[b]["gc:lv:" + L].at || 0) < rw) delete g[b]["gc:lv:" + L]; });
+          Object.keys(g.own || {}).forEach((k) => { const o = g.own[k]; if (o.src === "дарована скриня" && (o.at || 0) < rw && (o.at || 0) > rw - 6 * 3600e3) { delete g.own[k]; if (g.eq) g.eq = g.eq.filter((x) => x !== k); } });
+        }
+        g.lv = lv.L; g.ri = lv.ri; n++;
+      }
+    }
     Object.keys(g.out || {}).forEach((k) => { if (g.out[k].kind === "shop" && old(g.out[k])) { delete g.out[k]; n++; } });
     Object.keys(g.inc || {}).forEach((k) => { if (/^(c|dup:)/.test(k) && old(g.inc[k])) { delete g.inc[k]; n++; } });
     Object.keys(g.tk || {}).forEach((k) => { if (/^[tc]/.test(k) && old(g.tk[k])) { delete g.tk[k]; n++; } });
@@ -58,6 +77,7 @@
     return n;
   }
   if (purge(G)) save();
+
   /* жетони й скриня — іконками, не емодзі */
   const TKN = { reroll: "reroll", extend: "hourglass", chest: "chest", breath: "breath", rest: "moon", cmdchest: "chest" };
   const tkIc = (kind, cls) => { const a = ART["shop:" + kind];                      // арт товару (якщо вже є), інакше — іконка
@@ -153,6 +173,7 @@
   function process() {
     const Dy = DAY(); if (!Dy || !Dy._state || !relics().length) return false;
     const { Q } = Dy._state(); let ch = false;
+    if (purge(G)) ch = true;                                     // відкат 27.10 — коли День уже порахував рівень
     if (!G.starter) { G.starter = 1; const r = grant("ring", "посвята"); if (r) reveals.push(Object.assign(r, { why: "Дар Магістра Аврелія — на початок шляху з реліквіями" })); ch = true; }
     ledger().forEach((x) => {
       if (G.proc[x.id]) return;
@@ -297,6 +318,7 @@
       }
       LS.set("ordo.k.artMiss", miss);
     } finally { artBusy = false; }
+    if (ch && Object.keys(G.own).some((id) => !ART[id] && relic(id))) setTimeout(loadArts, 300);     // реліквія, що зʼявилась посеред завантаження, — наступним колом
     if (ch) { const A = API(); if (want.some(([k]) => k !== "relic" && k !== "scene") && A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); try { window.dispatchEvent(new Event("ordo-art")); } catch (e) {}
       if (el && el.classList.contains("open") && mode === "shop") render("shop"); }
     if (ch) { refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); } }
@@ -503,7 +525,7 @@
     const intro = $("intro");
     if (document.hidden || document.querySelector(".sheet.open, .hall.open, .rite.open, .confirm.open") || (intro && !intro.hasAttribute("hidden"))) { revealT = setTimeout(nextReveal, 4000); return; }
     const nx = reveals[0];
-    if (nx && nx.id && !nx.dup && !ART[nx.id] && !nx.waited) { nx.waited = 1; loadArts(); revealT = setTimeout(nextReveal, 2500); return; }   // спершу — справжній арт
+    if (nx && nx.id && !nx.dup && !ART[nx.id] && (nx.waited || 0) < 8) { nx.waited = (nx.waited || 0) + 1; loadArts(); revealT = setTimeout(nextReveal, 1500); return; }   // спершу — справжній арт (до ~12 с, поки підвантажиться)
     if (nx.chest && typeof nx.chest === "object") { reveals.shift(); show("chest", { why: nx.why, kicker: nx.kicker }); chestPlay(nx.chest, { kicker: nx.kicker }); return; }
     if (nx.loot && typeof nx.loot === "object") { reveals.shift(); show("loot", Object.assign({}, nx.loot, { kicker: nx.kicker })); fx("yes"); return; }
     show("reveal", reveals.shift()); fx("date");

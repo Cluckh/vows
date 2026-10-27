@@ -955,6 +955,7 @@
   function settleAch() {
     if (purge(X, ACH)) { saveA(); saveX(); }
     const c = ctx(), fresh = [];
+    ACHS.forEach((a) => { if (ACH[a.id] === RW_DAY && X.rw && X.rw[RW_DAY] && !a.ok(c)) { delete ACH[a.id]; delete X.e["a:" + a.id]; saveA(); } });     // відкат 27.10: медаль, яку дав закритий квест
     ACHS.forEach((a) => { if (!ACH[a.id] && a.ok(c)) { ACH[a.id] = today(); fresh.push(a); } });
     ACHS.forEach((a) => { if (ACH[a.id] && a.xp) X.e[`a:${a.id}`] = { d: ACH[a.id], xp: a.xp, src: "ach", why: a.n }; });
     if (fresh.length) saveA();
@@ -963,7 +964,20 @@
 
   /* перерахунок усього; повертає зміну рівня й нові нагороди */
   let lastLevel = null;
+  /* відкат 27.10 (прохання власника): міфічний квест закрили в день прийняття — повертаємо ранок, наче він уперше прокинувся.
+     Раз (позначка в ordo.xp, синхронізується): доручення цього дня — «void» (знову запропонуються), ранковий звіт — знову; досвід, рівень, реліквія й медаль підуть самі */
+  const RW_DAY = "2026-10-27";
+  function rewind() {
+    if (today() !== RW_DAY || (X.rw && X.rw[RW_DAY])) return;
+    X.rw = Object.assign({}, X.rw, { [RW_DAY]: Date.now() }); saveX();
+    Q.list.forEach((q) => { if (q.offerOn === RW_DAY || (q.from === RW_DAY && q.pid === "w-m-no-change")) { q.st = "void"; q.at = Date.now(); } });
+    Q.list.forEach((q) => { if (q.st === "void") delete X.e["q:" + q.id]; });
+    Q.clock = Q.clock || {}; delete Q.clock.roll; ["rare", "legend", "myth"].forEach((r) => { if (Q.clock[r] === RW_DAY) delete Q.clock[r]; }); Q.trig = []; saveQ();
+    S.sleep[RW_DAY] = { reset: 1, at: Date.now() }; saveS(); LS.set("ordo.k.slAsk", "");
+    S.mom = S.mom || {}; Object.keys(S.mom).forEach((k) => { if (S.mom[k] === RW_DAY) delete S.mom[k]; });
+  }
   function settle() {
+    rewind();
     restSeal();
     for (let k = add(today(), -3); k <= today(); k = add(k, 1)) settleTasks(k);
     settleDerived(); settleQuests();
@@ -1084,6 +1098,7 @@
       if (q.type === "budget" && q.st === "active") return;
       /* квест — обіцянка: або виконано, або ні (часткових нагород нема). Але зрідка, якщо пройдено хоча б половину,
          храмовник дає «Другу спробу»: ще 2 дні, планка 85%, зроблене зараховано, нагорода на рідкість нижча; третьої — нема */
+      if (q.st === "active" && q.hold && q.until < t0) { q.st = "done"; q.end = q.until; q.at = Date.now(); pendingDone.push(q); }   // обітниця-квест: витримав строк — виконано сам
       if (q.st === "active" && q.until < t0) {
         const prog = q.type === "count" && q.target ? (q.cur || 0) / q.target : 0;
         q.st = "fail"; q.end = t0; q.at = Date.now();
@@ -1108,7 +1123,7 @@
   /* обрати квест із пулу: потрібної рідкості, ще не бачений */
   /* only — конкретний квест (писар призначив на дату); квести з датою в випадковий розіграш не потрапляють */
   function draw(rar, tag, only) {
-    const seen = new Set(Q.list.map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.app || appTracked(p.app));
+    const seen = new Set(Q.list.filter((q) => q.st !== "void").map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.app || appTracked(p.app));
     let c = pool().filter((p) => (only || p.rar === rar) && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
     const free = (p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer"));
     if (!c.length && tag) c = pool().filter((p) => free(p) && (p.tags || []).includes(tag));      // тематичні можна повторювати
@@ -1125,7 +1140,7 @@
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: ECON.quest[rar] ? ECON.quest[rar][0] : p.xp || 0,
       lift: p.lift && p.lift.ex ? { ex: p.lift.ex, w: +p.lift.w || 0, r: +p.lift.r || 0 } : null, cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
-      chest: !!p.chest, flash: /^\d\d:\d\d$/.test(p.flash || "") ? p.flash : null, next: p.next && p.next.t ? p.next : null, step: p.step || 1,
+      chest: !!p.chest, hold: !!p.hold, flash: /^\d\d:\d\d$/.test(p.flash || "") ? p.flash : null, next: p.next && p.next.t ? p.next : null, step: p.step || 1,
       st: "offer", offerOn: today(), cur: 0 };
   }
   /* розклад: рідкісні ~2–3 на тиждень, легендарні ~раз на 10 днів, міфічні ~раз на місяць; плюс тригери */
@@ -1136,7 +1151,7 @@
     if (Q.list.some((q) => q.st === "offer")) { saveQ(); return; }
     const since = (r) => Q.clock[r] ? diff(Q.clock[r], t0) : 99;
     /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу */
-    const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !(p.flash && hmNow2() >= p.flash) && !Q.list.some((q) => q.pid === p.id));
+    const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !(p.flash && hmNow2() >= p.flash) && !Q.list.some((q) => q.pid === p.id && q.st !== "void"));
     if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
 
     /* видно, що не встигаєш: минуло 60%+ строку, а зроблено менше ніж 60% від потрібного темпу — храмовник (через раз) пропонує
@@ -1595,7 +1610,7 @@
     const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
     const wl = weightOn(k, "last"), wa = weightOn(k, "avg7");
     const apm = Object.entries(hd.apps || {}).filter(([, a]) => a.min >= 1);
-    const slk = S.sleep[k], slAsk = (!slk || slk.skip) && k === today() && !isNight();
+    const slk = S.sleep[k] && S.sleep[k].reset ? null : S.sleep[k], slAsk = (!slk || slk.skip) && k === today() && !isNight();
     const slLine = slAsk ? `<span class="dy-sl-ask" data-dsleep="1">ранковий звіт ›</span>` : slk && !slk.skip ? `${slk.siren ? `<span data-dsleep="1"><svg><use href="#i-siren"/></svg>тривога</span>` : ""}${slk.wakes ? `<span data-dsleep="1"><svg><use href="#i-eye"/></svg>прокидався <b>${slk.wakes >= 3 ? "3+" : slk.wakes}</b></span>` : ""}${slk.dream && slk.dream !== "none" ? `<span data-dsleep="1"><svg><use href="#i-dream"/></svg>${{ calm: "сни", vivid: "яскраві сни", bad: "кошмар" }[slk.dream] || ""}</span>` : ""}` : "";
     if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || apm.length || wl || slLine) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span${k === today() ? ' data-dsleep="1"' : ""}><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${slLine}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.streak || hd.duo.today) && !(hd.apps && hd.apps.duolingo && hd.apps.duolingo.min >= 1) ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${apm.map(([n, a]) => `<span>${n === "reading" ? `<svg><use href="#i-book"/></svg>` : ""}${esc(appName(n))} <b>${Math.floor(a.min)}</b> хв${n === "duolingo" && hd.duo && hd.duo.streak ? ` · <b>${hd.duo.streak}</b>🔥` : ""}</span>`).join("")}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     let more = "";                              // другорядне (покер, кроки за місяць/рік, синхронізація) — під «більше»
@@ -1676,7 +1691,7 @@
     after(before);
   }
   function qDone(id) {
-    const q = Q.list.find((x) => x.id === id); if (!q || q.st !== "active") return;
+    const q = Q.list.find((x) => x.id === id); if (!q || q.st !== "active" || (q.hold && today() <= q.until)) return;
     const before = totalXP(); q.st = "done"; q.end = today(); q.at = Date.now(); saveQ();
     fx("date"); buzz("heavy"); after(before); doneScene(q);
   }
@@ -1787,7 +1802,7 @@
       if (sh.nap == null) sh.nap = sl.nap || 0;
       if (sh.siren == null) sh.siren = sl.siren != null ? !!sl.siren : !!(N && N.kind === "siren");
       if (sh.dream == null) sh.dream = sl.dream || "";
-      const morning = !sl.at || sl.skip, tot = slTotal(sh), dur = (m) => (m ? hm(m).replace(" 00 хв", "") : "ні");
+      const morning = !sl.at || sl.skip || sl.reset, tot = slTotal(sh), dur = (m) => (m ? hm(m).replace(" 00 хв", "") : "ні");
       const row = (f, label, val, timeIn) => `<div class="sl-st"><span>${label}</span><button type="button" data-ds="slst" data-f="${f}" data-d="-1" aria-label="менше">‹</button>
         ${timeIn ? `<label class="sl-val"><b>${val}</b><input type="time" data-slt="${f}" value="${val}"></label>` : `<b class="sl-val">${val}</b>`}<button type="button" data-ds="slst" data-f="${f}" data-d="1" aria-label="більше">›</button></div>`;
       const chip = (v, n, on) => `<button type="button" data-dv="${v}" class="${on ? "is-on" : ""}">${n}</button>`;
@@ -2273,7 +2288,8 @@
       ${canBreath(q) ? `<button class="btn btn--gold" type="button" data-dqs="breath">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("breath", "gd-tk--btn") : ""}Друге дихання — ще 2 дні, 85% мети</button>` : ""}
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
       ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
-      ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
+      ${q.st === "active" && q.hold ? `<p class="dy-note dy-note--t">Це обітниця на строк: виконано — коли витримаєш до ${human(q.until)} включно. Орден зарахує сам${q.from ? ` · день ${Math.min(diff(q.from, today()) + 1, diff(q.from, q.until) + 1)} з ${diff(q.from, q.until) + 1}` : ""}.</p>` : ""}
+      ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : q.hold ? "" : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
       <button class="btn btn--ghost" type="button" data-dqs="close">Закрити</button>`;
     el.onclick = (e) => {
@@ -2439,18 +2455,18 @@
   function stamp() {
     const n = new Date(), hm = `${p2(n.getHours())}:${p2(n.getMinutes())}`, t0 = today();
     if (!S.wake[t0] && hm >= DAWN && !isNight()) { S.wake[t0] = hm; saveS(); }
-    if (!S.sleep[t0] && hm >= DAWN && hm < "13:00" && !isNight()) morning(Date.now());          // ранковий звіт — щоранку, не лише до восьмої
+    if ((!S.sleep[t0] || S.sleep[t0].reset) && hm >= DAWN && hm < "13:00" && !isNight()) morning(Date.now());          // ранковий звіт — щоранку, не лише до восьмої
   }
   function morning(t0) {
     const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };
-    if (S.sleep[today()] || Date.now() - t0 > 15 * 60e3 || LS.get("ordo.k.slAsk", "") === today()) return;
+    if ((S.sleep[today()] && !S.sleep[today()].reset) || Date.now() - t0 > 15 * 60e3 || LS.get("ordo.k.slAsk", "") === today()) return;
     if (busy()) { setTimeout(() => morning(t0), 1500); return; }
     LS.set("ordo.k.slAsk", today()); openSheet("sleep", null, today());          // сам — раз на день; змахнув — далі через «ранковий звіт ›»
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
   window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
-    purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
+    rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

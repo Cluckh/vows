@@ -2,7 +2,7 @@
    ORDO — Зброярня (тренування) і Бібліотека (книжки, ігри).
    Зброярня: вправи з робочими вагами (останні / найкращі), план наступного залу від брата Северина
    (спліт A/B, графік нд · вт · пт, пауза плечей 5 днів, після 7+ днів — ваги −25%, поганий сон — без прогресії,
-   ніч в укритті — без залу; одна прогресія на сесію), місяць проти мети, історія з червня.
+   ніч з тривогою: доспав — легкий зал (−15%), короткий сон — відпочинок; одна прогресія на сесію), місяць проти мети, історія з червня.
    Бібліотека: що читаю (полиця Дня), прочитане, черга; пройдені ігри — статуетки (кинуте не заносимо).
    Стартові дані — у зашифрованому вмісті (D.ARMORY, D.LIBRARY); правки власника — ordo.arm / ordo.lib (синхронізуються).
    ========================================================================== */
@@ -98,19 +98,26 @@
     if (manual) reasons.push("день обрано вручну");
     else if (lastT) reasons.push(`за чергою: минулого разу день ${lastT.type} (${human(lastT.k)})`);
     else reasons.push("минулий день A чи B не записано — почнемо з A (можна змінити)");
-    let k = null, skipB = null;
+    let k = null, skipB = null, light = false;
+    const siren = !!(Y.nightKind && Y.nightKind(t0) === "siren");
     for (let i = doneToday ? 1 : 0; i <= 9 && !k; i++) {
       const c = add(t0, i);
       if (!(A.days || []).includes(wd(c))) continue;
       if (lastK && diff(lastK, c) < 2) continue;                                  // між залами — хоча б день відпочинку
-      if (i === 0 && Y.nightKind && Y.nightKind(t0) === "siren") { warn.push("Ніч в укритті — сьогодні без залу. Відпочинь, тіло і так воювало."); continue; }
+      if (i === 0 && siren) {                                                      // ніч з тривогою: доспав — легкий зал; короткий сон — відпочинок
+        const sm = Y.sleepMin ? Y.sleepMin(t0) : null;
+        if (sm != null && sm < 330) { warn.push(`Ніч з тривогою і лише ${Math.floor(sm / 60)} год ${sm % 60} хв сну — сьогодні відпочинок. Тіло й так воювало; плац — наступного дня за графіком.`); continue; }
+        light = true;
+        warn.push(sm != null ? `Ніч з тривогою, але ти доспав (${Math.floor(sm / 60)} год ${p2(sm % 60)}) — легкий зал: ваги −15%, без рекордів.` : "Ніч з тривогою — легкий зал: ваги −15%, без рекордів. Якщо відчуваєш, що не доспав, — перенеси.");
+      }
       if (type === "B" && lastB && diff(lastB.k, c) < 5) { if (!skipB) skipB = add(lastB.k, 5); continue; }
       k = c;
     }
     if (!k) k = add(t0, doneToday ? 1 : 0);
     if (skipB) reasons.push(`плечам і трицепсу — пауза 5 днів після ${human(lastB.k)}`);
     reasons.push(`графік: ${(A.days || []).map((d) => WDS[d]).join(" · ")}`);
-    const pause = lastK ? diff(lastK, k) : 0, deload = pause >= 7, rough = k === t0 && Y.roughNight && Y.roughNight(t0);
+    if (k !== t0) light = false;
+    const pause = lastK ? diff(lastK, k) : 0, deload = pause >= 7, rough = k === t0 && Y.roughNight && Y.roughNight(t0) && !light;
     if (deload) warn.push(`Пауза ${pause} днів — ваги −25%, далі кроками вгору.`);
     if (rough) warn.push("Ніч була важкою — тільки закріплені ваги, без прогресії.");
     /* вправи дня: базові — завжди, далі ізоляція за чергою (давно не було — першою); усього 6, прес — фінішер */
@@ -134,14 +141,15 @@
       const L = s.last || { w: 0, reps: [10, 10, 10] }, n = Math.max(3, L.reps.length);
       let w = L.w, reps = Array.from({ length: n }, (_, i) => L.reps[i] || L.reps[L.reps.length - 1] || 10);
       if (deload && !e.body) { w = Math.max(0, Math.round((e.inv ? w * 1.25 : w * 0.75) / (e.step || 2.5)) * (e.step || 2.5)); reps = reps.map(() => 10); }
+      else if (light && !e.body) w = Math.max(0, Math.round((e.inv ? w * 1.15 : w * 0.85) / (e.step || 2.5)) * (e.step || 2.5));
       return { id: e.id, n: e.n, e, last: s.last, best: s.best, w, reps, prog: null };
     });
-    if (!deload && !rough) {
+    if (!deload && !rough && !light) {
       const wcand = ex.find((x) => !x.e.body && x.reps.length >= 3 && x.reps.every((r) => r >= 12));
       if (wcand) { wcand.w = Math.max(0, wcand.w + (wcand.e.inv ? -1 : 1) * (wcand.e.step || 2.5)); wcand.reps = wcand.reps.map(() => 10); wcand.prog = "w"; prog = wcand; }
       else { const rc = ex.find((x) => !x.e.body && x.reps.some((r) => r < 12)); if (rc) { rc.reps = rc.reps.map((r) => Math.min(12, r + 1)); rc.prog = "r"; prog = rc; } }
     }
-    return { k, type, label: (A.split || {})[type] || "", reasons, warn, ex, prog, deload, rough, lastK, today: k === t0, doneToday };
+    return { k, type, label: (A.split || {})[type] || "", reasons, warn, ex, prog, deload, rough, light, lastK, today: k === t0, doneToday };
   }
   /* план → таблиця для аркуша залу: підходи з цільовими повторами й вагою */
   const planSets = (p) => p.ex.map((x) => ({ n: x.n, sets: x.reps.map((r) => ({ r, w: x.e.body ? null : x.w })) }));

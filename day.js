@@ -1252,11 +1252,15 @@
 
   /* черга сцен: посвята → пропозиції квестів → підвищення; лише коли нічого не відкрито */
   let busy = false;
+  /* катсцени в черзі: якщо екран зайнятий (аркуш нагороди, скриня, ритуал, картка) — не губимо, а пробуємо знову, щойно звільниться */
+  let sceneT = null;
+  const scenesLater = () => { clearTimeout(sceneT); if (!document.hidden) sceneT = setTimeout(scenes, 2500); };
   async function scenes() {
-    const A = API();
-    if (busy || !H() || H().isOpen() || (A.queueBusy && A.queueBusy())) return;
-    const intro = $("intro"); if (intro && !intro.hasAttribute("hidden")) return;
-    if (document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc")) return;
+    const A = API(); clearTimeout(sceneT);
+    if (busy) return;
+    if (!H() || H().isOpen() || (A.queueBusy && A.queueBusy())) return scenesLater();
+    const intro = $("intro"); if (intro && !intro.hasAttribute("hidden")) return scenesLater();
+    if (document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc")) return scenesLater();
     busy = true;
     try {
       if (isNight()) { if (X.knighted) await nightScene(); return; }           // уночі — лише варта, без доручень і подій
@@ -1426,6 +1430,7 @@
     const n = DROP && DROP.news && DROP.news[id]; if (!n || !n.t) return null;
     const d0 = dropDay() || today(), until = n.until || add(d0, 3), key = `${id}:${d0}:${n.t.length}`;
     if (today() < d0 || today() > until || (S.heard && S.heard[key])) return null;
+    if (Object.values(S.arch || {}).some((e) => e.who === id && e.n && e.n[0] && e.n[0].s === n.t)) return null;     // те саме слово вже чув (писар переніс зі старого drop) — не повторюємо
     return { t: n.t, rar: rarOk(n.rar), key };
   }
   function heard(id) { const n = newsFor(id); if (!n) return; S.heard = S.heard || {}; S.heard[n.key] = today(); archive("n:" + n.key, { who: id, rar: n.rar, title: n.t.slice(0, 60), n: [{ s: n.t }] }); saveS(); const A = API(); if (A.renderBoard) A.renderBoard(); teaserDots(); }
@@ -2350,7 +2355,7 @@
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
   window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
-    purge, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
+    purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };
 })();

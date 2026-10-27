@@ -1784,11 +1784,13 @@
       const lift = !!(t && isLift(t)) || !!GYM.log[sh.k];
       h += `<div class="gs-kicker">Тренування · ${rel(sh.k)}, ${human(sh.k)}</div><div class="sheet__title dy-sht">${esc(t ? t.t : "Тренування")}</div>`;
       if (sh.fin) {
-        h += `<p class="dy-note dy-note--t">Записано. ${(w.text || "").trim() ? "Звіт у журналі, писар його побачить." : ""}</p>
+        h += gymSummary(sh.k, sh.before);
+        h += `<p class="dy-note dy-note--t">Записано. Зброярня вже оновила ваги й план; уночі писар і брат Северин розберуть тренування.${(w.text || "").trim() ? " Звіт у журналі." : ""}</p>
           ${(w.text || "").trim() ? `<div class="gy-report">${esc(w.text.trim()).replace(/\n/g, "<br>")}</div>` : ""}
           <button class="btn btn--gold" type="button" data-ds="gcopy">Скопіювати для тренера</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
       } else {
         const R = window.ORDO_ARM, tableOn = lift && (sh.table || GYM.log[sh.k] || (R && (D().ARMORY || {}).ex));
+        if (tableOn && !sh.gym && GYM.draft && GYM.draft.k === sh.k && GYM.draft.id === sh.id && !GYM.log[sh.k]) { sh.gym = JSON.parse(JSON.stringify({ ex: GYM.draft.ex, note: GYM.draft.note || "" })); sh.gymTpl = ""; }     // незавершене тренування — продовжуємо
         if (tableOn && !sh.gym) {
           const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k && x.ex.length), adv = gymAdvice(sh.k);
           if (!ex && !sh.plan && R && R.planTable) sh.plan = R.planTable();     // план Зброярні
@@ -1806,10 +1808,13 @@
         } else if (tableOn) {
           const P = R && R.plan && sh.k === today() ? R.plan() : null, g = sh.gym;
           if (P && P.k === sh.k && !GYM.log[sh.k]) h += `<div class="gy-head"><b>День ${P.type}</b><span>${esc(P.label)}</span>${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}</div>`;
-          h += `<ol class="gy-how"><li>Роби вправи по черзі — підходи, повтори й вага вже стоять (повтори × кг).</li><li>Зробив інакше — виправ число. Менше підходів — «− підхід». Не робив вправу — ×. Інша вправа — тап на назву.</li><li>Наприкінці — «Готово». Писати текст не обовʼязково.</li></ol>`;
+          h += `<ol class="gy-how"><li>Роби вправи по черзі — підходи, повтори й вага вже стоять (повтори × кг).</li><li>Зробив підхід — тап на його номер: ✓. Усі підходи ✓ — вправа згортається.</li><li>Зробив інакше — виправ число. Менше підходів — «− підхід». Не робив — ×. Інша вправа — тап на назву, порядок — ↑ ↓.</li><li>Наприкінці — «Готово». Писати текст не обовʼязково.</li></ol>`;
           const lastTxt = (n) => { const e = R && R.catalog ? R.catalog().find((x) => x.n.toLowerCase() === (n || "").toLowerCase()) : null; if (!e) return ""; const st = R.stats(e).last; return st ? `минулого: ${fmtN(st.w)}${e.inv ? " кг компенс." : e.per ? " кг/стор" : " кг"} · ${st.reps.join("/")}` : ""; };
-          h += g.ex.map((e, i) => `<div class="gy-ex" data-i="${i}"><div class="gy-ex__h"><input type="hidden" class="gy-n" value="${esc(e.n)}"><button type="button" class="gy-name" data-ds="gpick" data-i="${i}">${e.n ? esc(e.n) : "Обрати вправу"}<small>${esc(lastTxt(e.n))}</small></button><button type="button" class="gy-x" data-ds="gdel" data-i="${i}" aria-label="Прибрати">×</button></div>
-            <div class="gy-sets">${e.sets.map((x, j) => `<span class="gy-set"><i class="gy-no">${j + 1}</i><input class="dy-in gy-r" inputmode="numeric" placeholder="повт" value="${x.r == null ? "" : x.r}"><i>×</i><input class="dy-in gy-w" inputmode="decimal" placeholder="кг" value="${x.w == null ? "" : x.w}"></span>`).join("")}
+          const exDone = (e) => e.sets.length && e.sets.every((x) => x.d), doneN = g.ex.filter(exDone).length;
+          if (g.ex.some((e) => e.sets.some((x) => x.d))) h += `<div class="gy-prog"><div class="gl-bar"><i style="width:${Math.round((doneN / Math.max(1, g.ex.length)) * 100)}%"></i></div><span>${doneN} з ${g.ex.length} вправ</span></div>`;
+          h += g.ex.map((e, i) => `<div class="gy-ex${exDone(e) && !e.open ? " is-done" : ""}" data-i="${i}"><div class="gy-ex__h"><input type="hidden" class="gy-n" value="${esc(e.n)}"><button type="button" class="gy-name" data-ds="${exDone(e) && !e.open ? "gopen" : "gpick"}" data-i="${i}">${exDone(e) ? "✓ " : ""}${e.n ? esc(e.n) : "Обрати вправу"}<small>${exDone(e) && !e.open ? esc(e.sets.map((x) => `${x.r || "?"}×${x.w == null ? "" : fmtN(x.w)}`).join(" · ")) : esc(lastTxt(e.n))}</small></button>
+              <span class="gy-mv">${i > 0 ? `<button type="button" data-ds="gup" data-i="${i}" aria-label="Вище">↑</button>` : ""}${i < g.ex.length - 1 ? `<button type="button" data-ds="gdown" data-i="${i}" aria-label="Нижче">↓</button>` : ""}</span><button type="button" class="gy-x" data-ds="gdel" data-i="${i}" aria-label="Прибрати">×</button></div>
+            <div class="gy-sets">${e.sets.map((x, j) => `<span class="gy-set${x.d ? " is-d" : ""}"><button type="button" class="gy-no" data-ds="gchk" data-i="${i}" data-j="${j}" aria-label="Підхід ${j + 1} зроблено">${x.d ? "✓" : j + 1}</button><input class="dy-in gy-r" inputmode="numeric" placeholder="повт" value="${x.r == null ? "" : x.r}"><i>×</i><input class="dy-in gy-w" inputmode="decimal" placeholder="кг" value="${x.w == null ? "" : x.w}"></span>`).join("")}
             <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button>${e.sets.length > 1 ? `<button type="button" class="gy-plus gy-minus" data-ds="gunset" data-i="${i}">− підхід</button>` : ""}</div></div>`).join("") +
             `<button type="button" class="gl-new" data-ds="gpicknew"><svg><use href="#i-plus"/></svg>Вправа зі списку</button>
             <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="Як пройшло (необовʼязково): самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>`;
@@ -1938,6 +1943,7 @@
     }
     el.innerHTML = h;
     const gt = $("gyText"); if (gt) gt.oninput = () => gyAutosave(gt.value);
+    if (sh && sh.mode === "gym" && sh.gym) el0().querySelectorAll(".gy-r, .gy-w, #gyNote").forEach((i) => { i.onchange = () => readGym(); });     // числа — у чернетку
     const jt = $("jText"); if (jt) jt.oninput = () => jAutosave(jt.value);
   }
   /* запис тренування зберігається з кожною літерою (з невеликою затримкою) */
@@ -1955,10 +1961,32 @@
     el0().querySelectorAll(".gy-ex").forEach((box) => {
       const e = sh.gym.ex[+box.dataset.i]; if (!e) return;
       e.n = box.querySelector(".gy-n").value.trim();
-      e.sets = [...box.querySelectorAll(".gy-set")].map((st) => ({ r: numIn(st.querySelector(".gy-r").value), w: numIn(st.querySelector(".gy-w").value) }));
+      e.sets = [...box.querySelectorAll(".gy-set")].map((st, j) => ({ r: numIn(st.querySelector(".gy-r").value), w: numIn(st.querySelector(".gy-w").value), d: !!(e.sets[j] && e.sets[j].d) }));
     });
     const n = $("gyNote"); if (n) sh.gym.note = n.value.trim();
+    gymDraft();
   }
+  /* підсумок одразу після «Готово»: обʼєм, рекорди, порівняння з минулим разом */
+  function gymBefore(k) {
+    const R = window.ORDO_ARM; if (!R || !R.catalog) return {};
+    const o = {}; R.catalog().forEach((e) => { const s = R.stats(e); o[e.n.toLowerCase()] = { best: s.best ? { w: s.best.w, reps: s.best.reps } : null, last: s.last ? { w: s.last.w, reps: s.last.reps, k: s.last.k } : null, inv: !!e.inv, body: !!e.body }; });
+    return o;
+  }
+  function gymSummary(k, B) {
+    const g = GYM.log[k]; if (!g || !g.ex || !g.ex.length) return "";
+    B = B || {}; let vol = 0, sets = 0; const lines = [];
+    g.ex.forEach((e) => {
+      const S = e.sets.filter((x) => x.r), w = Math.max(0, ...S.map((x) => +x.w || 0)), b = B[e.n.toLowerCase()] || {}, reps = S.filter((x) => (+x.w || 0) === w).map((x) => x.r);
+      sets += S.length; if (!b.inv) vol += S.reduce((a, x) => a + x.r * (+x.w || 0), 0);       // компенсація — не вага, в обʼєм не йде
+      let tag = "";
+      if (b.best && !b.body) { const better = b.inv ? w < b.best.w : w > b.best.w || (w === b.best.w && reps.reduce((a, r) => a + r, 0) > b.best.reps.reduce((a, r) => a + r, 0)); if (better) tag = "★ рекорд"; }
+      if (!tag && b.last && !b.body) tag = (b.inv ? w < b.last.w : w > b.last.w) ? "↑ важче" : (b.inv ? w > b.last.w : w < b.last.w) ? "↓ легше" : "= як минулого";
+      lines.push(`<li class="${tag.startsWith("★") ? "is-pr" : ""}"><span>${esc(e.n)}</span><b>${S.map((x) => `${x.r}${x.w ? "×" + fmtN(x.w) : ""}`).join(" · ")}</b><em>${tag}</em></li>`);
+    });
+    return `<div class="gy-sum"><div class="gy-sum__h"><b>${g.ex.length}</b> вправ · <b>${sets}</b> підходів${vol ? ` · обʼєм <b>${fmtN(Math.round(vol))}</b> кг` : ""}</div><ul>${lines.join("")}</ul></div>`;
+  }
+  /* чернетка тренування: відмітки й числа не губляться, якщо закрив аркуш посеред залу */
+  function gymDraft() { if (!sh || !sh.gym || sh.mode !== "gym" || GYM.log[sh.k]) return; GYM.draft = { k: sh.k, id: sh.id, ex: sh.gym.ex, note: sh.gym.note || "", at: Date.now() }; saveG(); }
   function readDraft() {
     const d = sh.draft, v = (id) => { const e = $(id); return e ? e.value : null; };
     if ($("dsT")) d.t = v("dsT").trim();
@@ -2111,7 +2139,12 @@
       gyFlush(); readGym();
       const t = S.tasks[id], wk = wKey(k, id), w = GYM.w[wk] = GYM.w[wk] || { start: Date.now() }, gt = $("gyText");
       if (gt) { w.text = gt.value; w.at = Date.now(); }
-      if (sh.gym) { const g = sh.gym; g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now(); if (g.ex.length) GYM.log[k] = g; else if (GYM.log[k] && sh.table) delete GYM.log[k]; }
+      if (sh.gym) { const g = sh.gym, marked = g.ex.some((e) => e.sets.some((x) => x.d));
+        if (marked) g.ex.forEach((e) => { e.sets = e.sets.filter((x) => x.d); });            // відмічав підходи — у звіт ідуть лише зроблені
+        g.ex.forEach((e) => { delete e.open; e.sets.forEach((x) => delete x.d); });
+        sh.before = gymBefore(k);
+        g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now(); if (g.ex.length) GYM.log[k] = g; else if (GYM.log[k] && sh.table) delete GYM.log[k]; }
+      if (GYM.draft && GYM.draft.k === k) delete GYM.draft;
       const wasDone = !!(t && isWin(stOf(t, rec(k, id), k)));
       if (a === "gundo") { w.fin = null; setRec(k, id, { st: null, note: null }); saveG(); buzz("light"); after(before); renderSheet(); return; }
       w.fin = w.fin || Date.now(); saveG();
@@ -2139,6 +2172,9 @@
     }
     if (a === "gadd") { readGym(); sh.gym.ex.push({ n: "", sets: [{ r: null, w: null }] }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".gy-n"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
     if (a === "gset") { readGym(); const e = sh.gym.ex[+b.dataset.i]; const l = e.sets[e.sets.length - 1] || {}; e.sets.push({ r: l.r, w: l.w }); renderSheet(); return; }
+    if (a === "gchk") { readGym(); const e = sh.gym.ex[+b.dataset.i], x = e && e.sets[+b.dataset.j]; if (x) { x.d = !x.d; if (x.d && !x.r) x.r = 1; if (e.sets.every((z) => z.d)) { e.open = false; buzz("medium"); } else buzz("light"); } gymDraft(); renderSheet(); return; }
+    if (a === "gopen") { readGym(); const e = sh.gym.ex[+b.dataset.i]; if (e) e.open = true; renderSheet(); return; }
+    if (a === "gup" || a === "gdown") { readGym(); const i = +b.dataset.i, j = a === "gup" ? i - 1 : i + 1, X = sh.gym.ex; if (X[i] && X[j]) { [X[i], X[j]] = [X[j], X[i]]; } gymDraft(); renderSheet(); return; }
     if (a === "gunset") { readGym(); const e = sh.gym.ex[+b.dataset.i]; if (e && e.sets.length > 1) e.sets.pop(); renderSheet(); return; }
     if (a === "gdel") { readGym(); sh.gym.ex.splice(+b.dataset.i, 1); renderSheet(); return; }
     if (a === "cur" || a === "part") {

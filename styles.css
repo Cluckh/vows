@@ -1920,3 +1920,21 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .ar-spe{list-style:none;margin:8px 0;padding:0}
 .ar-spe li{display:grid;grid-template-columns:22px 1fr auto auto;gap:8px;align-items:center;padding:6px 0}
 .ar-sp{margin-bottom:18px}
+/* зал: відмітки підходів, згорнута вправа, порядок, підсумок */
+.gy-no{width:28px;height:28px;border-radius:50%;border:1px solid var(--edge);display:inline-grid;place-items:center;font-size:12px;color:var(--ash);font-style:normal;flex:none;margin-right:2px;padding:0}
+.gy-set.is-d .gy-no{background:linear-gradient(180deg,var(--gold-2),var(--gold));border-color:var(--gold-2);color:#15110a;font-weight:700}
+.gy-set.is-d input{border-color:rgba(231,199,119,.55);background:rgba(231,199,119,.08)}
+.gy-ex.is-done .gy-sets{display:none}
+.gy-ex.is-done .gy-name{border-color:rgba(231,199,119,.55);background:rgba(231,199,119,.1);color:var(--gold-2)}
+.gy-ex.is-done{opacity:.85}
+.gy-mv{display:inline-flex;flex-direction:column;gap:2px;margin:0 4px}
+.gy-mv button{width:30px;height:22px;border:1px solid var(--edge);border-radius:7px;color:var(--ash);font-size:13px;line-height:1}
+.gy-prog{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:2px 0 10px}
+.gy-prog .gl-bar{margin:0} .gy-prog span{font-size:13px;color:var(--ash)}
+.gy-sum{border:1px solid var(--edge);border-radius:14px;padding:12px;margin:6px 0 10px;background:rgba(205,163,73,.04)}
+.gy-sum__h{font-family:var(--f-serif);font-size:15px;color:var(--ash);margin-bottom:6px} .gy-sum__h b{color:var(--bone)}
+.gy-sum ul{list-style:none;margin:0;padding:0}
+.gy-sum li{display:grid;grid-template-columns:1fr auto;gap:0 8px;padding:5px 0;border-bottom:1px solid var(--edge-soft)}
+.gy-sum li span{font-family:var(--f-serif);color:var(--bone)} .gy-sum li b{font-size:13px;color:var(--ash);font-weight:400;grid-column:1}
+.gy-sum li em{grid-column:2;grid-row:1/3;align-self:center;font-style:normal;font-size:12.5px;color:var(--ash)}
+.gy-sum li.is-pr em{color:#ffb15c;text-shadow:0 0 8px rgba(255,138,43,.4)}

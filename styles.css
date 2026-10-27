@@ -1895,3 +1895,18 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .hall__acts.hall__acts--arch button{font-size:15.5px;padding:10px 12px;line-height:1.3}
 .hall__acts.hall__acts--arch button:last-child{text-align:center;color:var(--ash)}
 .hall__acts.hall__acts--arch button:last-child::before{content:none}
+/* аркуш залу: план, як користуватись, вибір вправи */
+.gy-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:4px 0 6px}
+.gy-head b{font-family:var(--f-display);font-size:16px;letter-spacing:.06em;color:var(--gold-2)} .gy-head span{font-family:var(--f-serif);font-style:italic;color:var(--bone)}
+.gy-head .ar-warn{width:100%}
+.gy-how{margin:6px 0 12px;padding-left:20px;font-family:var(--f-serif);font-size:14.5px;line-height:1.4;color:var(--ash)} .gy-how li{margin:2px 0}
+.gy-name{flex:1;text-align:left;padding:10px 12px;border:1px solid var(--edge);border-radius:12px;background:rgba(205,163,73,.05);font-family:var(--f-serif);font-size:17px;color:var(--bone);display:flex;flex-direction:column;gap:2px}
+.gy-name small{font-size:12.5px;color:var(--ash);font-family:var(--f-serif);font-style:italic}
+.gy-no{font-style:normal;font-size:11px;color:var(--ash);width:12px;text-align:right;margin-right:2px}
+.gy-pg{margin:12px 2px 6px;font-family:var(--f-display);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-2)}
+.gy-pick{display:flex;flex-wrap:wrap;gap:6px}
+.gy-pick button{padding:8px 12px;border-radius:99px;border:1px solid var(--edge);font-family:var(--f-serif);font-size:15px;color:var(--bone);display:inline-flex;gap:6px;align-items:baseline}
+.gy-pick button em{font-style:normal;font-size:11px;color:var(--ash)}
+.gy-pick button.is-in{opacity:.5}
+.gy-pick button.is-on{color:#15110a;background:linear-gradient(180deg,var(--gold-2),var(--gold));border-color:var(--gold-2)}
+.gy-own{display:grid;grid-template-columns:1fr auto;gap:8px;margin:16px 0 8px}

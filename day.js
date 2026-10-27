@@ -1788,29 +1788,43 @@
           ${(w.text || "").trim() ? `<div class="gy-report">${esc(w.text.trim()).replace(/\n/g, "<br>")}</div>` : ""}
           <button class="btn btn--gold" type="button" data-ds="gcopy">Скопіювати для тренера</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
       } else {
-        h += `<p class="dy-note">Пиши по ходу: вправа, підходи, відчуття. Кожна літера зберігається сама — можна закривати й повертатися.</p>
-          <textarea class="dy-in gy-text" id="gyText" rows="9" placeholder="напр.: жим 60×8, 60×8, 62.5×6 · плече ок">${esc(w.text || "")}</textarea>
+        const R = window.ORDO_ARM, tableOn = lift && (sh.table || GYM.log[sh.k] || (R && (D().ARMORY || {}).ex));
+        if (tableOn && !sh.gym) {
+          const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k && x.ex.length), adv = gymAdvice(sh.k);
+          if (!ex && !sh.plan && R && R.planTable) sh.plan = R.planTable();     // план Зброярні
+          const tpl = ex ? ex : sh.plan && sh.plan.length ? { ex: sh.plan.map((e) => ({ n: e.n, sets: e.sets.map((x) => ({ r: x.r, w: x.w })) })) } : { ex: (adv && ss.length ? ss[ss.length - 1].ex : [{ n: "", sets: [{}] }]).map((e) => ({ n: e.n, sets: (e.sets || [{}]).map((x) => ({ r: x.r == null ? null : x.r, w: x.w == null ? null : x.w })) })) };
+          sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" })); sh.gymTpl = gymSig(sh.gym);
+        }
+        if (tableOn && sh.pick != null) {                                         // вибір вправи зі списку Зброярні
+          const cat = R && R.catalog ? R.catalog() : [], G = Object.assign({}, (D().ARMORY || {}).groups || {}, { other: "Інші" }), cur = sh.pick === "new" ? null : (sh.gym.ex[sh.pick] || {}).n;
+          const inPlan = new Set(sh.gym.ex.map((e) => (e.n || "").toLowerCase()));
+          h += `<div class="gs-h">${sh.pick === "new" ? "Додати вправу" : "Замінити вправу"}</div>`;
+          Object.keys(G).forEach((g) => { const L = cat.filter((e) => e.g === g); if (!L.length) return;
+            h += `<div class="gy-pg">${esc(G[g])}</div><div class="gy-pick">${L.map((e) => `<button type="button" data-ds="gpickx" data-n="${esc(e.n)}" class="${cur === e.n ? "is-on" : inPlan.has(e.n.toLowerCase()) ? "is-in" : ""}">${esc(e.n)}<em>${e.day === "*" ? "" : e.day}</em></button>`).join("")}</div>`; });
+          h += `<div class="gy-own"><input class="dy-in" id="gyOwn" placeholder="Своя вправа"><button type="button" class="btn btn--line" data-ds="gpickown">Додати</button></div>
+            <button type="button" class="btn btn--ghost" data-ds="gpickno">Назад до таблиці</button>`;
+        } else if (tableOn) {
+          const P = R && R.plan && sh.k === today() ? R.plan() : null, g = sh.gym;
+          if (P && P.k === sh.k && !GYM.log[sh.k]) h += `<div class="gy-head"><b>День ${P.type}</b><span>${esc(P.label)}</span>${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}</div>`;
+          h += `<ol class="gy-how"><li>Роби вправи по черзі — підходи, повтори й вага вже стоять (повтори × кг).</li><li>Зробив інакше — виправ число. Не робив вправу — ×. Інша вправа — тап на назву.</li><li>Наприкінці — «Готово». Писати текст не обовʼязково.</li></ol>`;
+          const lastTxt = (n) => { const e = R && R.catalog ? R.catalog().find((x) => x.n.toLowerCase() === (n || "").toLowerCase()) : null; if (!e) return ""; const st = R.stats(e).last; return st ? `минулого: ${fmtN(st.w)}${e.inv ? " кг компенс." : e.per ? " кг/стор" : " кг"} · ${st.reps.join("/")}` : ""; };
+          h += g.ex.map((e, i) => `<div class="gy-ex" data-i="${i}"><div class="gy-ex__h"><input type="hidden" class="gy-n" value="${esc(e.n)}"><button type="button" class="gy-name" data-ds="gpick" data-i="${i}">${e.n ? esc(e.n) : "Обрати вправу"}<small>${esc(lastTxt(e.n))}</small></button><button type="button" class="gy-x" data-ds="gdel" data-i="${i}" aria-label="Прибрати">×</button></div>
+            <div class="gy-sets">${e.sets.map((x, j) => `<span class="gy-set"><i class="gy-no">${j + 1}</i><input class="dy-in gy-r" inputmode="numeric" placeholder="повт" value="${x.r == null ? "" : x.r}"><i>×</i><input class="dy-in gy-w" inputmode="decimal" placeholder="кг" value="${x.w == null ? "" : x.w}"></span>`).join("")}
+            <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button></div></div>`).join("") +
+            `<button type="button" class="gl-new" data-ds="gpicknew"><svg><use href="#i-plus"/></svg>Вправа зі списку</button>
+            <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="Як пройшло (необовʼязково): самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>`;
+        } else {
+          h += `<p class="dy-note">Пиши по ходу: вправа, підходи, відчуття. Кожна літера зберігається сама — можна закривати й повертатися.</p>
+          <textarea class="dy-in gy-text" id="gyText" rows="9" placeholder="напр.: велик 30 хв, режим 4">${esc(w.text || "")}</textarea>
           <div class="gy-saved" id="gySaved">${w.at ? `збережено о ${clock(w.at)}` : ""}</div>`;
-        if (lift && (sh.table || GYM.log[sh.k] || (window.ORDO_ARM && (D().ARMORY || {}).ex))) {          // зал: таблиця одразу — план Зброярні
-          if (!sh.gym) {
-            const ex = GYM.log[sh.k], ss = sessions().filter((x) => x.k < sh.k && x.ex.length), adv = gymAdvice(sh.k);
-            if (!ex && !sh.plan && window.ORDO_ARM && window.ORDO_ARM.planTable) sh.plan = window.ORDO_ARM.planTable();     // з Дня — теж план Зброярні
-            const tpl = ex ? ex : sh.plan && sh.plan.length ? { ex: sh.plan.map((e) => ({ n: e.n, sets: e.sets.map((x) => ({ r: x.r, w: x.w })) })) } : { ex: (adv && ss.length ? (ss.length > 1 && !ss[ss.length - 1].ex.some((e) => ss[ss.length - 2].ex.some((f) => f.n.toLowerCase() === e.n.toLowerCase())) ? ss[ss.length - 2] : ss[ss.length - 1]).ex : [{ n: "", sets: [{}] }]).map((e) => ({ n: e.n, sets: (e.sets || [{}]).map((x) => ({ r: x.r, w: x.w, hint: true })) })) };
-            sh.gym = JSON.parse(JSON.stringify({ ex: tpl.ex, note: tpl.note || "" })); sh.gymTpl = gymSig(sh.gym);
-          }
-          const g = sh.gym, known = [...new Set(sessions().flatMap((x) => x.ex.map((e) => e.n)).concat(((D().ARMORY || {}).ex || []).map((e) => e.n)))];
-          h += `<p class="dy-note">Підходи: повтори × вага. Значення з минулого разу підставлено — виправ, що змінилось.</p>
-        <datalist id="gyKnown">${known.map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
-        ${g.ex.map((e, i) => `<div class="gy-ex" data-i="${i}"><div class="gy-ex__h"><input class="dy-in gy-n" list="gyKnown" placeholder="Вправа" value="${esc(e.n)}"><button type="button" class="gy-x" data-ds="gdel" data-i="${i}" aria-label="Прибрати">×</button></div>
-          <div class="gy-sets">${e.sets.map((x, j) => `<span class="gy-set"><input class="dy-in gy-r" inputmode="numeric" placeholder="повт" value="${x.r == null ? "" : x.r}"><i>×</i><input class="dy-in gy-w" inputmode="decimal" placeholder="кг" value="${x.w == null ? "" : x.w}"></span>`).join("")}
-          <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button></div></div>`).join("")}
-        <button type="button" class="gl-new" data-ds="gadd"><svg><use href="#i-plus"/></svg>Вправа</button>
-        <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="нотатка: самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>`;
-        } else if (lift) h += `<button type="button" class="btn btn--ghost" data-ds="gtable">+ підходи таблицею (для порад на наступний зал)</button>`;
+          if (lift) h += `<button type="button" class="btn btn--ghost" data-ds="gtable">+ підходи таблицею (для порад на наступний зал)</button>`;
+        }
+        if (!(tableOn && sh.pick != null)) {
         h += done ? `<button class="btn btn--gold" type="button" data-ds="gdone">Зберегти</button><button class="btn btn--line" type="button" data-ds="gundo">Зняти відмітку</button>`
           : `<button class="btn btn--gold" type="button" data-ds="gdone">Готово — тренування завершено</button>`;
         h += `<button class="btn btn--line" type="button" data-ds="gcopy">Скопіювати для тренера</button>
           <div class="dy-acts"><button class="btn btn--ghost" type="button" data-ds="gmore">Перенести / правити</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button></div>`;
+        }
       }
     } else if (sh.mode === "watch") {
       const W = watch(), on = W.filter((x) => x.st !== "off"), off = W.filter((x) => x.st === "off"), bad = on.filter((x) => x.st === "bad");
@@ -2113,6 +2127,15 @@
       const ask = () => prompt("Скопіюй і встав у чат:", txt);
       if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => { b.textContent = "Скопійовано — встав у чат із тренером"; buzz("light"); }, ask); else ask();
       return;
+    }
+    if (a === "gpick" || a === "gpicknew") { readGym(); sh.pick = a === "gpicknew" ? "new" : +b.dataset.i; renderSheet(); el0().scrollTop = 0; return; }
+    if (a === "gpickno") { sh.pick = null; renderSheet(); return; }
+    if (a === "gpickx" || a === "gpickown") {
+      const n = a === "gpickx" ? b.dataset.n : (($("gyOwn") || {}).value || "").trim(); if (!n) return;
+      const R = window.ORDO_ARM, e = R && R.catalog ? R.catalog().find((x) => x.n === n) : null, last = e ? R.stats(e).last : null;
+      const sets = last ? last.reps.map((r) => ({ r, w: e.body ? null : last.w })) : [{ r: null, w: null }, { r: null, w: null }, { r: null, w: null }];
+      if (sh.pick === "new") sh.gym.ex.push({ n, sets }); else { const x = sh.gym.ex[sh.pick]; if (x) { const empty = !x.sets.some((z) => z.r); x.n = n; if (empty || !x.n) x.sets = sets; } }
+      sh.pick = null; buzz("light"); renderSheet(); return;
     }
     if (a === "gadd") { readGym(); sh.gym.ex.push({ n: "", sets: [{ r: null, w: null }] }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".gy-n"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
     if (a === "gset") { readGym(); const e = sh.gym.ex[+b.dataset.i]; const l = e.sets[e.sets.length - 1] || {}; e.sets.push({ r: l.r, w: l.w }); renderSheet(); return; }

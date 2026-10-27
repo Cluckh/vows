@@ -197,7 +197,7 @@
   /* день: кроки зі «Здоровʼя» + сон, записаний уранці в додатку, + час першого відкриття (підйом) */
   const hDay = (k) => {
     const h = Object.assign({}, (HL && HL.days && HL.days[k]) || {}), sl = S.sleep[k];
-    if (sl && sl.min && (sl.segs || !h.sleepMin)) { if (h.sleepMin && sl.segs) h.sleepHealth = h.sleepMin; h.sleepMin = sl.min; }     // твої відрізки ночі точніші за «Здоровʼя» (фокус «Сон» вмикається за розкладом)
+    if (sl && sl.min && (sl.manual || sl.segs || !h.sleepMin)) { if (h.sleepMin && (sl.manual || sl.segs)) h.sleepHealth = h.sleepMin; h.sleepMin = sl.min; }     // твої відрізки ночі точніші за «Здоровʼя» (фокус «Сон» вмикається за розкладом)
     if (S.wake[k]) h.up = S.wake[k];
     return Object.keys(h).length ? h : null;
   };
@@ -419,7 +419,9 @@
   /* сон відрізками: сума сну й час без сну між відрізками (через північ — теж) */
   const tMin = (x) => { if (!x) return null; const [hh, mm] = x.split(":").map(Number); return hh * 60 + mm; };
   const span = (a, b) => { const x = tMin(a), y = tMin(b); if (x == null || y == null) return 0; let m = y - x; if (m < 0) m += 1440; return m < 16 * 60 ? m : 0; };
+  const slTotal = (x) => { const base = span(x.bed, x.wakeV); return base ? Math.max(0, base - (x.wakes && x.wakes !== "0" ? +x.awake || 0 : 0) + (+x.nap || 0)) : 0; };
   function slTotals(segs) { let min = 0, gap = 0; (segs || []).forEach((x, i) => { min += span(x.a, x.b); if (i) gap += span(segs[i - 1].b, x.a); }); return { min, gap }; }
+  function slTimes() { const b = $("slB"), w = $("slW"); if (b && b.value) sh.bed = b.value; if (w && w.value) sh.wakeV = w.value; }
   function readSegs() { if (!sh || !sh.segs) return; const el = el0(); if (!el) return; el.querySelectorAll("[data-sa]").forEach((i) => { const x = sh.segs[+i.dataset.sa]; if (x) x.a = i.value; }); el.querySelectorAll("[data-sb]").forEach((i) => { const x = sh.segs[+i.dataset.sb]; if (x) x.b = i.value; }); }
   let nbTimer = 0;
   async function nightScene() {
@@ -1775,25 +1777,32 @@
       if (isGym(t) && !fut) h += `<button type="button" class="btn btn--line" data-ds="gym">Запис тренування</button>`;
       if (xp) h += `<p class="dy-note">За цю справу: +${xp} досвіду${ch ? ` (серія ${ch} дає +${Math.round(Math.min(0.3, ch * 0.03) * 100)}%)` : ""}</p>`;
       if (r && r.note) h += `<p class="dy-note">Поправка: ${esc(r.note)}</p>`;
-    } else if (sh.mode === "sleep") {                  // ніч відрізками: заснув → прокинувся, знову заснув → встав (тривога, безсоння між ними)
-      const t0 = today(), sl = S.sleep[t0] || {}, hd = hDay(t0) || {}, BEDS = ["21:30", "22:00", "22:30", "23:00", "23:30", "00:00", "00:30", "01:00"];
-      const hb = sl.bed || hhmm(hd.bed), hw = sl.wake || hhmm(hd.wake) || S.wake[t0] || "", N = S.night[t0];
-      if (!sh.segs) sh.segs = sl.segs ? JSON.parse(JSON.stringify(sl.segs)) : N && N.at ? [{ a: hb || "", b: N.at }, { a: N.end || "", b: hw }] : [{ a: hb || "", b: hw }];
+    } else if (sh.mode === "sleep") {                  // сон — кілька тапів: ліг, встав, прокидався й скільки не спав, як почуваєшся; пізніше — «досипав»
+      const t0 = today(), sl = S.sleep[t0] || {}, hd = hDay(t0) || {}, N = S.night[t0];
+      const BEDS = ["21:30", "22:00", "22:30", "23:00", "23:30", "00:00", "00:30", "01:00"], AW = [["15", "15 хв"], ["30", "30 хв"], ["60", "1 год"], ["90", "1,5 год"], ["120", "2+ год"]];
+      const NAP = [["20", "20 хв"], ["40", "40 хв"], ["60", "1 год"], ["90", "1,5 год"], ["120", "2 год"]];
+      const now5 = (() => { const d = new Date(); return `${p2(d.getHours())}:${p2(Math.floor(d.getMinutes() / 5) * 5)}`; })();
+      if (sh.bed == null) sh.bed = sl.bed || hhmm(hd.bed) || "";
+      if (sh.wakeV == null) sh.wakeV = sl.wake || (S.wake[t0] && S.wake[t0] >= "05:00" ? S.wake[t0] : "") || hhmm(hd.wake) || now5;     // перше відкриття о 3-й ночі — не підйом
+      if (sh.wakes == null) sh.wakes = sl.wakes != null ? String(Math.min(3, sl.wakes)) : N && N.at ? "1" : "";
+      if (sh.awake == null) { const w = sl.gap != null ? sl.gap : N && N.at && N.end ? span(N.at, N.end) : 0; sh.awake = w ? String(AW.reduce((a, [v]) => Math.abs(+v - w) < Math.abs(+a - w) ? v : a, "15")) : ""; }
       if (sh.siren == null) sh.siren = sl.siren != null ? !!sl.siren : !!(N && N.kind === "siren");
       if (sh.dream == null) sh.dream = sl.dream || "";
-      const chip = (k, v, n, on) => `<button type="button" data-dv="${v}" class="${on ? "is-on" : ""}">${n}</button>`;
-      const T = slTotals(sh.segs), morning = !sl.at || sl.skip;
-      h += `<div class="gs-kicker">Сон · ніч на ${human(t0)}</div><div class="sheet__title dy-sht">${morning ? "Доброго ранку, лицарю. Як спав?" : "Ніч — можна виправити"}</div>
-        <p class="dy-note">Відрізками: коли заснув і коли прокинувся. Прокидався вночі — «+ ще прокидався».${hd.sleepHealth || (hd.sleepMin && !sl.segs) ? ` «Здоровʼя» бачить <b>${hm(hd.sleepHealth || hd.sleepMin)}</b> — це за розкладом фокусу, твої відрізки точніші.` : ""}</p>
-        <div class="dy-chips dy-chips--wrap sl-beds" data-dk="bed">${BEDS.map((b) => chip("bed", b, b, sh.segs[0].a === b)).join("")}</div>
-        <ul class="sl-segs">${sh.segs.map((x, i) => `<li><span>${i ? "знову заснув" : "заснув"}</span><input class="dy-in" type="time" data-sa="${i}" value="${x.a || ""}"><i>→</i><span>${i === sh.segs.length - 1 ? "встав" : "прокинувся"}</span><input class="dy-in" type="time" data-sb="${i}" value="${x.b || ""}">${i ? `<button type="button" class="gy-x" data-ds="slsegdel" data-i="${i}" aria-label="Прибрати">×</button>` : "<b></b>"}</li>`).join("")}</ul>
-        <button type="button" class="gl-new" data-ds="slseg"><svg><use href="#i-plus"/></svg>ще прокидався</button>
-        <p class="sl-total">${T.min ? `сон <b>${hm(T.min)}</b>${T.gap ? ` · без сну вночі <b>${hm(T.gap)}</b>` : ""}${sh.segs.length > 1 ? ` · прокидався ${sh.segs.length - 1}×` : ""}` : "вкажи час — порахую сам"}</p>
-        <div class="dy-f"><label>Самопочуття</label><div class="dy-chips" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => chip("q", v, n, String(sh.q || sl.q || "") === v)).join("")}</div></div>
-        <div class="sl-marks">
-          <button type="button" class="sl-tog${sh.siren ? " is-on" : ""}" data-dv="siren" data-dk="sltog"><svg><use href="#i-siren"/></svg><span>тривога вночі</span></button>
-          <div class="sl-row"><svg><use href="#i-dream"/></svg><span>сни</span><div class="dy-chips dy-chips--wrap" data-dk="dream">${[["none", "не памʼятаю"], ["calm", "звичайні"], ["vivid", "яскраві"], ["bad", "кошмар"]].map(([v, n]) => chip("dream", v, n, sh.dream === v)).join("")}</div></div>
-        </div>
+      if (sh.nap == null) sh.nap = sl.nap ? String(sl.nap) : "";
+      const chip = (v, n, on) => `<button type="button" data-dv="${v}" class="${on ? "is-on" : ""}">${n}</button>`;
+      const morning = !sl.at || sl.skip, tot = slTotal(sh);
+      h += `<div class="gs-kicker">Сон · ніч на ${human(t0)}</div><div class="sheet__title dy-sht">${morning ? "Доброго ранку. Як спав?" : "Сон — поправити"}</div>
+        <div class="sl-q"><label>Ліг</label><div class="dy-chips dy-chips--wrap" data-dk="bed">${BEDS.map((b) => chip(b, b, sh.bed === b)).join("")}${sh.bed && !BEDS.includes(sh.bed) ? chip(sh.bed, sh.bed, true) : ""}<button type="button" data-ds="slbedt" class="sl-other">інший…</button></div>
+          ${sh.bedT ? `<input class="dy-in sl-time" id="slB" type="time" value="${sh.bed || ""}">` : ""}</div>
+        <div class="sl-q"><label>Встав</label><div class="dy-chips" data-dk="wake">${chip(sh.wakeV, sh.wakeV, true)}<button type="button" data-ds="slwaket" class="sl-other">інший…</button></div>
+          ${sh.wakeT ? `<input class="dy-in sl-time" id="slW" type="time" value="${sh.wakeV || ""}">` : ""}</div>
+        <div class="sl-q"><label>Прокидався</label><div class="dy-chips" data-dk="wakes">${[["0", "ні"], ["1", "раз"], ["2", "двічі"], ["3", "3+"]].map(([v, n]) => chip(v, n, sh.wakes === v)).join("")}</div></div>
+        ${sh.wakes && sh.wakes !== "0" ? `<div class="sl-q"><label>Не спав</label><div class="dy-chips dy-chips--wrap" data-dk="awake">${AW.map(([v, n]) => chip(v, n, sh.awake === v)).join("")}</div></div>` : ""}
+        <div class="sl-q"><label>Почуваюсь</label><div class="dy-chips" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => chip(v, n, String(sh.q || sl.q || "") === v)).join("")}</div></div>
+        <div class="sl-q sl-q--row"><button type="button" class="sl-tog${sh.siren ? " is-on" : ""}" data-dv="siren" data-dk="sltog"><svg><use href="#i-siren"/></svg><span>тривога</span></button>
+          <div class="dy-chips dy-chips--wrap" data-dk="dream">${[["calm", "сни"], ["vivid", "яскраві"], ["bad", "кошмар"]].map(([v, n]) => chip(v, n, sh.dream === v)).join("")}</div></div>
+        ${!morning || sh.napOn ? `<div class="sl-q"><label>Досипав</label><div class="dy-chips dy-chips--wrap" data-dk="nap">${NAP.map(([v, n]) => chip(v, n, sh.nap === v)).join("")}</div></div>` : ""}
+        <p class="sl-total">${tot ? `сон <b>${hm(tot)}</b>${sh.awake && sh.wakes !== "0" ? ` · не спав уночі ${hm(+sh.awake)}` : ""}${sh.nap ? ` · досипав ${hm(+sh.nap)}` : ""}` : "обери, коли ліг"}</p>
         <button class="btn btn--gold" type="button" data-ds="slsave">Записати</button>${morning ? `<button class="btn btn--ghost" type="button" data-ds="slskip">Не зараз</button>` : `<button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`}`;
     } else if (sh.mode === "gym") {
       const t = S.tasks[sh.id], wk = wKey(sh.k, sh.id), w = GYM.w[wk] || {}, r = rec(sh.k, sh.id), done = !!(t && isWin(stOf(t, r, sh.k)));
@@ -2043,10 +2052,13 @@
       N.topic = ch.dataset.dv; saveS(); buzz("light"); renderSheet(); return;
     }
     if (ch && sh.mode === "sleep") {
-      const k = ch.parentElement.dataset.dk; readSegs();
-      if (k === "bed") sh.segs[0].a = ch.dataset.dv;
-      if (k === "q") sh.q = ch.dataset.dv;
-      if (k === "dream") sh.dream = sh.dream === ch.dataset.dv ? "" : ch.dataset.dv;
+      const k = ch.parentElement.dataset.dk, v = ch.dataset.dv; slTimes();
+      if (k === "bed") { sh.bed = v; sh.bedT = false; }
+      if (k === "wakes") { sh.wakes = v; if (v !== "0" && !sh.awake) sh.awake = "30"; }
+      if (k === "awake") sh.awake = v;
+      if (k === "q") sh.q = v;
+      if (k === "nap") sh.nap = sh.nap === v ? "" : v;
+      if (k === "dream") sh.dream = sh.dream === v ? "" : v;
       if (ch.dataset.dk === "sltog") sh.siren = !sh.siren;
       buzz("light"); renderSheet(); return;
     }
@@ -2116,15 +2128,14 @@
     if (a === "fixq") { sh.mode = "fix"; renderSheet(); setTimeout(() => { const f = $("dsF"); if (f) f.focus(); }, 300); return; }
     if (a === "fix") { const n = ($("dsF") || {}).value || ""; setRec(k, id, { st: "fix", note: n.trim() || null }); fx("yes"); buzz("medium"); closeSheet(); after(before); if (isGym(S.tasks[id])) setTimeout(() => openSheet("gym", id, k), 500); return; }
     if (a === "gym") { openSheet("gym", id, k); return; }
-    if (a === "slseg") { readSegs(); const L = sh.segs[sh.segs.length - 1]; sh.segs.splice(sh.segs.length - 1, 0, { a: L.a, b: "" }); L.a = ""; renderSheet(); return; }       // новий відрізок перед останнім: «прокинувся о … — знову заснув о …»
-    if (a === "slsegdel") { readSegs(); const i = +b.dataset.i; if (i > 0) { sh.segs[i - 1].b = sh.segs[i].b; sh.segs.splice(i, 1); } renderSheet(); return; }
+    if (a === "slbedt" || a === "slwaket") { slTimes(); if (a === "slbedt") sh.bedT = true; else sh.wakeT = true; renderSheet(); setTimeout(() => { const i = $(a === "slbedt" ? "slB" : "slW"); if (i) i.focus(); }, 200); return; }
     if (a === "slsave" || a === "slskip") {
       const t0 = today();
       if (a === "slskip") S.sleep[t0] = { skip: 1, at: Date.now() };
       else {
-        readSegs(); const segs = sh.segs.filter((x) => x.a || x.b), T = slTotals(segs), old = S.sleep[t0] || {};
-        S.sleep[t0] = { bed: (segs[0] || {}).a || "", wake: (segs[segs.length - 1] || {}).b || "", segs, q: sh.q ? +sh.q : old.q || null, min: T.min || null, gap: T.gap || 0,
-          siren: sh.siren ? 1 : 0, wakes: Math.max(0, segs.length - 1), dream: sh.dream || null, at: Date.now() };
+        slTimes(); const old = S.sleep[t0] || {}, wk = sh.wakes === "" ? null : +sh.wakes, tot = slTotal(sh);
+        S.sleep[t0] = { bed: sh.bed || "", wake: sh.wakeV || "", q: sh.q ? +sh.q : old.q || null, min: tot || null, gap: wk ? +sh.awake || 0 : 0, nap: +sh.nap || 0, manual: 1,
+          siren: sh.siren ? 1 : 0, wakes: wk, dream: sh.dream || null, at: Date.now() };
         fx("yes"); buzz("medium");
       }
       saveS(); closeSheet(); after(before); setTimeout(scenes, 900); return;
@@ -2347,7 +2358,7 @@
       journal: Object.keys(S.journal).filter((k) => k >= since(14) && jSent(k)).sort().map((k) => { const J = S.journal[k]; return { d: k, mood: J.mood ? +J.mood : null, meal: J.meal || null, tags: J.tags || [], text: (J.text || "").trim().slice(0, 1500) }; }),
       nights: Object.keys(S.night).filter((k) => k >= since(14)).sort().map((k) => { const N = S.night[k]; return { d: k, at: N.at, kind: N.kind || "", topic: N.topic || "", text: (N.text || "").slice(0, 140), dealt: N.dealt || "" }; }),
       poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
-      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, segs: (S.sleep[k] || {}).segs || null, awakeMin: (S.sleep[k] || {}).gap || null, sleepHealth: (hDay(k) || {}).sleepHealth || null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),
+      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, bed: (S.sleep[k] || {}).bed || null, wake: (S.sleep[k] || {}).wake || null, awakeMin: (S.sleep[k] || {}).gap || null, napMin: (S.sleep[k] || {}).nap || null, sleepHealth: (hDay(k) || {}).sleepHealth || null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       books: { now: curBook() ? { t: curBook().t, page: bookPage(curBook().id), pages: curBook().pages } : null, done: Object.values(BK.list).filter((b) => b.end).map((b) => ({ t: b.t, end: b.end })), pages14: days14.map((k) => ({ d: k, p: pagesOn(k) })).filter((x) => x.p) },
       seenEvents: Object.keys(S.ev || {}),

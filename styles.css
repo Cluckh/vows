@@ -1968,3 +1968,10 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .sl-segs input{min-width:0;padding:8px 6px;font-size:16px}
 .sl-total{text-align:center;font-family:var(--f-serif);font-size:15px;color:var(--ash);margin:8px 0 12px} .sl-total b{color:var(--bone)}
 @media (max-width:380px){.sl-segs li{grid-template-columns:1fr 1fr 30px} .sl-segs li i{display:none} .sl-segs li span{grid-column:auto}}
+/* сон — кілька тапів */
+.sl-q{margin:0 0 12px}
+.sl-q>label{display:block;font-family:var(--f-display);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-2);margin:0 0 6px}
+.sl-q--row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sl-q--row .sl-tog{margin:0;padding:7px 12px}
+.sl-other{padding:7px 12px;border-radius:99px;border:1px dashed var(--edge);color:var(--ash);font-size:14px}
+.sl-time{margin-top:8px;max-width:160px;font-size:17px}

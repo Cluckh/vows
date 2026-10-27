@@ -271,7 +271,7 @@
   }
 
   /* ----------------------------------------------------------------- відгук */
-  function toast(html) { const el = $("dyToast"); if (!el) return; el.className = "dy-toast dy-toast--gold"; el.innerHTML = html; void el.offsetWidth; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600); }
+  function toast(html) { let el = $("dyToast"); if (!el) { el = document.createElement("div"); el.id = "dyToast"; document.body.appendChild(el); } el.className = "dy-toast dy-toast--gold"; el.innerHTML = html; void el.offsetWidth; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600); }
   /* після дій «Дня»: обробити нове (бонуси, благословення, реліквії), показати приріст золота й відкриття */
   function tick() {
     process();
@@ -390,7 +390,7 @@
   function close() { if (!el) return; el.classList.remove("open"); const sc = $("scrim"); if (sc && !document.querySelector(".sheet.open")) sc.classList.remove("open"); refreshViews(); if (reveals.length) setTimeout(nextReveal, 600); }
   const grip = `<div class="sheet__grip"></div>`;
   function render(m, arg) {
-    const b = balance();
+    mode = m; const b = balance();
     if (m === "sent") {
       el.innerHTML = `${grip}<div class="gs-kicker">Золото Ордену</div><div class="sheet__title dy-sht">Переведи ${fmtN(amt)} ₴ на білу картку</div>
         <p class="dy-note dy-note--t">У монобанку: з чорної картки на білу <b>…9467</b>. Золото вже відкладено; щойно поповнення зʼявиться у виписці (зазвичай 1–2 хв), Сенешаль закриє виведення. Не прийде за добу — золото повернеться.</p>
@@ -407,7 +407,7 @@
       el.innerHTML = `${grip}<div class="gs-kicker">Крамниця Сенешаля</div>${ART["scene:shop"] ? `<img class="gd-scene" src="${ART["scene:shop"]}" alt="">` : ""}<div class="sheet__title dy-sht">«Чесно зароблене — чесно й витрачай»</div>
         <p class="dy-note">У тебе ${coin()}<b>${fmtN(b)}</b></p>
         <ul class="gd-shop">${shopItems().map((it) => { const lock = it.perk && rankIdx() < it.rank;
-          return `<li class="${lock ? "is-lock" : ""}">${tkIc(it.id)}<div><b>${esc(it.n)}</b><span>${lock ? `відкриється зі званням «${esc(rankName(it.rank))}»` : esc(it.d)}</span></div><button type="button" class="btn btn--line" data-gdbuy="${it.id}" ${!lock && b >= it.p ? "" : "disabled"}>${lock ? `<svg class="gd-lock"><use href="#i-lock"/></svg>` : `${coin()} ${it.p}`}</button></li>`; }).join("")}</ul>
+          return `<li class="${lock ? "is-lock" : ""}">${tkIc(it.id)}<div><b>${esc(it.n)}</b><span>${lock ? `відкриється зі званням «${esc(rankName(it.rank))}»` : esc(it.d)}</span></div><button type="button" class="btn btn--line" data-gdbuy="${it.id}" ${!lock && b >= it.p && boughtId !== it.id ? "" : "disabled"}>${lock ? `<svg class="gd-lock"><use href="#i-lock"/></svg>` : boughtId === it.id ? "✓ куплено" : `${coin()} ${it.p}`}</button></li>`; }).join("")}</ul>
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
     } else if (m === "chest") {
       el.innerHTML = `${grip}<div class="gs-kicker">${esc((arg && arg.kicker) || "Скриня Сенешаля")}</div><div class="gd-chest${ART["scene:chestc"] ? " has-art" : ""}">${ART["scene:chestc"] ? `<img src="${ART["scene:chestc"]}" alt=""><i class="gd-chest__light"></i>` : ""}<svg viewBox="0 0 64 64" aria-hidden="true"><path class="ch-b" d="M8 30h48v24H8z"/><path class="ch-l" d="M8 30c0-12 10-18 24-18s24 6 24 18z"/><path class="ch-s" d="M8 30h48M30 26h4v10h-4z"/></svg></div><p class="dy-note dy-note--t gd-chest__why">${esc((arg && arg.why) || "Сенешаль відмикає замок…")}</p>`;
@@ -480,15 +480,20 @@
     save(); return L;
   }
   /* анімація скрині: світиться білим і «розгоряється» до кольору здобичі (білий → жовтий → помаранчевий → фіолетовий) */
-  let chestT = null;
+  let chestT = null, boughtAt = 0, boughtId = null;
   function chestPlay(L, o) {
     o = o || {}; clearTimeout(chestT);
+    /* реліквія зі скрині — арт тягнемо одразу, поки скриня світиться; перед показом чекаємо його ще до ~8 с */
+    const rid = L.kind === "relic" ? L.id : null; let waited = 0;
+    if (rid && !ART[rid]) artFor("relic", rid).then((u) => { if (!u) return; ART[rid] = u;
+      if (el && el.classList.contains("open") && mode === "loot" && el.querySelector(".rl-big svg")) render("loot", Object.assign({}, L, { kicker: o.kicker })); });
     const R = ["common", "rare", "legend", "myth"], top = Math.max(0, R.indexOf(lootRar(L))); let i = -1;
     const step = () => {
       const c = el && el.classList.contains("open") && el.querySelector(".gd-chest");
       if (!c) { reveals.unshift({ loot: L, kicker: o.kicker }); return; }                // закрили посеред відкриття — здобич покажемо пізніше
       if (i < top) { i++; R.forEach((x) => c.classList.remove("rar-" + x)); c.classList.add("is-glow", "rar-" + R[i]); c.style.animation = "none"; void c.offsetWidth; c.style.animation = "";
         const A = API(); if (A.FX && A.FX.buzz) A.FX.buzz(i >= 2 ? "medium" : "light"); chestT = setTimeout(step, i < top ? 1100 : 1700); return; }
+      if (rid && !ART[rid] && waited++ < 8) { chestT = setTimeout(step, 1000); return; }
       render("loot", Object.assign({}, L, { kicker: o.kicker })); fx(top >= 2 ? "date" : "yes");
     };
     chestT = setTimeout(step, 900);
@@ -512,9 +517,13 @@
     const buy = e.target.closest("[data-gdbuy]");
     if (buy) {
       const it = shopItems().find((s) => s.id === buy.dataset.gdbuy); if (!it || balance() < it.p || (it.perk && rankIdx() < it.rank)) return;
+      if (Date.now() - boughtAt < 1500) return;                                   // подвійний тап — не друга покупка
+      boughtAt = Date.now(); boughtId = it.id;
       G.out["s" + Date.now().toString(36)] = { at: Date.now(), amt: it.p, kind: "shop", st: "done", item: it.n };
       if (it.id === "chest" || it.id === "cmdchest") { save(); const cmd = it.id === "cmdchest", L = openChest(null, null, cmd); render("chest", cmd ? { kicker: "Скриня Командора", why: "Орест знімає печатку з короною…" } : null); fx("open"); chestPlay(L, cmd ? { kicker: "Скриня Командора" } : null); return; }
-      G.tk["t" + Date.now().toString(36)] = { kind: it.id, d: 1, at: Date.now() }; save(); fx("yes"); render("shop"); return;
+      G.tk["t" + Date.now().toString(36)] = { kind: it.id, d: 1, at: Date.now() }; save(); fx("yes"); render("shop");
+      toast(`${tkIc(it.id)} <b>+1</b> ${esc(it.n.toLowerCase())} · тепер ${tokens(it.id)}`);
+      setTimeout(() => { boughtId = null; if (el && el.classList.contains("open") && mode === "shop") render("shop"); }, 1500); return;
     }
     const eq = e.target.closest("[data-rleq]");
     if (eq) { const id = eq.dataset.rleq; G.eq = G.eq.includes(id) ? G.eq.filter((x) => x !== id) : G.eq.concat(id).slice(0, slots()); G.eqAt = Date.now(); save(); fx("yes"); render("relic", id); return; }

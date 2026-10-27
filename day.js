@@ -419,7 +419,8 @@
   /* сон відрізками: сума сну й час без сну між відрізками (через північ — теж) */
   const tMin = (x) => { if (!x) return null; const [hh, mm] = x.split(":").map(Number); return hh * 60 + mm; };
   const span = (a, b) => { const x = tMin(a), y = tMin(b); if (x == null || y == null) return 0; let m = y - x; if (m < 0) m += 1440; return m < 16 * 60 ? m : 0; };
-  const slTotal = (x) => { const base = span(x.bed, x.wakeV); return base ? Math.max(0, base - (x.wakes && x.wakes !== "0" ? +x.awake || 0 : 0) + (+x.nap || 0)) : 0; };
+  const slTotal = (x) => { const base = span(x.bed, x.wakeV); return base ? Math.max(0, base - (+x.awake || 0) + (+x.nap || 0)) : 0; };
+  const shiftT = (t, d) => { const m = ((tMin(t) || 0) + d + 1440) % 1440; return `${p2(Math.floor(m / 60))}:${p2(m % 60)}`; };
   function slTotals(segs) { let min = 0, gap = 0; (segs || []).forEach((x, i) => { min += span(x.a, x.b); if (i) gap += span(segs[i - 1].b, x.a); }); return { min, gap }; }
   function slTimes() { const b = $("slB"), w = $("slW"); if (b && b.value) sh.bed = b.value; if (w && w.value) sh.wakeV = w.value; }
   function readSegs() { if (!sh || !sh.segs) return; const el = el0(); if (!el) return; el.querySelectorAll("[data-sa]").forEach((i) => { const x = sh.segs[+i.dataset.sa]; if (x) x.a = i.value; }); el.querySelectorAll("[data-sb]").forEach((i) => { const x = sh.segs[+i.dataset.sb]; if (x) x.b = i.value; }); }
@@ -1777,32 +1778,25 @@
       if (isGym(t) && !fut) h += `<button type="button" class="btn btn--line" data-ds="gym">Запис тренування</button>`;
       if (xp) h += `<p class="dy-note">За цю справу: +${xp} досвіду${ch ? ` (серія ${ch} дає +${Math.round(Math.min(0.3, ch * 0.03) * 100)}%)` : ""}</p>`;
       if (r && r.note) h += `<p class="dy-note">Поправка: ${esc(r.note)}</p>`;
-    } else if (sh.mode === "sleep") {                  // сон — кілька тапів: ліг, встав, прокидався й скільки не спав, як почуваєшся; пізніше — «досипав»
+    } else if (sh.mode === "sleep") {                  // сон — чотири рядки зі стрілками (‹ ›), час можна й тапнути; вдень — ще «досипав»
       const t0 = today(), sl = S.sleep[t0] || {}, hd = hDay(t0) || {}, N = S.night[t0];
-      const BEDS = ["21:30", "22:00", "22:30", "23:00", "23:30", "00:00", "00:30", "01:00"], AW = [["15", "15 хв"], ["30", "30 хв"], ["60", "1 год"], ["90", "1,5 год"], ["120", "2+ год"]];
-      const NAP = [["20", "20 хв"], ["40", "40 хв"], ["60", "1 год"], ["90", "1,5 год"], ["120", "2 год"]];
       const now5 = (() => { const d = new Date(); return `${p2(d.getHours())}:${p2(Math.floor(d.getMinutes() / 5) * 5)}`; })();
-      if (sh.bed == null) sh.bed = sl.bed || hhmm(hd.bed) || "";
+      if (sh.bed == null) sh.bed = sl.bed || hhmm(hd.bed) || "23:00";
       if (sh.wakeV == null) sh.wakeV = sl.wake || (S.wake[t0] && S.wake[t0] >= "05:00" ? S.wake[t0] : "") || hhmm(hd.wake) || now5;     // перше відкриття о 3-й ночі — не підйом
-      if (sh.wakes == null) sh.wakes = sl.wakes != null ? String(Math.min(3, sl.wakes)) : N && N.at ? "1" : "";
-      if (sh.awake == null) { const w = sl.gap != null ? sl.gap : N && N.at && N.end ? span(N.at, N.end) : 0; sh.awake = w ? String(AW.reduce((a, [v]) => Math.abs(+v - w) < Math.abs(+a - w) ? v : a, "15")) : ""; }
+      if (sh.awake == null) { const w = sl.gap != null ? sl.gap : N && N.at && N.end ? span(N.at, N.end) : N && N.at ? 30 : 0; sh.awake = Math.round(w / 15) * 15; }
+      if (sh.nap == null) sh.nap = sl.nap || 0;
       if (sh.siren == null) sh.siren = sl.siren != null ? !!sl.siren : !!(N && N.kind === "siren");
       if (sh.dream == null) sh.dream = sl.dream || "";
-      if (sh.nap == null) sh.nap = sl.nap ? String(sl.nap) : "";
+      const morning = !sl.at || sl.skip, tot = slTotal(sh), dur = (m) => (m ? hm(m).replace(" 00 хв", "") : "ні");
+      const row = (f, label, val, timeIn) => `<div class="sl-st"><span>${label}</span><button type="button" data-ds="slst" data-f="${f}" data-d="-1" aria-label="менше">‹</button>
+        ${timeIn ? `<label class="sl-val"><b>${val}</b><input type="time" data-slt="${f}" value="${val}"></label>` : `<b class="sl-val">${val}</b>`}<button type="button" data-ds="slst" data-f="${f}" data-d="1" aria-label="більше">›</button></div>`;
       const chip = (v, n, on) => `<button type="button" data-dv="${v}" class="${on ? "is-on" : ""}">${n}</button>`;
-      const morning = !sl.at || sl.skip, tot = slTotal(sh);
       h += `<div class="gs-kicker">Сон · ніч на ${human(t0)}</div><div class="sheet__title dy-sht">${morning ? "Доброго ранку. Як спав?" : "Сон — поправити"}</div>
-        <div class="sl-q"><label>Ліг</label><div class="dy-chips dy-chips--wrap" data-dk="bed">${BEDS.map((b) => chip(b, b, sh.bed === b)).join("")}${sh.bed && !BEDS.includes(sh.bed) ? chip(sh.bed, sh.bed, true) : ""}<button type="button" data-ds="slbedt" class="sl-other">інший…</button></div>
-          ${sh.bedT ? `<input class="dy-in sl-time" id="slB" type="time" value="${sh.bed || ""}">` : ""}</div>
-        <div class="sl-q"><label>Встав</label><div class="dy-chips" data-dk="wake">${chip(sh.wakeV, sh.wakeV, true)}<button type="button" data-ds="slwaket" class="sl-other">інший…</button></div>
-          ${sh.wakeT ? `<input class="dy-in sl-time" id="slW" type="time" value="${sh.wakeV || ""}">` : ""}</div>
-        <div class="sl-q"><label>Прокидався</label><div class="dy-chips" data-dk="wakes">${[["0", "ні"], ["1", "раз"], ["2", "двічі"], ["3", "3+"]].map(([v, n]) => chip(v, n, sh.wakes === v)).join("")}</div></div>
-        ${sh.wakes && sh.wakes !== "0" ? `<div class="sl-q"><label>Не спав</label><div class="dy-chips dy-chips--wrap" data-dk="awake">${AW.map(([v, n]) => chip(v, n, sh.awake === v)).join("")}</div></div>` : ""}
-        <div class="sl-q"><label>Почуваюсь</label><div class="dy-chips" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => chip(v, n, String(sh.q || sl.q || "") === v)).join("")}</div></div>
-        <div class="sl-q sl-q--row"><button type="button" class="sl-tog${sh.siren ? " is-on" : ""}" data-dv="siren" data-dk="sltog"><svg><use href="#i-siren"/></svg><span>тривога</span></button>
-          <div class="dy-chips dy-chips--wrap" data-dk="dream">${[["calm", "сни"], ["vivid", "яскраві"], ["bad", "кошмар"]].map(([v, n]) => chip(v, n, sh.dream === v)).join("")}</div></div>
-        ${!morning || sh.napOn ? `<div class="sl-q"><label>Досипав</label><div class="dy-chips dy-chips--wrap" data-dk="nap">${NAP.map(([v, n]) => chip(v, n, sh.nap === v)).join("")}</div></div>` : ""}
-        <p class="sl-total">${tot ? `сон <b>${hm(tot)}</b>${sh.awake && sh.wakes !== "0" ? ` · не спав уночі ${hm(+sh.awake)}` : ""}${sh.nap ? ` · досипав ${hm(+sh.nap)}` : ""}` : "обери, коли ліг"}</p>
+        <div class="sl-sts">${row("bed", "Ліг", sh.bed, 1)}${row("wakeV", "Встав", sh.wakeV, 1)}${row("awake", "Не спав уночі", dur(sh.awake))}${!morning ? row("nap", "Досипав", dur(sh.nap)) : ""}</div>
+        <div class="dy-chips sl-feel" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => chip(v, n, String(sh.q || sl.q || "") === v)).join("")}</div>
+        <div class="sl-q--row"><button type="button" class="sl-tog${sh.siren ? " is-on" : ""}" data-dv="siren" data-dk="sltog"><svg><use href="#i-siren"/></svg><span>тривога</span></button>
+          <div class="dy-chips" data-dk="dream">${[["vivid", "сни"], ["bad", "кошмар"]].map(([v, n]) => chip(v, n, sh.dream === v)).join("")}</div></div>
+        <p class="sl-total">${tot ? `сон <b>${hm(tot)}</b>` : ""}</p>
         <button class="btn btn--gold" type="button" data-ds="slsave">Записати</button>${morning ? `<button class="btn btn--ghost" type="button" data-ds="slskip">Не зараз</button>` : `<button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`}`;
     } else if (sh.mode === "gym") {
       const t = S.tasks[sh.id], wk = wKey(sh.k, sh.id), w = GYM.w[wk] || {}, r = rec(sh.k, sh.id), done = !!(t && isWin(stOf(t, r, sh.k)));
@@ -1968,6 +1962,7 @@
     }
     el.innerHTML = h;
     const gt = $("gyText"); if (gt) gt.oninput = () => gyAutosave(gt.value);
+    if (sh && sh.mode === "sleep") el0().querySelectorAll("[data-slt]").forEach((i) => { i.onchange = () => { if (i.value) { sh[i.dataset.slt] = i.value; renderSheet(); } }; });     // тап на час — системний вибір часу
     if (sh && sh.mode === "gym" && sh.gym) el0().querySelectorAll(".gy-r, .gy-w, #gyNote").forEach((i) => { i.onchange = () => readGym(); });     // числа — у чернетку
     const jt = $("jText"); if (jt) jt.oninput = () => jAutosave(jt.value);
   }
@@ -2052,12 +2047,8 @@
       N.topic = ch.dataset.dv; saveS(); buzz("light"); renderSheet(); return;
     }
     if (ch && sh.mode === "sleep") {
-      const k = ch.parentElement.dataset.dk, v = ch.dataset.dv; slTimes();
-      if (k === "bed") { sh.bed = v; sh.bedT = false; }
-      if (k === "wakes") { sh.wakes = v; if (v !== "0" && !sh.awake) sh.awake = "30"; }
-      if (k === "awake") sh.awake = v;
+      const k = ch.parentElement.dataset.dk, v = ch.dataset.dv;
       if (k === "q") sh.q = v;
-      if (k === "nap") sh.nap = sh.nap === v ? "" : v;
       if (k === "dream") sh.dream = sh.dream === v ? "" : v;
       if (ch.dataset.dk === "sltog") sh.siren = !sh.siren;
       buzz("light"); renderSheet(); return;
@@ -2128,14 +2119,16 @@
     if (a === "fixq") { sh.mode = "fix"; renderSheet(); setTimeout(() => { const f = $("dsF"); if (f) f.focus(); }, 300); return; }
     if (a === "fix") { const n = ($("dsF") || {}).value || ""; setRec(k, id, { st: "fix", note: n.trim() || null }); fx("yes"); buzz("medium"); closeSheet(); after(before); if (isGym(S.tasks[id])) setTimeout(() => openSheet("gym", id, k), 500); return; }
     if (a === "gym") { openSheet("gym", id, k); return; }
-    if (a === "slbedt" || a === "slwaket") { slTimes(); if (a === "slbedt") sh.bedT = true; else sh.wakeT = true; renderSheet(); setTimeout(() => { const i = $(a === "slbedt" ? "slB" : "slW"); if (i) i.focus(); }, 200); return; }
+    if (a === "slst") { const f = b.dataset.f, d = +b.dataset.d;                 // ‹ › — 15 хв
+      if (f === "bed" || f === "wakeV") sh[f] = shiftT(sh[f], d * 15); else sh[f] = Math.max(0, (+sh[f] || 0) + d * 15);
+      buzz("light"); renderSheet(); return; }
     if (a === "slsave" || a === "slskip") {
       const t0 = today();
       if (a === "slskip") S.sleep[t0] = { skip: 1, at: Date.now() };
       else {
-        slTimes(); const old = S.sleep[t0] || {}, wk = sh.wakes === "" ? null : +sh.wakes, tot = slTotal(sh);
-        S.sleep[t0] = { bed: sh.bed || "", wake: sh.wakeV || "", q: sh.q ? +sh.q : old.q || null, min: tot || null, gap: wk ? +sh.awake || 0 : 0, nap: +sh.nap || 0, manual: 1,
-          siren: sh.siren ? 1 : 0, wakes: wk, dream: sh.dream || null, at: Date.now() };
+        const old = S.sleep[t0] || {}, tot = slTotal(sh), N = S.night[t0];
+        S.sleep[t0] = { bed: sh.bed || "", wake: sh.wakeV || "", q: sh.q ? +sh.q : old.q || null, min: tot || null, gap: +sh.awake || 0, nap: +sh.nap || 0, manual: 1,
+          siren: sh.siren ? 1 : 0, wakes: +sh.awake ? Math.max(1, old.wakes || 0, N && N.at ? 1 : 0) : 0, dream: sh.dream || null, at: Date.now() };
         fx("yes"); buzz("medium");
       }
       saveS(); closeSheet(); after(before); setTimeout(scenes, 900); return;

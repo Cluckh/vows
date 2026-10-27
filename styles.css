@@ -1975,3 +1975,16 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .sl-q--row .sl-tog{margin:0;padding:7px 12px}
 .sl-other{padding:7px 12px;border-radius:99px;border:1px dashed var(--edge);color:var(--ash);font-size:14px}
 .sl-time{margin-top:8px;max-width:160px;font-size:17px}
+/* сон — рядки зі стрілками */
+.sl-sts{margin:6px 0 12px;border:1px solid var(--edge);border-radius:14px;overflow:hidden}
+.sl-st{display:grid;grid-template-columns:1fr 44px minmax(86px,auto) 44px;align-items:center;border-bottom:1px solid var(--edge-soft)}
+.sl-st:last-child{border-bottom:0}
+.sl-st>span{padding:0 14px;font-family:var(--f-serif);font-size:16px;color:var(--ash)}
+.sl-st>button{height:52px;font-size:24px;color:var(--gold-2)}
+.sl-st>button:active{background:rgba(205,163,73,.12)}
+.sl-val{position:relative;display:grid;place-items:center;height:52px;font-family:var(--f-display);font-size:19px;letter-spacing:.04em;color:var(--bone)}
+.sl-val b{font-weight:400}
+.sl-val input{position:absolute;inset:0;opacity:0;width:100%;height:100%}
+.sl-feel{margin:0 0 10px;justify-content:center}
+.sl-q--row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin-bottom:4px}
+.sl-q--row .sl-tog{margin:0;padding:7px 12px}

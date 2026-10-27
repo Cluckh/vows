@@ -72,6 +72,16 @@
       }
     }
     Object.keys(g.out || {}).forEach((k) => { if (g.out[k].kind === "shop" && old(g.out[k])) { delete g.out[k]; n++; } });
+    /* одне поповнення білої — одне виведення: пристрій без кнопкового запиту (ще не синхронізований) записав його як «поповнив сам»,
+       а інший — як виконаний запит; після злиття було два записи на ту саму транзакцію */
+    const O = g.out || {};
+    Object.keys(O).filter((k) => O[k].auto && O[k].tx).forEach((k) => {
+      const w = O[k], j = Object.keys(O).find((x) => x !== k && !O[x].auto && O[x].kind === "white" &&
+        ((O[x].tx === w.tx && O[x].st === "done") || (O[x].st === "pending" && !O[x].tx && O[x].amt === w.amt && O[x].at <= w.at + 60e3)));
+      if (!j) return;
+      if (!O[j].tx) Object.assign(O[j], { st: "done", tx: w.tx, done: w.at });
+      delete O[k]; n++;
+    });
     Object.keys(g.inc || {}).forEach((k) => { if (/^(c|dup:)/.test(k) && old(g.inc[k])) { delete g.inc[k]; n++; } });
     Object.keys(g.tk || {}).forEach((k) => { if (/^[tc]/.test(k) && old(g.tk[k])) { delete g.tk[k]; n++; } });
     const gone = Object.keys(g.own || {}).filter((k) => g.own[k].src === "скриня Сенешаля" && old(g.own[k]));

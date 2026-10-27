@@ -601,7 +601,9 @@
     const U = (x) => (x.e.body ? "" : `${fmtN(x.w)} ${x.e.inv ? "кг компенс." : x.e.per ? "кг/стор" : "кг"} · `) + `${x.reps.length}×${x.reps[0]}`;
     const when = k === today() ? "Сьогодні" : k === add(today(), 1) ? "Завтра" : `${human(k)} —`;
     const head = P.warn.length && P.k === k ? P.warn[0] : P.k === k ? `${when} день ${P.type}: ${P.label}.${P.prog ? ` Прогресія — ${P.prog.n.toLowerCase()}.` : ""}` : `За планом зал ${human(P.k)} — день ${P.type}. Сьогодні можна, але плечам і графіку краще ${human(P.k)}.`;
-    return { giver: "sobriety", head, tips: P.k === k ? P.ex.slice(0, 6).map((x) => `${x.prog ? "↑ " : ""}${x.n}: ${U(x)}`) : [] };
+    return { giver: "sobriety", head, tips: P.k === k ? P.ex.slice(0, 6).map((x) => `${x.prog ? "↑ " : ""}${x.n}: ${U(x)}`) : [], arm: 1,
+      line: P.k === k ? `Зал · день ${P.type}: ${P.label}` : `Зал за планом — ${human(P.k)}, день ${P.type}`,
+      sub: P.k === k ? (P.warn.length ? P.warn[0] : `${P.ex.length} вправ${P.prog ? ` · прогресія: ${P.prog.n.toLowerCase()}` : ""}`) : "сьогодні можна, але плечам і графіку краще за планом" };
   }
   const gymSig = (g) => JSON.stringify([g.ex.map((e) => [e.n, (e.sets || []).map((z) => [z.r, z.w])]), g.note || ""]);
   /* текст для живого тренера в чаті: останні тренування з підходами й нотатками */
@@ -1417,11 +1419,11 @@
       const o = typeof x === "string" ? { t: x } : x; if (o && o.t) out.push({ g, t: o.t, rar: rarOk(o.rar) }); }));
     return out.sort((a, b) => RANK[b.rar] - RANK[a.rar]);
   }
-  let newsI = 0;
+  let newsI = 0, newsOpen = false, nightOpen = false, dayMore = false;
   function newsHTML() {
     const L = newsLines(); if (!L.length) return "";
     const i = newsI % L.length, x = L[i], w = whoOf(x.g), M = window.ORDO_MARK || ((y) => y);
-    return `<section class="dy-news rar-${x.rar}" data-dnews="1"><div class="dy-news__fig">${w && w.art ? `<img src="${esc(w.art)}" alt="">` : ""}</div>
+    return `<section class="dy-news dy-news--mini${newsOpen ? " is-open" : ""} rar-${x.rar}" data-dnews="1"><div class="dy-news__fig">${w && w.art ? `<img src="${esc(w.art)}" alt="">` : ""}</div>
       <div class="dy-news__b"><span class="dy-news__k">Слово дня${x.rar !== "common" ? ` · ${M(RARW[x.rar])}` : ""}${w ? ` · ${esc(w.name)}` : ""}${L.length > 1 ? ` <em>${i + 1}/${L.length}</em>` : ""}</span><p>${M(esc(x.t))}</p>
       ${L.length > 1 ? `<span class="dy-news__dots">${L.map((y, j) => `<i class="rar-${y.rar}${j === i ? " is-on" : ""}"></i>`).join("")}</span>` : ""}</div></section>`;
   }
@@ -1584,30 +1586,34 @@
     const slk = S.sleep[k], slAsk = (!slk || slk.skip) && k === today() && !isNight();
     const slLine = slAsk ? `<span class="dy-sl-ask" data-dsleep="1">ранковий звіт ›</span>` : slk && !slk.skip ? `${slk.siren ? `<span data-dsleep="1"><svg><use href="#i-siren"/></svg>тривога</span>` : ""}${slk.wakes ? `<span data-dsleep="1"><svg><use href="#i-eye"/></svg>прокидався <b>${slk.wakes >= 3 ? "3+" : slk.wakes}</b></span>` : ""}${slk.dream && slk.dream !== "none" ? `<span data-dsleep="1"><svg><use href="#i-dream"/></svg>${{ calm: "сни", vivid: "яскраві сни", bad: "кошмар" }[slk.dream] || ""}</span>` : ""}` : "";
     if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || apm.length || wl || slLine) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span${k === today() ? ' data-dsleep="1"' : ""}><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${slLine}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.streak || hd.duo.today) && !(hd.apps && hd.apps.duolingo && hd.apps.duolingo.min >= 1) ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${apm.map(([n, a]) => `<span>${n === "reading" ? `<svg><use href="#i-book"/></svg>` : ""}${esc(appName(n))} <b>${Math.floor(a.min)}</b> хв${n === "duolingo" && hd.duo && hd.duo.streak ? ` · <b>${hd.duo.streak}</b>🔥` : ""}</span>`).join("")}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
+    let more = "";                              // другорядне (покер, кроки за місяць/рік, синхронізація) — під «більше»
     const pk = pDay(k);
-    if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
-    if (k === today() && IOS) h += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю з телефона…" : "↻ оновити з телефона"}</button></div>`;
+    if (pk && pk.hands) more += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
+    if (k === today() && IOS) more += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю з телефона…" : "↻ оновити з телефона"}</button></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
-    if (pm || py) h += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
-    if (k === today() && roughNight(k) && !isNight()) {
-      const N = S.night[k], gymToday = its.some(({ t }) => isGym(t));
-      const tips = ["кава — до 12:00", "денний сон — до 20 хв і до 15:00", "за годину до сну — без екранів", "лягти до 23:00"].concat(gymToday ? ["у залі — без підвищення ваги"] : []);
-      h += `<div class="dy-ret dy-night"><span class="dy-ret__t">Після нічної варти</span>
-        <span class="dy-ret__s">${N.kind === "siren" ? `повітряна тривога${N.at ? ` о ${N.at}` : ""}` : N.at ? `прокидався о ${N.at}` : "ніч була неспокійна"}${N.parked && !N.dealt ? " · тривога чекає на розмову" : ""}</span>
-        <ul class="dy-tips">${tips.map((x) => `<li>${x}</li>`).join("")}</ul></div>`;
+    if (pm || py) more += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
+    if (more) h += dayMore ? `<div class="dy-more">${more}</div><button type="button" class="dy-more-t" data-dmore>менше ‹</button>` : `<button type="button" class="dy-more-t" data-dmore>покер, кроки за місяць ›</button>`;
+    if (k === today() && roughNight(k) && !isNight()) {                 // день після тривоги — один рядок, поради — тапом
+      const N = S.night[k], gymToday = its.some(({ t }) => isGym(t)), sm = (hDay(k) || {}).sleepMin || (S.sleep[k] && S.sleep[k].min);
+      const tips = ["кава — до 12:00", "денний сон — до 20 хв і до 15:00", "за годину до сну — без екранів", "лягти до 23:00"].concat(gymToday ? ["у залі — легкий день, без рекордів"] : []);
+      h += `<button type="button" class="dy-night1${nightOpen ? " is-open" : ""}" data-dnight><svg><use href="#i-${N.kind === "siren" ? "siren" : "moon"}"/></svg><span><b>${N.kind === "siren" ? `Після тривоги${N.at ? ` о ${N.at}` : ""}` : N.at ? `Прокидався о ${N.at}` : "Неспокійна ніч"}</b>${N.parked && !N.dealt ? " · тривога чекає на розмову" : nightOpen ? "" : " · поради на день"}</span><i>${nightOpen ? "‹" : "›"}</i></button>
+        ${nightOpen ? `<ul class="dy-tips dy-tips--night">${tips.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}`;
     }
     const cb = k === today() ? comeback() : null;
     if (cb) h += `<div class="dy-ret"><span class="dy-ret__t">Шлях повернення</span><span class="dy-ret__pips">${[1, 2, 3, 4, 5, 6, 7].map((i) => `<i class="${i <= cb.n ? "is-on" : ""}"></i>`).join("")}</span>
       <span class="dy-ret__s">${cb.today ? "новий стрік почнеться завтра — тримай перший день" : `день ${cb.n + 1} з 7 · новий стрік уже росте`}</span></div>`;
     const gymT = its.find(({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel");
     const adv = gymT && k >= today() ? armAdvice(k) || gymAdvice(k) : null;
-    if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
+    if (adv && adv.arm) {                         // зал — один рядок із кнопкою; деталі — в таблиці й Зброярні
+      h += `<button type="button" class="dy-gym1" data-dgymgo="${gymT.t.id}"><svg><use href="#i-swords"/></svg><span><b>${esc(adv.line)}</b>${adv.sub ? `<em>${esc(adv.sub)}</em>` : ""}</span><i>${k === today() ? "Почати ›" : "›"}</i></button>`;
+    } else if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
       h += `<div class="md md--voice dy-adv"><div class="md__fig"${K && K.art ? ` data-card="${adv.giver}"` : ""}>${K && K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K ? K.name : "")} · порада на зал</div><p class="md__say">${esc(adv.head)}</p>${adv.tips.length ? `<ul class="dy-tips">${adv.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div></div>`; }
     const segA = h; h = "";
     if (k === today() && TAB() === "day" && newsLines().length) LS.set("ordo.k.newsSeen", dropDay() || "");
     const fails = k === today() ? Q.list.filter(canBreath) : [];
     if (fails.length) live.push(...fails);
-    const segQ = (k === today() ? teaserHTML("day") + newsHTML() : "") + (live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "");
+    const segN = k === today() ? newsHTML() : "";
+    const segQ = (k === today() ? teaserHTML("day") : "") + (live.length ? `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">Квести</span></div><ul class="dy-qs">${live.map(questHTML).join("")}</ul></section>` : "");
     h += `<section class="dy-sec"><div class="gl-sec__head"><span class="gl-sec__kind">${k === today() ? "Справи дня" : k < today() ? "Того дня" : "Заплановано"}</span><span class="gl-sec__meta">${its.length ? `${doneN}/${its.length}` : ""}</span></div>`;
     if (!its.length) h += `<p class="gl-empty">${k < today() ? "Того дня справ не було." : "Справ на цей день немає."}</p>`;
     h += `<ul class="dy-list">${open.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
@@ -1615,7 +1621,7 @@
     h += `<button class="gl-new" type="button" data-dnew="1"><svg><use href="#i-plus"/></svg>Нова ціль</button></section>`;
     if (dayXP) h += `<button type="button" class="dy-sum" data-dxp="${k}">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""} <span class="dy-sum__more">за що ›</span></button>`;
     if (k === today() && !bad.length) h += `<button type="button" class="dy-watch-ok" data-dwatch="1">сторож: усе на місці</button>`;
-    patch(box, [segR, segA, segQ, h]); teaserDots();
+    patch(box, [segR, segA + segN, h, segQ]); teaserDots();          // справи — одразу після дня; квести й тизери — під ними
   }
   /* екран дня — чотири шматки (звання, день, квести, справи); оновлюється лише те, що змінилось:
      перемикання дня не перебудовує квести з портретами — на iPhone це найдорожче */
@@ -2215,7 +2221,10 @@
     const xb = e.target.closest("[data-dxp]"); if (xb) { openSheet("xp", null, xb.dataset.dxp); return; }
     if (e.target.closest("[data-dsleep]") && (view || today()) === today()) { openSheet("sleep", null, today()); return; }
     if (e.target.closest("[data-dwatch]")) { openSheet("watch", null, today()); return; }
-    if (e.target.closest("[data-dnews]")) { newsI++; buzz("light"); render(); return; }
+    if (e.target.closest("[data-dnews]")) { if (!newsOpen) newsOpen = true; else newsI++; buzz("light"); render(); return; }     // перший тап — розгорнути, далі — наступне слово
+    if (e.target.closest("[data-dnight]")) { nightOpen = !nightOpen; buzz("light"); render(); return; }
+    if (e.target.closest("[data-dmore]")) { dayMore = !dayMore; buzz("light"); render(); return; }
+    const gg = e.target.closest("[data-dgymgo]"); if (gg) { buzz("light"); openSheet("gym", gg.dataset.dgymgo, view || today()); return; }
     const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; if (srcOf(t) === "journal" && (view || today()) <= today()) { openJournal(view); return; } openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }

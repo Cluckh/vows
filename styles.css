@@ -1938,3 +1938,24 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .gy-sum li span{font-family:var(--f-serif);color:var(--bone)} .gy-sum li b{font-size:13px;color:var(--ash);font-weight:400;grid-column:1}
 .gy-sum li em{grid-column:2;grid-row:1/3;align-self:center;font-style:normal;font-size:12.5px;color:var(--ash)}
 .gy-sum li.is-pr em{color:#ffb15c;text-shadow:0 0 8px rgba(255,138,43,.4)}
+/* День — мінімалістично: один рядок на річ, справи — одразу */
+.dy-news--mini{padding:10px 12px;gap:10px;margin:0 0 12px;border-radius:14px}
+.dy-news--mini .dy-news__fig{width:34px;height:34px;flex:none}
+.dy-news--mini .dy-news__fig img{width:34px;height:34px}
+.dy-news--mini p{font-size:15px;line-height:1.4;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.dy-news--mini.is-open p{-webkit-line-clamp:unset;display:block}
+.dy-news--mini .dy-news__k{font-size:10.5px}
+.dy-night1,.dy-gym1{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin:0 0 10px;padding:9px 12px;border-radius:12px;border:1px solid var(--edge);background:rgba(205,163,73,.04)}
+.dy-night1{border-color:rgba(255,138,43,.35);background:rgba(255,138,43,.06)}
+.dy-night1 svg,.dy-gym1 svg{width:20px;height:20px;flex:none;color:var(--gold-2)}
+.dy-night1 svg{color:#ffb15c}
+.dy-night1 span,.dy-gym1 span{flex:1;font-family:var(--f-serif);font-size:14.5px;color:var(--ash);line-height:1.35;display:flex;flex-direction:column}
+.dy-night1 b,.dy-gym1 b{color:var(--bone);font-weight:600}
+.dy-gym1 em{font-style:italic;font-size:13px}
+.dy-night1 i,.dy-gym1 i{font-style:normal;font-size:13px;color:var(--gold-2);white-space:nowrap}
+.dy-tips--night{margin:-4px 0 12px;padding-left:22px}
+.dy-more-t{display:block;margin:-8px auto 10px;font-size:12px;color:var(--ash);letter-spacing:.04em}
+.dy-more{margin-top:-6px}
+#vDay .vhead__sub{display:none}
+#vDay .vhead{padding-bottom:4px}
+.dy-night1 span{flex-direction:row;flex-wrap:wrap;gap:0 4px;align-items:baseline}

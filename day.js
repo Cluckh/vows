@@ -1648,7 +1648,7 @@
     h += `<button class="gl-new" type="button" data-dnew="1"><svg><use href="#i-plus"/></svg>Нова ціль</button></section>`;
     if (dayXP) h += `<button type="button" class="dy-sum" data-dxp="${k}">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""} <span class="dy-sum__more">за що ›</span></button>`;
     if (k === today() && !bad.length) h += `<button type="button" class="dy-watch-ok" data-dwatch="1">сторож: усе на місці</button>`;
-    patch(box, [segR, segA + segN, h, segQ]); teaserDots();          // справи — одразу після дня; квести й тизери — під ними
+    patch(box, [segR, segA + segN, segQ, h]); teaserDots();          // квести — над справами (компактно), справи — одразу під ними
   }
   /* екран дня — чотири шматки (звання, день, квести, справи); оновлюється лише те, що змінилось:
      перемикання дня не перебудовує квести з портретами — на iPhone це найдорожче */

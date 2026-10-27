@@ -48,6 +48,7 @@
   const save = () => LS.set("ordo.gold", G);
   /* 26.10: покупки в крамниці й здобич зі скринь під час тестів — не рахуються. Чиститься на кожному пристрої й при кожному злитті (boot.js), тож не воскресне */
   const TEST_CUT = 1793040399831;
+  const REFUND_AT = 1793116200000;      // 27.10, 17:50 за Києвом: власник попросив повернути невикористані куплені жетони золотом
   function purge(g) {
     const old = (o) => !!o && (o.at || 0) < TEST_CUT; let n = 0;
     /* відкат 27.10: реліквія, бонуси й скриня за закритий квест «Не міняти Орден»; рівень і його нагороди, яких тепер нема */
@@ -72,6 +73,19 @@
       }
     }
     Object.keys(g.out || {}).forEach((k) => { if (g.out[k].kind === "shop" && old(g.out[k])) { delete g.out[k]; n++; } });
+    /* повернення жетонів 27.10: куплені до REFUND_AT і не витрачені — покупку скасовано, золото назад.
+       Витрачені рахуємо спершу з дарованих (рівні, скрині). Лише дані до REFUND_AT — тож на всіх пристроях і після злиття однаково */
+    const kindOf = {}; shopItems().forEach((it) => { if (it.id !== "chest" && it.id !== "cmdchest") kindOf[it.n] = it.id; });
+    const TK = g.tk || {}, OUT = g.out || {}, pre = (o) => (o.at || 0) < REFUND_AT && !old(o);
+    [...new Set(Object.values(kindOf))].forEach((kind) => {
+      const buys = Object.keys(OUT).filter((k) => OUT[k].kind === "shop" && kindOf[OUT[k].item] === kind && pre(OUT[k])).sort((x, y) => OUT[y].at - OUT[x].at);
+      const got = Object.keys(TK).filter((k) => k[0] === "t" && TK[k].kind === kind && TK[k].d > 0 && pre(TK[k])).sort((x, y) => TK[y].at - TK[x].at);
+      if (!buys.length || !got.length) return;
+      const used = Object.values(TK).filter((o) => o.kind === kind && o.d < 0 && pre(o)).length;
+      const free = Object.keys(TK).filter((k) => k[0] !== "t" && TK[k].kind === kind && TK[k].d > 0 && pre(TK[k])).length;
+      const r = Math.min(buys.length, got.length) - Math.max(0, used - free);
+      for (let i = 0; i < r; i++) { delete OUT[buys[i]]; delete TK[got[i]]; n++; }
+    });
     /* одне поповнення білої — одне виведення: пристрій без кнопкового запиту (ще не синхронізований) записав його як «поповнив сам»,
        а інший — як виконаний запит; після злиття було два записи на ту саму транзакцію */
     const O = g.out || {};

@@ -387,7 +387,7 @@
     requestAnimationFrame(() => el.classList.add("open"));
     fx("open");
   }
-  function close() { if (!el) return; el.classList.remove("open"); const sc = $("scrim"); if (sc && !document.querySelector(".sheet.open")) sc.classList.remove("open"); refreshViews(); if (reveals.length) setTimeout(nextReveal, 600); }
+  function close() { if (!el) return; armId = null; clearTimeout(armT); el.classList.remove("open"); const sc = $("scrim"); if (sc && !document.querySelector(".sheet.open")) sc.classList.remove("open"); refreshViews(); if (reveals.length) setTimeout(nextReveal, 600); }
   const grip = `<div class="sheet__grip"></div>`;
   function render(m, arg) {
     mode = m; const b = balance();
@@ -407,7 +407,9 @@
       el.innerHTML = `${grip}<div class="gs-kicker">Крамниця Сенешаля</div>${ART["scene:shop"] ? `<img class="gd-scene" src="${ART["scene:shop"]}" alt="">` : ""}<div class="sheet__title dy-sht">«Чесно зароблене — чесно й витрачай»</div>
         <p class="dy-note">У тебе ${coin()}<b>${fmtN(b)}</b></p>
         <ul class="gd-shop">${shopItems().map((it) => { const lock = it.perk && rankIdx() < it.rank;
-          return `<li class="${lock ? "is-lock" : ""}">${tkIc(it.id)}<div><b>${esc(it.n)}</b><span>${lock ? `відкриється зі званням «${esc(rankName(it.rank))}»` : esc(it.d)}</span></div><button type="button" class="btn btn--line" data-gdbuy="${it.id}" ${!lock && b >= it.p && boughtId !== it.id ? "" : "disabled"}>${lock ? `<svg class="gd-lock"><use href="#i-lock"/></svg>` : boughtId === it.id ? "✓ куплено" : `${coin()} ${it.p}`}</button></li>`; }).join("")}</ul>
+          return `<li class="${lock ? "is-lock" : ""}">${tkIc(it.id)}<div><b>${esc(it.n)}</b><span>${lock ? `відкриється зі званням «${esc(rankName(it.rank))}»` : esc(it.d)}</span></div>${boughtId === it.id ? `<button type="button" class="btn btn--line" disabled>✓ куплено</button>`
+            : armId === it.id ? `<button type="button" class="btn btn--gold gd-arm" data-gdbuy="${it.id}">Купити?</button>`
+            : `<button type="button" class="btn btn--line${lock || b < it.p ? " is-off" : ""}" data-gdbuy="${it.id}">${lock ? `<svg class="gd-lock"><use href="#i-lock"/></svg>` : `${coin()} ${it.p}`}</button>`}</li>`; }).join("")}</ul>
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
     } else if (m === "chest") {
       el.innerHTML = `${grip}<div class="gs-kicker">${esc((arg && arg.kicker) || "Скриня Сенешаля")}</div><div class="gd-chest${ART["scene:chestc"] ? " has-art" : ""}">${ART["scene:chestc"] ? `<img src="${ART["scene:chestc"]}" alt=""><i class="gd-chest__light"></i>` : ""}<svg viewBox="0 0 64 64" aria-hidden="true"><path class="ch-b" d="M8 30h48v24H8z"/><path class="ch-l" d="M8 30c0-12 10-18 24-18s24 6 24 18z"/><path class="ch-s" d="M8 30h48M30 26h4v10h-4z"/></svg></div><p class="dy-note dy-note--t gd-chest__why">${esc((arg && arg.why) || "Сенешаль відмикає замок…")}</p>`;
@@ -480,7 +482,7 @@
     save(); return L;
   }
   /* анімація скрині: світиться білим і «розгоряється» до кольору здобичі (білий → жовтий → помаранчевий → фіолетовий) */
-  let chestT = null, boughtAt = 0, boughtId = null;
+  let chestT = null, boughtAt = 0, boughtId = null, armId = null, armT = null;
   function chestPlay(L, o) {
     o = o || {}; clearTimeout(chestT);
     /* реліквія зі скрині — арт тягнемо одразу, поки скриня світиться; перед показом чекаємо його ще до ~8 с */
@@ -516,9 +518,13 @@
     const v = e.target.closest("[data-gdv]"); if (v) { amt = +v.dataset.gdv; render("out"); return; }
     const buy = e.target.closest("[data-gdbuy]");
     if (buy) {
-      const it = shopItems().find((s) => s.id === buy.dataset.gdbuy); if (!it || balance() < it.p || (it.perk && rankIdx() < it.rank)) return;
-      if (Date.now() - boughtAt < 1500) return;                                   // подвійний тап — не друга покупка
-      boughtAt = Date.now(); boughtId = it.id;
+      const it = shopItems().find((s) => s.id === buy.dataset.gdbuy); if (!it || Date.now() - boughtAt < 1500) return;   // подвійний тап — не друга покупка
+      if (it.perk && rankIdx() < it.rank) { toast(`Відкриється зі званням «${esc(rankName(it.rank))}»`); return; }
+      if (balance() < it.p) { toast(`${coin()} Не вистачає <b>${fmtN(it.p - balance())}</b> золота`); return; }
+      /* перший тап — «Купити?», другий (за 4 с) — покупка */
+      clearTimeout(armT);
+      if (armId !== it.id) { armId = it.id; render("shop"); armT = setTimeout(() => { armId = null; if (el && el.classList.contains("open") && mode === "shop") render("shop"); }, 4000); return; }
+      armId = null; boughtAt = Date.now(); boughtId = it.id;
       G.out["s" + Date.now().toString(36)] = { at: Date.now(), amt: it.p, kind: "shop", st: "done", item: it.n };
       if (it.id === "chest" || it.id === "cmdchest") { save(); const cmd = it.id === "cmdchest", L = openChest(null, null, cmd); render("chest", cmd ? { kicker: "Скриня Командора", why: "Орест знімає печатку з короною…" } : null); fx("open"); chestPlay(L, cmd ? { kicker: "Скриня Командора" } : null); return; }
       G.tk["t" + Date.now().toString(36)] = { kind: it.id, d: 1, at: Date.now() }; save(); fx("yes"); render("shop");

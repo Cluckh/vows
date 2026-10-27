@@ -1542,6 +1542,8 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .gd-shop li div{flex:1;display:grid;gap:2px}
 .gd-shop li b{font-family:var(--f-display);font-size:16px;color:var(--bone);letter-spacing:.03em}
 .gd-shop li span{font-family:var(--f-serif);font-size:14px;color:var(--ash)}
+.gd-shop .btn.is-off{opacity:.42}
+.gd-shop .gd-arm{min-width:96px;padding-left:14px;padding-right:14px}
 .gd-shop .btn{width:auto;margin:0;padding:8px 14px;white-space:nowrap}
 .gd-chest{display:flex;justify-content:center;margin:18px 0 8px}
 .gd-chest svg{width:120px;height:120px;fill:none;stroke:var(--gold);stroke-width:1.6;stroke-linejoin:round}

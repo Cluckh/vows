@@ -1062,6 +1062,7 @@
   }
   function settleQuests() {
     const t0 = today();
+    applyBreaks();
     autoCount();
     Q.list.forEach((q) => {
       if (q.st === "active" && q.flash && (q.until < t0 || (q.until === t0 && hmNow2() >= q.flash))) { q.st = "fail"; q.end = t0; q.at = Date.now(); return; }      // блискавичний: година минула — не встиг
@@ -1278,6 +1279,9 @@
         render();
       }
       if (!(await nightMorning())) return;
+      while (pendingBroke.length) { const q = pendingBroke.shift(), h = H(); h.stage(q.giver || "supreme", { glow: glowOf(q.rar) });
+        if ((await h.say(`Брате. Ти попросив ${q.broke.replace(/^попросив\s+/i, "")}. Це нова фішка, а не лагодження — обітницю «${q.t}» порушено, квест провалено. Ми так домовлялись, чесно.`)) === "closed") return;
+        if ((await h.say("Не карай себе. Фортецю, яку хочеться перебудовувати, ти любиш. Наступного разу — спершу поживи в ній.")) === "closed") return; }
       dailyRoll();
       for (const q of Q.list.filter((x) => x.st === "offer")) { if (!(await offerScene(q))) break; }
       while (pendingDone.length) { const q = pendingDone.shift(); await doneScene(q); }
@@ -1289,7 +1293,7 @@
     } finally { busy = false; }
   }
   let pendingUp = null;
-  const pendingDone = [];
+  const pendingDone = [], pendingBroke = [];
 
   /* ============================================================ ВІДГУК ====== */
   function toast(html, cls) {
@@ -2256,7 +2260,7 @@
     const left = q.until ? diff(today(), q.until) : 0;
     el.innerHTML = `<div class="sheet__grip"></div><div class="gs-kicker dy-kick--${q.rar}">${RAR[q.rar].n} квест</div><div class="sheet__title dy-sht">${esc(q.t)}</div>
       ${q.desc ? `<p class="dy-note">${esc(q.desc)}</p>` : ""}
-      <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : q.st === "fail" ? "не встиг" : ""} · +${q.xp} досвіду</div>
+      <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : q.st === "fail" ? (q.broke ? `порушено: ${esc(q.broke)}` : "не встиг") : ""} · +${q.xp} досвіду</div>
       ${canBreath(q) ? `<button class="btn btn--gold" type="button" data-dqs="breath">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("breath", "gd-tk--btn") : ""}Друге дихання — ще 2 дні, 85% мети</button>` : ""}
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
       ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
@@ -2363,6 +2367,19 @@
     const V = window.ORDO_VAULT; if (!V || !V.readSealed || Date.now() - dAt < 30 * 60e3) return;
     dAt = Date.now();
     try { const d = await V.readSealed("writer/drop.json"); if (d && d.at !== (DROP && DROP.at)) { DROP = d; LS.set("ordo.k.drop", d); applyDrop(); render(); const A = API(); if (A.renderBoard) A.renderBoard(); } } catch (e) {}
+    try { const b = await V.readSealed("writer/breaks.json"); if (b && b.at !== (BREAKS && BREAKS.at)) { BREAKS = b; LS.set("ordo.k.breaks", b); settle(); render(); } } catch (e) {}
+  }
+  /* порушені обітниці-квести: «Не міняти Орден» — коли власник попросив нову фішку (не фікс), Claude записує це в writer/breaks.json, і квест провалюється сам */
+  let BREAKS = LS.get("ordo.k.breaks", null);
+  function applyBreaks() {
+    const L = (BREAKS && BREAKS.items) || []; if (!L.length) return;
+    Q.list.forEach((q) => {
+      if (q.st !== "active") return;
+      const b = L.find((x) => x.pid === q.pid && x.d >= (q.from || "") && x.d <= (q.until || "9999"));
+      if (!b) return;
+      q.st = "fail"; q.end = today(); q.at = Date.now(); q.broke = b.why || "нова фішка"; q.revived = 1;      // без «Другого дихання»: обітницю порушено, а не не встиг
+      pendingBroke.push(q); setTimeout(scenes, 1500);                                                  // Магістр скаже це в залі — не тостом, що загубиться
+    });
   }
   async function eventScene() {
     const h = H(); if (!h || !DROP || !Array.isArray(DROP.events)) return true;

@@ -194,7 +194,8 @@
     const byMt = (x, y) => { const o = Object.assign({}, y, x); Object.keys(y || {}).forEach((k) => { if (x && x[k] && ((y[k] || {}).mt || 0) > ((x[k] || {}).mt || 0)) o[k] = y[k]; }); return o; };
     if (L["ordo.arm"] || R["ordo.arm"]) {
       const a = P(L, "ordo.arm", {}), b = P(R, "ordo.arm", {}), next = ((b.next || {}).at || 0) > ((a.next || {}).at || 0) ? b.next : a.next || b.next;
-      out["ordo.arm"] = JSON.stringify(Object.assign({}, b, a, { ex: byMt(a.ex || {}, b.ex || {}), next }));
+      const split = ((b.split || {}).mt || 0) > ((a.split || {}).mt || 0) ? b.split : a.split || b.split;
+      out["ordo.arm"] = JSON.stringify(Object.assign({}, b, a, { ex: byMt(a.ex || {}, b.ex || {}), next, split }));
     }
     if (L["ordo.lib"] || R["ordo.lib"]) {
       const a = P(L, "ordo.lib", {}), b = P(R, "ordo.lib", {});

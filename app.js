@@ -701,6 +701,14 @@ window.ORDO_START = function () {
   on("musBtn", "click", () => { FX.setMusic(!FX.music); renderSound(); FX.buzz("light"); if (FX.music) FX.play("toggle", true); });
   on("sndBtn", "click", () => { FX.set(!FX.enabled); renderSound(); if (FX.enabled) { FX.play("toggle", true); FX.buzz("light"); } });
 
+  /* клавіатура на iPhone: поле в аркуші — над клавіатурою (місце знизу + прокрутка до поля) */
+  document.addEventListener("focusin", (e) => {
+    const t = e.target; if (!t || !/^(INPUT|TEXTAREA)$/.test(t.tagName) || !t.closest(".sheet, .dsheet")) return;
+    document.body.classList.add("kb-open");
+    setTimeout(() => { try { t.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (x) { t.scrollIntoView(); } }, 320);
+  });
+  document.addEventListener("focusout", () => setTimeout(() => { const a = document.activeElement; if (!a || !/^(INPUT|TEXTAREA)$/.test(a.tagName)) document.body.classList.remove("kb-open"); }, 150));
+
   /* ================================================================ ВКЛАДКИ = */
   let TAB = "board";
   function showTab(name) {

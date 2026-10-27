@@ -1910,3 +1910,13 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .gy-pick button.is-in{opacity:.5}
 .gy-pick button.is-on{color:#15110a;background:linear-gradient(180deg,var(--gold-2),var(--gold));border-color:var(--gold-2)}
 .gy-own{display:grid;grid-template-columns:1fr auto;gap:8px;margin:16px 0 8px}
+.kb-open .sheet.open,.kb-open .dsheet.open{padding-bottom:calc(46vh + env(safe-area-inset-bottom))}
+.gy-minus{opacity:.75}
+.ar-ab--wrap{flex-wrap:wrap}
+.ar-spl{list-style:none;margin:4px 0 10px;padding:0}
+.ar-spl li{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--edge-soft)}
+.ar-spl b,.ar-spe b{font-family:var(--f-display);color:var(--gold-2);font-size:16px}
+.ar-spl span{font-family:var(--f-serif);color:var(--bone)} .ar-spl em,.ar-spe em{font-style:normal;font-size:12px;color:var(--ash)}
+.ar-spe{list-style:none;margin:8px 0;padding:0}
+.ar-spe li{display:grid;grid-template-columns:22px 1fr auto auto;gap:8px;align-items:center;padding:6px 0}
+.ar-sp{margin-bottom:18px}

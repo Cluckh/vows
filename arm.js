@@ -47,15 +47,20 @@
     const Y = DY(), seed = AR().ex || [], out = {}; if (!Y || !Y.sessions) return [];
     Y.sessions().forEach((s) => {
       const known = (s.ex || []).map((x) => seed.find((e) => same(e.n, x.n))).filter(Boolean);
-      const a = known.filter((e) => e.day === "A").length, b = known.filter((e) => e.day === "B").length, day = a > b ? "A" : b > a ? "B" : "*";
+      const cnt = {}; known.forEach((e) => { if (e.day && e.day !== "*") cnt[e.day] = (cnt[e.day] || 0) + 1; }); const day = topDay(cnt) || "*";
       (s.ex || []).forEach((x) => { if (!x.n || seed.some((e) => same(e.n, x.n))) return; const id = "c:" + norm(x.n); if (!out[id]) out[id] = { id, n: x.n.trim(), g: "other", day, step: 2.5, custom: true }; else if (day !== "*") out[id].day = day; });
     });
     return Object.values(out);
   }
   function catalog() {
-    return (AR().ex || []).concat(customEx()).map((e) => { const o = ARM.ex[e.id] || {}; return Object.assign({}, e, o.day ? { day: o.day } : {}, { manual: o.last || null, hide: !!o.hide }); }).filter((e) => !e.hide);
+    return (AR().ex || []).concat(customEx()).map((e) => { const o = ARM.ex[e.id] || {}; return Object.assign({}, e, o.day != null ? { day: o.day } : {}, { manual: o.last || null, hide: !!o.hide }); }).filter((e) => !e.hide);
   }
   const findEx = (name) => catalog().find((e) => same(e.n, name)) || null;
+  /* спліт: дні (A, B, C…) і назви — стартові з логу, далі — твої (ordo.arm.split) */
+  const days = () => (ARM.split && ARM.split.order && ARM.split.order.length ? ARM.split.order : Object.keys(AR().split || { A: "", B: "" }));
+  const dayLabel = (d) => { const L = (ARM.split && ARM.split.labels) || {}; return L[d] != null ? L[d] : (AR().split || {})[d] || ""; };
+  const restDay = (d) => catalog().some((e) => e.day === d && e.g === "shoulders");          // плечі в цьому дні — 5 днів паузи
+  const topDay = (cnt) => { const L = Object.entries(cnt).sort((a, b) => b[1] - a[1]); return L.length && L[0][1] > 0 && (!L[1] || L[0][1] > L[1][1]) ? L[0][0] : null; };
   /* підходи з таблиць залу: [{ k, w, reps }] — w найбільша робоча вага, reps — повтори підходів із цією вагою (для компенсації — найменша) */
   function hist(e) {
     const Y = DY(); if (!Y || !Y.sessions) return [];
@@ -81,7 +86,7 @@
   }
   const unit = (e) => (e.body ? "" : e.inv ? " кг компенс." : e.per ? " кг/стор" : " кг");
   const setsTxt = (x, e) => !x ? "—" : `${e.body ? "" : fmtN(x.w) + unit(e) + " · "}${x.reps.every((r) => r === x.reps[0]) ? `${x.reps.length}×${x.reps[0]}` : x.reps.join("+")}`;
-  const typeOf = (exs) => { let a = 0, b = 0; (exs || []).forEach((x) => { const e = findEx(x.n); if (e && e.day === "A") a++; if (e && e.day === "B") b++; }); return a === b ? null : a > b ? "A" : "B"; };
+  const typeOf = (exs) => { const cnt = {}; (exs || []).forEach((x) => { const e = findEx(x.n); if (e && e.day && e.day !== "*") cnt[e.day] = (cnt[e.day] || 0) + 1; }); return topDay(cnt); };
 
   /* план наступного залу */
   function plan() {
@@ -89,15 +94,16 @@
     const td = Y.trainDays(add(t0, -70), t0), gym = td.gym, ss = Y.sessions ? Y.sessions() : [];
     const typed = ss.filter((s) => s.ex && s.ex.length).map((s) => ({ k: s.k, type: typeOf(s.ex) })).filter((x) => x.type);
     const lastK = gym.length ? gym[gym.length - 1] : A.seedTo || null;
-    const lastT = typed.length ? typed[typed.length - 1] : null, lastB = [...typed].reverse().find((x) => x.type === "B");
+    const lastT = typed.length ? typed[typed.length - 1] : null, DS = days();
     const doneToday = gym.includes(t0);
     /* ручний вибір A/B діє, доки після нього не було залу (обрав уже після сьогоднішнього — на наступний) */
     const N = ARM.next, g2 = N && N.from ? gym.filter((g) => g >= N.from) : [], manual = !!(N && N.type && (!g2.length || (N.after && g2.every((g) => g === N.from))));
-    let type = manual ? N.type : lastT ? (lastT.type === "A" ? "B" : "A") : "A";
+    let type = manual && DS.includes(N.type) ? N.type : lastT && DS.includes(lastT.type) ? DS[(DS.indexOf(lastT.type) + 1) % DS.length] : DS[0];
+    const lastB = restDay(type) ? [...typed].reverse().find((x) => restDay(x.type)) : null;      // остання сесія з плечима
     const reasons = [], warn = [];
     if (manual) reasons.push("день обрано вручну");
     else if (lastT) reasons.push(`за чергою: минулого разу день ${lastT.type} (${human(lastT.k)})`);
-    else reasons.push("минулий день A чи B не записано — почнемо з A (можна змінити)");
+    else reasons.push(`минулий день спліту не записано — почнемо з ${DS[0]} (можна змінити)`);
     let k = null, skipB = null, light = false;
     const siren = !!(Y.nightKind && Y.nightKind(t0) === "siren");
     for (let i = doneToday ? 1 : 0; i <= 9 && !k; i++) {
@@ -110,7 +116,7 @@
         light = true;
         warn.push(sm != null ? `Ніч з тривогою, але ти доспав (${Math.floor(sm / 60)} год ${p2(sm % 60)}) — легкий зал: ваги −15%, без рекордів.` : "Ніч з тривогою — легкий зал: ваги −15%, без рекордів. Якщо відчуваєш, що не доспав, — перенеси.");
       }
-      if (type === "B" && lastB && diff(lastB.k, c) < 5) { if (!skipB) skipB = add(lastB.k, 5); continue; }
+      if (lastB && diff(lastB.k, c) < 5) { if (!skipB) skipB = add(lastB.k, 5); continue; }
       k = c;
     }
     if (!k) k = add(t0, doneToday ? 1 : 0);
@@ -149,7 +155,7 @@
       if (wcand) { wcand.w = Math.max(0, wcand.w + (wcand.e.inv ? -1 : 1) * (wcand.e.step || 2.5)); wcand.reps = wcand.reps.map(() => 10); wcand.prog = "w"; prog = wcand; }
       else { const rc = ex.find((x) => !x.e.body && x.reps.some((r) => r < 12)); if (rc) { rc.reps = rc.reps.map((r) => Math.min(12, r + 1)); rc.prog = "r"; prog = rc; } }
     }
-    return { k, type, label: (A.split || {})[type] || "", reasons, warn, ex, prog, deload, rough, light, lastK, today: k === t0, doneToday };
+    return { k, type, label: dayLabel(type), reasons, warn, ex, prog, deload, rough, light, lastK, today: k === t0, doneToday };
   }
   /* план → таблиця для аркуша залу: підходи з цільовими повторами й вагою */
   const planSets = (p) => p.ex.map((x) => ({ n: x.n, sets: x.reps.map((r) => ({ r, w: x.e.body ? null : x.w })) }));
@@ -236,7 +242,7 @@
     let h = `${exArt() ? `<img class="ar-scene" src="${exArt()}" alt="">` : ""}
       <div class="md md--voice ar-voice"><div class="md__fig"${K.art ? ` data-card="sobriety"` : ""}>${K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K.name || "брат Северин")} · майстер плацу</div><p class="md__say">${esc(head)}</p></div></div>
       <section class="ar-next"><div class="ar-next__h"><span class="gs-kicker">Наступний зал</span><b>${esc(when)}${P.today ? "" : `, ${human(P.k)}`}</b>
-        <div class="ar-ab" role="group">${["A", "B"].map((t) => `<button type="button" data-arab="${t}" class="${P.type === t ? "is-on" : ""}">День ${t}</button>`).join("")}</div></div>
+        <div class="ar-ab" role="group">${days().map((t) => `<button type="button" data-arab="${t}" class="${P.type === t ? "is-on" : ""}">День ${t}</button>`).join("")}</div></div>
         <p class="ar-split">${esc(P.label)}</p>
         ${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}
         <ul class="ar-plan">${P.ex.map((x) => `<li class="${x.prog ? "is-prog" : ""}" data-arex="${x.id}"><span class="ar-plan__n">${esc(x.n)}</span>
@@ -244,6 +250,8 @@
         <p class="ar-why">${P.reasons.map(esc).join(" · ")}</p>
         ${P.today && !P.doneToday ? `<button type="button" class="btn btn--gold" data-ar="start">Почати тренування — таблиця вже заповнена</button>` : P.doneToday ? `<p class="ar-done">Сьогодні зал уже є. Відпочивай — наступний ${human(P.k)}.</p>` : `<button type="button" class="btn btn--line" data-ar="start">Відкрити таблицю на сьогодні</button>`}
       </section>
+      <section class="ar-sp"><div class="st-h st-h--sub">Спліт</div><ul class="ar-spl">${days().map((d) => `<li><b>${esc(d)}</b><span>${esc(dayLabel(d) || "—")}</span><em>${catalog().filter((e) => e.day === d).length} впр.</em></li>`).join("")}</ul>
+        <button type="button" class="btn btn--line" data-ar="split">Налаштувати спліт</button></section>
       <section class="ar-month"><div class="st-h st-h--sub">${MN[+today().slice(5, 7) - 1]}</div>
         <div class="ar-bars"><div><span>Зали</span><div class="gl-bar"><i style="width:${Math.min(100, Math.round(cur.gym / (G.gym || 8) * 100))}%"></i></div><b>${cur.gym} / ${G.gym || 8}</b></div>
         <div><span>Кардіо</span><div class="gl-bar"><i style="width:${Math.min(100, Math.round(cur.cardio / (G.cardio || 4) * 100))}%"></i></div><b>${cur.cardio} / ${G.cardio || 4}</b></div></div>
@@ -281,16 +289,23 @@
     if (mode === "ex") {
       const e = catalog().find((x) => x.id === sel) || {}, s = stats(e), H = s.H.slice(-12);
       const mx = Math.max(1, ...H.map((x) => x.w), s.best ? s.best.w : 0);
-      h += `<div class="gs-kicker">${esc((AR().groups || {})[e.g] || "")} · день ${esc(e.day === "*" ? "A і B" : e.day)}</div><div class="sheet__title dy-sht">${esc(e.n)}</div>
+      h += `<div class="gs-kicker">${esc((AR().groups || {})[e.g] || "Інші")} · ${e.day === "*" ? "кожен день" : e.day ? "день " + esc(e.day) : "не в спліті"}</div><div class="sheet__title dy-sht">${esc(e.n)}</div>
         <div class="ar-lb"><div><span>останнє</span><b>${esc(setsTxt(s.last, e))}</b><em>${s.last ? (s.last.seed ? "з логу" : human(s.last.k)) : ""}</em></div><div><span>найкраще</span><b>${esc(setsTxt(s.best, e))}</b><em>${s.best ? (s.best.seed ? "з логу" : human(s.best.k)) : ""}</em></div></div>
         ${H.length > 1 ? `<div class="ar-spark">${H.map((x) => `<i style="height:${Math.round(8 + 50 * (e.inv ? 1 - x.w / mx + 0.2 : x.w / mx))}px" title="${human(x.k)}: ${fmtN(x.w)}"></i>`).join("")}</div>` : `<p class="dy-note">Графік зʼявиться, коли буде 2+ таблиці залу з цією вправою.</p>`}
         ${e.inv ? `<p class="tr-at">компенсація: менше кілограмів — важче</p>` : ""}
         <div class="gs-h">Записати вручну (якщо робив без таблиці)</div>
         <div class="ar-man"><input class="dy-in" id="arW" inputmode="decimal" placeholder="кг" value="${s.last && !e.body ? s.last.w : ""}"><input class="dy-in" id="arR" inputmode="text" placeholder="повтори: 12 12 10" value="${s.last ? s.last.reps.join(" ") : ""}"></div>
         <button type="button" class="btn btn--line" data-ar="man">Зберегти як останнє</button>
-        <div class="gs-h">День спліту</div><div class="ar-ab">${["A", "B"].map((t) => `<button type="button" data-arday="${t}" class="${e.day === t ? "is-on" : ""}">${t}</button>`).join("")}</div>
+        <div class="gs-h">День спліту</div><div class="ar-ab ar-ab--wrap">${days().concat(["*"]).map((t) => `<button type="button" data-arday="${t}" class="${e.day === t ? "is-on" : ""}">${t === "*" ? "кожен день" : t}</button>`).join("")}</div>
         <button type="button" class="btn btn--ghost" data-ar="hide">Більше не роблю — прибрати з плану</button>
         <button type="button" class="btn btn--ghost" data-ar="close">Закрити</button>`;
+    } else if (mode === "split") {
+      const DS = days();
+      h += `<div class="gs-kicker">Зброярня</div><div class="sheet__title dy-sht">Спліт</div>
+        <p class="dy-note">Дні йдуть по черзі: ${DS.join(" → ")} → ${DS[0]}… Назва — що тренуєш. Вправи до дня — тап на вправу в списку робочих ваг.</p>
+        <ul class="ar-spe">${DS.map((d) => `<li><b>${esc(d)}</b><input class="dy-in" data-spl="${esc(d)}" value="${esc(dayLabel(d))}" placeholder="напр.: груди · спина"><em>${catalog().filter((e) => e.day === d).length} впр.</em>${DS.length > 1 ? `<button type="button" class="gy-x" data-spdel="${esc(d)}" aria-label="Прибрати день">×</button>` : ""}</li>`).join("")}</ul>
+        ${DS.length < 6 ? `<button type="button" class="gl-new" data-ar="spadd"><svg><use href="#i-plus"/></svg>День ${String.fromCharCode(65 + DS.length)}</button>` : ""}
+        <button type="button" class="btn btn--gold" data-ar="spsave">Зберегти</button><button type="button" class="btn btn--ghost" data-ar="close">Закрити</button>`;
     } else if (mode === "lib") {
       want(libBooks().map((b) => "book:" + (b.art || String(b.t || "").toLowerCase().trim())).concat(libGames().map((g) => "game:" + (g.art || g.t.toLowerCase()))));
       const B = libBooks(), G = libGames(), reading = B.filter((b) => b.st === "read"), done = B.filter((b) => b.st === "done").sort((a, b) => ((b.end || "") > (a.end || "") ? 1 : -1)), q = B.filter((b) => b.st === "queue");
@@ -327,8 +342,14 @@
     if (ab) { const o = ARM.ex[sel] = ARM.ex[sel] || {}; o.day = ab.dataset.arday; o.mt = Date.now(); saveA(); fx(null); render(); return; }
     const lb = e.target.closest("[data-lbbook]"); if (lb) { mode = "book"; sel = lb.dataset.lbbook; render(); return; }
     const lg = e.target.closest("[data-lbgame]"); if (lg) { mode = "game"; sel = lg.dataset.lbgame; render(); return; }
+    const spd = e.target.closest("[data-spdel]");
+    if (spd) { readSplit(); const d = spd.dataset.spdel; ARM.split.order = ARM.split.order.filter((x) => x !== d); catalog().filter((x) => x.day === d).forEach((x) => { const o = ARM.ex[x.id] = ARM.ex[x.id] || {}; o.day = ""; o.mt = Date.now(); });
+      ARM.split.mt = Date.now(); saveA(); render(); return; }
     const b = e.target.closest("[data-ar]"); if (!b) return;
     const a = b.dataset.ar;
+    if (a === "split") { show("split"); return; }
+    if (a === "spadd") { readSplit(); const d = String.fromCharCode(65 + ARM.split.order.length); ARM.split.order.push(d); ARM.split.labels[d] = ""; ARM.split.mt = Date.now(); saveA(); render(); return; }
+    if (a === "spsave") { readSplit(); ARM.split.mt = Date.now(); saveA(); fx("yes", "medium"); close(); return; }
     if (a === "close") { close(); return; }
     if (a === "lib") { mode = "lib"; render(); return; }
     if (a === "hide") { const o = ARM.ex[sel] = ARM.ex[sel] || {}; o.hide = true; o.mt = Date.now(); saveA(); fx(null); close(); return; }
@@ -350,6 +371,10 @@
       saveL(); fx("yes"); render(); return;
     }
   }
+  function readSplit() {
+    ARM.split = ARM.split || {}; ARM.split.order = days().slice(); ARM.split.labels = Object.assign({}, ...days().map((d) => ({ [d]: dayLabel(d) })));
+    if (el) el.querySelectorAll("[data-spl]").forEach((i) => { ARM.split.labels[i.dataset.spl] = i.value.trim(); });
+  }
   function refresh() { cnt = null; const A = API(); if (A.tab && A.tab() === "armory") renderArmory(); }
 
   /* кліки на екрані Зброярні */
@@ -360,6 +385,7 @@
     const ab = e.target.closest("[data-arab]");
     if (ab) { const P0 = plan(); ARM.next = { type: ab.dataset.arab, from: today(), at: Date.now(), after: !!(P0 && P0.doneToday) }; saveA(); fx(null); renderArmory(); return; }
     const ex = e.target.closest("[data-arex]"); if (ex) { show("ex", ex.dataset.arex); return; }
+    if (e.target.closest('[data-ar="split"]')) { show("split"); return; }
     const st = e.target.closest('[data-ar="start"]');
     if (st) { const P = plan(), Y = DY(); if (P && Y && Y.gymOpen) Y.gymOpen(planSets(P)); return; }
   });

@@ -1806,11 +1806,11 @@
         } else if (tableOn) {
           const P = R && R.plan && sh.k === today() ? R.plan() : null, g = sh.gym;
           if (P && P.k === sh.k && !GYM.log[sh.k]) h += `<div class="gy-head"><b>День ${P.type}</b><span>${esc(P.label)}</span>${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}</div>`;
-          h += `<ol class="gy-how"><li>Роби вправи по черзі — підходи, повтори й вага вже стоять (повтори × кг).</li><li>Зробив інакше — виправ число. Не робив вправу — ×. Інша вправа — тап на назву.</li><li>Наприкінці — «Готово». Писати текст не обовʼязково.</li></ol>`;
+          h += `<ol class="gy-how"><li>Роби вправи по черзі — підходи, повтори й вага вже стоять (повтори × кг).</li><li>Зробив інакше — виправ число. Менше підходів — «− підхід». Не робив вправу — ×. Інша вправа — тап на назву.</li><li>Наприкінці — «Готово». Писати текст не обовʼязково.</li></ol>`;
           const lastTxt = (n) => { const e = R && R.catalog ? R.catalog().find((x) => x.n.toLowerCase() === (n || "").toLowerCase()) : null; if (!e) return ""; const st = R.stats(e).last; return st ? `минулого: ${fmtN(st.w)}${e.inv ? " кг компенс." : e.per ? " кг/стор" : " кг"} · ${st.reps.join("/")}` : ""; };
           h += g.ex.map((e, i) => `<div class="gy-ex" data-i="${i}"><div class="gy-ex__h"><input type="hidden" class="gy-n" value="${esc(e.n)}"><button type="button" class="gy-name" data-ds="gpick" data-i="${i}">${e.n ? esc(e.n) : "Обрати вправу"}<small>${esc(lastTxt(e.n))}</small></button><button type="button" class="gy-x" data-ds="gdel" data-i="${i}" aria-label="Прибрати">×</button></div>
             <div class="gy-sets">${e.sets.map((x, j) => `<span class="gy-set"><i class="gy-no">${j + 1}</i><input class="dy-in gy-r" inputmode="numeric" placeholder="повт" value="${x.r == null ? "" : x.r}"><i>×</i><input class="dy-in gy-w" inputmode="decimal" placeholder="кг" value="${x.w == null ? "" : x.w}"></span>`).join("")}
-            <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button></div></div>`).join("") +
+            <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button>${e.sets.length > 1 ? `<button type="button" class="gy-plus gy-minus" data-ds="gunset" data-i="${i}">− підхід</button>` : ""}</div></div>`).join("") +
             `<button type="button" class="gl-new" data-ds="gpicknew"><svg><use href="#i-plus"/></svg>Вправа зі списку</button>
             <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="Як пройшло (необовʼязково): самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>`;
         } else {
@@ -2139,6 +2139,7 @@
     }
     if (a === "gadd") { readGym(); sh.gym.ex.push({ n: "", sets: [{ r: null, w: null }] }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".gy-n"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
     if (a === "gset") { readGym(); const e = sh.gym.ex[+b.dataset.i]; const l = e.sets[e.sets.length - 1] || {}; e.sets.push({ r: l.r, w: l.w }); renderSheet(); return; }
+    if (a === "gunset") { readGym(); const e = sh.gym.ex[+b.dataset.i]; if (e && e.sets.length > 1) e.sets.pop(); renderSheet(); return; }
     if (a === "gdel") { readGym(); sh.gym.ex.splice(+b.dataset.i, 1); renderSheet(); return; }
     if (a === "cur" || a === "part") {
       const c = numIn(($("dsC") || {}).value); setRec(k, id, { cur: c == null ? (rec(k, id) || {}).cur || 0 : Math.max(0, c), st: a === "part" ? "part" : null });

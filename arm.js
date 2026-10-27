@@ -99,29 +99,26 @@
     /* ручний вибір A/B діє, доки після нього не було залу (обрав уже після сьогоднішнього — на наступний) */
     const N = ARM.next, g2 = N && N.from ? gym.filter((g) => g >= N.from) : [], manual = !!(N && N.type && (!g2.length || (N.after && g2.every((g) => g === N.from))));
     let type = manual && DS.includes(N.type) ? N.type : lastT && DS.includes(lastT.type) ? DS[(DS.indexOf(lastT.type) + 1) % DS.length] : DS[0];
-    const lastB = restDay(type) ? [...typed].reverse().find((x) => restDay(x.type)) : null;      // остання сесія з плечима
     const reasons = [], warn = [];
     if (manual) reasons.push("день обрано вручну");
     else if (lastT) reasons.push(`за чергою: минулого разу день ${lastT.type} (${human(lastT.k)})`);
     else reasons.push(`минулий день спліту не записано — почнемо з ${DS[0]} (можна змінити)`);
-    let k = null, skipB = null, light = false;
+    /* дата наступного залу — з твоїх справ: найближча справа з міткою «зал» (не виконана й не скасована); нема таких — за графіком із логу */
+    let k = null, light = false, src = "task";
     const siren = !!(Y.nightKind && Y.nightKind(t0) === "siren");
-    for (let i = doneToday ? 1 : 0; i <= 9 && !k; i++) {
-      const c = add(t0, i);
-      if (!(A.days || []).includes(wd(c))) continue;
-      if (lastK && diff(lastK, c) < 2) continue;                                  // між залами — хоча б день відпочинку
-      if (i === 0 && siren) {                                                      // ніч з тривогою: доспав — легкий зал; короткий сон — відпочинок
-        const sm = Y.sleepMin ? Y.sleepMin(t0) : null;
-        if (sm != null && sm < 330) { warn.push(`Ніч з тривогою і лише ${Math.floor(sm / 60)} год ${sm % 60} хв сну — сьогодні відпочинок. Тіло й так воювало; плац — наступного дня за графіком.`); continue; }
-        light = true;
-        warn.push(sm != null ? `Ніч з тривогою, але ти доспав (${Math.floor(sm / 60)} год ${p2(sm % 60)}) — легкий зал: ваги −15%, без рекордів.` : "Ніч з тривогою — легкий зал: ваги −15%, без рекордів. Якщо відчуваєш, що не доспав, — перенеси.");
-      }
-      if (lastB && diff(lastB.k, c) < 5) { if (!skipB) skipB = add(lastB.k, 5); continue; }
-      k = c;
-    }
+    const ng = Y.nextGym ? Y.nextGym(t0) : null;
+    if (ng) k = ng.k;
+    else { src = "plan"; for (let i = doneToday ? 1 : 0; i <= 9 && !k; i++) { const c = add(t0, i); if ((A.days || []).includes(wd(c)) && !(lastK && diff(lastK, c) < 2)) k = c; } }
     if (!k) k = add(t0, doneToday ? 1 : 0);
-    if (skipB) reasons.push(`плечам і трицепсу — пауза 5 днів після ${human(lastB.k)}`);
-    reasons.push(`графік: ${(A.days || []).map((d) => WDS[d]).join(" · ")}`);
+    if (k === t0 && siren) {                                                         // ніч з тривогою: зал лишається в плані — легший; короткий сон — порада перенести
+      const sm = Y.sleepMin ? Y.sleepMin(t0) : null; light = true;
+      warn.push(sm != null && sm < 330 ? `Ніч з тривогою і лише ${Math.floor(sm / 60)} год ${p2(sm % 60)} сну. Якщо розбитий — перенеси справу «зал» на завтра; підеш — легкий зал: ваги −15%, без рекордів.`
+        : sm != null ? `Ніч з тривогою, але ти доспав (${Math.floor(sm / 60)} год ${p2(sm % 60)}) — легкий зал: ваги −15%, без рекордів.` : "Ніч з тривогою — легкий зал: ваги −15%, без рекордів.");
+    }
+    /* плечі — 5 днів паузи: якщо день спліту з плечима випадає зарано — інший день без плечей */
+    const lastB = [...typed].reverse().find((x) => restDay(x.type));
+    if (!manual && restDay(type) && lastB && diff(lastB.k, k) < 5) { const alt = DS.find((d) => !restDay(d)); if (alt && alt !== type) { reasons.push(`плечам пауза 5 днів після ${human(lastB.k)} — замість дня ${type} день ${alt}`); type = alt; } }
+    reasons.push(src === "task" ? `дата — з твоєї справи «${(ng && ng.t) || "зал"}»` : `справи з міткою «зал» нема — за графіком ${(A.days || []).map((d) => WDS[d]).join(" · ")}`);
     if (k !== t0) light = false;
     const pause = lastK ? diff(lastK, k) : 0, deload = pause >= 7, rough = k === t0 && Y.roughNight && Y.roughNight(t0) && !light;
     if (deload) warn.push(`Пауза ${pause} днів — ваги −25%, далі кроками вгору.`);
@@ -155,7 +152,8 @@
       if (wcand) { wcand.w = Math.max(0, wcand.w + (wcand.e.inv ? -1 : 1) * (wcand.e.step || 2.5)); wcand.reps = wcand.reps.map(() => 10); wcand.prog = "w"; prog = wcand; }
       else { const rc = ex.find((x) => !x.e.body && x.reps.some((r) => r < 12)); if (rc) { rc.reps = rc.reps.map((r) => Math.min(12, r + 1)); rc.prog = "r"; prog = rc; } }
     }
-    return { k, type, label: dayLabel(type), reasons, warn, ex, prog, deload, rough, light, lastK, today: k === t0, doneToday };
+    const nc = Y.nextCardio ? Y.nextCardio(t0) : null;
+    return { k, type, label: dayLabel(type), cardio: nc, reasons, warn, ex, prog, deload, rough, light, lastK, today: k === t0, doneToday };
   }
   /* план → таблиця для аркуша залу: підходи з цільовими повторами й вагою */
   const planSets = (p) => p.ex.map((x) => ({ n: x.n, sets: x.reps.map((r) => ({ r, w: x.e.body ? null : x.w })) }));
@@ -248,6 +246,7 @@
         <ul class="ar-plan">${P.ex.map((x) => `<li class="${x.prog ? "is-prog" : ""}" data-arex="${x.id}"><span class="ar-plan__n">${esc(x.n)}</span>
           <span class="ar-plan__l">${x.last ? esc(setsTxt(x.last, x.e)) : "—"}</span><span class="ar-plan__t">${x.prog ? "↑ " : "→ "}${esc(setsTxt({ w: x.w, reps: x.reps }, x.e))}</span></li>`).join("")}</ul>
         <p class="ar-why">${P.reasons.map(esc).join(" · ")}</p>
+        ${P.cardio ? `<p class="ar-cardio">Кардіо — ${P.cardio.k === today() ? "сьогодні" : diff(today(), P.cardio.k) === 1 ? "завтра" : `${WDN[wd(P.cardio.k)]}, ${human(P.cardio.k)}`} <em>(${esc(P.cardio.t)})</em></p>` : ""}
         ${P.today && !P.doneToday ? `<button type="button" class="btn btn--gold" data-ar="start">Почати тренування — таблиця вже заповнена</button>` : P.doneToday ? `<p class="ar-done">Сьогодні зал уже є. Відпочивай — наступний ${human(P.k)}.</p>` : `<button type="button" class="btn btn--line" data-ar="start">Відкрити таблицю на сьогодні</button>`}
       </section>
       <section class="ar-sp"><div class="st-h st-h--sub">Спліт</div><ul class="ar-spl">${days().map((d) => `<li><b>${esc(d)}</b><span>${esc(dayLabel(d) || "—")}</span><em>${catalog().filter((e) => e.day === d).length} впр.</em></li>`).join("")}</ul>

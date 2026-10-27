@@ -1995,3 +1995,4 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-qs1__r i{width:8px;height:8px;border-radius:50%;background:var(--rc);box-shadow:0 0 6px var(--rc)}
 .dy-qs1>i{margin-left:auto;font-style:normal;color:var(--gold-2)}
 .dy-qsec.is-open .dy-qs1{margin-bottom:8px}
+.ar-cardio{font-family:var(--f-serif);font-size:14.5px;color:var(--bone);margin:-6px 0 12px} .ar-cardio em{color:var(--ash)}

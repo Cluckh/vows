@@ -577,6 +577,14 @@
     }
     return { gym, cardio };
   }
+  /* найближча справа з міткою (зал / кардіо), ще не виконана й не скасована — від дати from */
+  function nextMarked(from, test) {
+    for (let i = 0; i < 21; i++) {
+      const k = add(from, i), it = items(k).find(({ t, r }) => { const st = stOf(t, r, k); return test(t) && st !== "moved" && st !== "cancel" && !isFull(st) && st !== "fix"; });
+      if (it) return { k, id: it.t.id, t: it.t.t };
+    }
+    return null;
+  }
   /* Зброярня → «Почати тренування»: аркуш залу на сьогодні з планом (вправи й ваги, які радить Северин) */
   function gymOpen(plan) {
     const t0 = today(), its = items(t0), t = (its.find(({ t }) => isLift(t)) || {}).t || Object.values(S.tasks).find((x) => isLift(x) && x.rep && x.rep.f !== "none") || Object.values(S.tasks).find(isLift);
@@ -2479,6 +2487,7 @@
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
   window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+    nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },
     _state: () => ({ S, Q, X, ACH }), _writer: writerState };

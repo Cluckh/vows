@@ -1577,12 +1577,14 @@
     return `<button type="button" class="tz rar-${x.rar}" data-tz="${x.kind}:${esc(x.id)}"><span class="tz__fig">${w && w.art ? `<img src="${esc(w.art)}" alt="">` : ""}</span><span class="tz__b"><b>${M(esc(x.title))}</b><em>${w ? esc(w.name) : ""} · торкнись</em></span></button>`;
   }
   /* крапки на вкладках: де чекає вість — колір найрідкіснішої */
+  /* «Слово дня» вже бачив — у спільних даних (S.heard зливається між пристроями), щоб крапка на «Дні» не світилась на компі після телефона */
+  const wordSeen = () => { const d = dropDay() || ""; return !!((S.heard && S.heard["word:" + d]) || (d && LS.get("ordo.k.newsSeen", "").startsWith(d))); };
   function teaserDots() {
     const map = { board: "board", day: "day", stats: "chronicle", goals: "goals", treasury: "treasury" };
     Object.entries(map).forEach(([tab, place]) => {
       const b = document.querySelector(`.tab[data-tab="${tab}"]`); if (!b) return;
       let x = teaserItem(place); if (!x && tab === "board") { const ids = ["supreme"].concat((D().VOWS || []).map((v) => v.id)); const n = ids.map(newsFor).filter(Boolean).sort((a, c) => RANK[c.rar] - RANK[a.rar])[0]; if (n) x = { rar: n.rar }; }
-      if (!x && tab === "day") { const L = newsLines(); if (L.length && !LS.get("ordo.k.newsSeen", "").startsWith(dropDay() || "")) x = { rar: L[0].rar }; }
+      if (!x && tab === "day") { const L = newsLines(); if (L.length && !wordSeen()) x = { rar: L[0].rar }; }
       let d = b.querySelector(".tab__news"); if (!x) { if (d) d.remove(); return; }
       if (!d) { d = document.createElement("i"); b.appendChild(d); } d.className = `tab__news rar-${x.rar}`;
     });
@@ -1660,7 +1662,7 @@
     } else if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
       h += `<div class="md md--voice dy-adv"><div class="md__fig"${K && K.art ? ` data-card="${adv.giver}"` : ""}>${K && K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K ? K.name : "")} · порада на зал</div><p class="md__say">${esc(adv.head)}</p>${adv.tips.length ? `<ul class="dy-tips">${adv.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</div></div>`; }
     const segA = h; h = "";
-    if (k === today() && TAB() === "day" && newsLines().length) LS.set("ordo.k.newsSeen", dropDay() || "");
+    if (k === today() && TAB() === "day" && newsLines().length && !wordSeen()) { S.heard = S.heard || {}; S.heard["word:" + dropDay()] = today(); saveS(); }
     const fails = k === today() ? Q.list.filter(canBreath) : [];
     if (fails.length) live.push(...fails);
     const segN = k === today() ? newsHTML() : "";
@@ -2405,7 +2407,7 @@
   }
   let wAt = LS.get("ordo.k.writerAt", 0);
   async function writerSync(force) {
-    const V = window.ORDO_VAULT; if (!V || !V.writeSealed || (!force && Date.now() - wAt < 6 * 3600e3)) return;
+    const V = window.ORDO_VAULT; if (!V || !V.writeSealed || (!force && Date.now() - wAt < 45 * 60e3)) return;      // писар уночі бачить останнє зведення — не старше ~45 хв від останнього відкриття
     try { if (await V.writeSealed("writer/state.json", writerState(), "писар: стан Ордену")) { wAt = Date.now(); LS.set("ordo.k.writerAt", wAt); } } catch (e) {}
   }
   /* те, що написав писар: нові квести (у пул), репліки храмовників, листи, події-сцени */

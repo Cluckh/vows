@@ -1153,6 +1153,8 @@ window.ORDO_START = function () {
         const v = goalValue({ t: p.t, type: "count", src }, key);
         if (v != null && v > (p.cur || 0)) { p.cur = v; p.done = partDone(p) ? (p.done || todayKey()) : null; }
       } else if (bookPart(p) && DY.booksFor) { const r = DY.booksFor(p.t); if (r && r.ok && !p.done) { p.done = todayKey(); p.auto = 1; } }
+      else if (!p.done && /пройти|пройду|подолати|закрити|добити/i.test(p.t || "") && window.ORDO_ARM && window.ORDO_ARM.gameDoneFor) {     // етап «пройти Elden Ring» — гра пройдена в бібліотеці
+        const g = window.ORDO_ARM.gameDoneFor(p.t); if (g) { p.done = g.d && g.d.length === 10 ? g.d : todayKey(); p.auto = 1; } }
     });
   }
   /* ручна поправка привʼязаної цілі зсуває базу, а не губиться при наступному перерахунку */

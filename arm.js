@@ -202,7 +202,10 @@
     return out;
   }
   /* для цілей: «Пройти Elden Ring…» — закривається, коли гру позначено пройденою */
-  const gameDoneFor = (text) => { const s = norm(text); return libGames().find((g) => g.st === "done" && g.d && norm(g.t).length >= 4 && s.includes(norm(g.t))) || null; };
+  /* назва гри кирилицею й латиницею — одна гра: «Елден Рінг» = «Elden Ring» */
+  const LAT = { а: "a", б: "b", в: "v", г: "g", ґ: "g", д: "d", е: "e", є: "e", ж: "zh", з: "z", и: "y", і: "i", ї: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ь: "", ю: "yu", я: "ya" };
+  const lat = (s) => norm(s).replace(/[а-яіїєґ]/g, (c) => LAT[c] || "");
+  const gameDoneFor = (text) => { const s = norm(text), sl = lat(text); return libGames().find((g) => g.st === "done" && g.d && norm(g.t).length >= 4 && (s.includes(norm(g.t)) || sl.includes(lat(g.t)))) || null; };
 
   /* лічильники для медалей і цілей */
   let cntAt = 0, cnt = null;

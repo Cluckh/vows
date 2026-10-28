@@ -265,7 +265,11 @@
   /* сесії медитації за місяць ("2026-10") чи рік ("2026"): з «Швидких команд», а якщо їх немає — сума записаних днів і місяців */
   function periodMind(key) {
     const D = (HL && HL.days) || {}, M = (HL && HL.months) || {};
-    const month = (mk) => { let n = 0; Object.keys(D).forEach((k) => { if (k.startsWith(mk)) n += D[k].mind || 0; }); return Math.max((M[mk] && M[mk].mind) || 0, n); };
+    const month = (mk) => { let n = 0; Object.keys(D).forEach((k) => { if (k.startsWith(mk)) n += D[k].mind || 0; });
+      const u = M[mk]; if (!u || !u.mind) return n;
+      const from = u.at ? keyOf(new Date(u.at)) : "9999"; let extra = 0;          // з телефона — «місяць» лише до вчора (без дня, коли рахувалось): доклеюємо дні з журналу від того дня
+      Object.keys(D).forEach((k) => { if (k.startsWith(mk) && k >= from) extra += D[k].mind || 0; });
+      return Math.max(u.mind + extra, n); };
     const mks = key.length === 7 ? [key] : [...new Set(Object.keys(D).concat(Object.keys(M)).map((k) => k.slice(0, 7)))].filter((m) => m.startsWith(key));
     const y = key.length === 4 && HL && HL.years && HL.years[key] && HL.years[key].mind;
     const n = Math.max(y || 0, mks.reduce((a, m) => a + month(m), 0));
@@ -277,7 +281,13 @@
     let sum = 0, n = 0;
     Object.keys((HL && HL.days) || {}).forEach((k) => { const v = HL.days[k].steps; if (k.startsWith(key) && v != null) { sum += v; n++; } });
     if (!u && !n) return null;
-    return u && u.steps >= sum ? { steps: u.steps, avg: u.avg, at: u.at } : { steps: sum, avg: Math.round(sum / n), at: null };
+    if (u && u.steps >= sum) {                     // з телефона — лише до вчора: сьогоднішні (і пропущені з дня підрахунку) кроки доклеюємо з журналу
+      const from = u.at ? keyOf(new Date(u.at)) : "9999", t0 = today(); let extra = 0, extraPast = 0;
+      Object.keys(HL.days || {}).forEach((k) => { const v = HL.days[k].steps; if (k.startsWith(key) && k >= from && v != null) { extra += v; if (k < t0) extraPast += v; } });
+      const nd = u.avg ? Math.round(u.steps / u.avg) : 0;
+      return { steps: u.steps + extra, avg: nd && extraPast ? Math.round((u.steps + extraPast) / (nd + Object.keys(HL.days || {}).filter((k) => k.startsWith(key) && k >= from && k < t0 && HL.days[k].steps != null).length)) : u.avg, at: u.at };
+    }
+    return { steps: sum, avg: Math.round(sum / n), at: null };
   }
 
   /* разова ціль, яку не встиг зробити, сама переїжджає на сьогодні (як «перенести»; повторювані — ні, вони прийдуть знову) */

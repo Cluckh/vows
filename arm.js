@@ -398,7 +398,7 @@
       month: monthCount(t0.slice(0, 7)), goal: AR().goal, months: months().map((m) => [m.key, m.gym, m.cardio]),
       lifts: catalog().map((e) => { const s = stats(e); return { n: e.n, day: e.day, last: s.last ? [s.last.w, s.last.reps.join("/")] : null, best: s.best ? [s.best.w, s.best.reps.join("/")] : null }; }),
       counts: counts(),
-      books: libBooks().map((b) => ({ t: b.t, st: b.st, end: b.end || null })), games: libGames().map((g) => ({ t: g.t, st: g.st, d: g.d || null })) };
+      books: libBooks().map((b) => ({ t: b.t, st: b.st, end: b.end || null, art: b.art || null })), games: libGames().map((g) => ({ t: g.t, st: g.st, d: g.d || null, art: g.art || null })) };   // art — ключ арту: писар бачить, чого бракує
   }
   /* таблиця для аркуша залу з Дня: план Северина (вправи й ваги) */
   const planTable = () => { try { const P = plan(); return P && P.ex.length ? planSets(P) : null; } catch (e) { return null; } };

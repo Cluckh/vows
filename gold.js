@@ -307,7 +307,8 @@
   /* будь-який арт за ключем «вид:id» (ach, rank, chron, shop, game, book, scene): екран просить — вантажиться у фоні, далі подія ordo-art */
   const WANT = new Set(); let wantT = null;
   const artKey = (key) => ART[key] || null;
-  function want(keys) { let n = 0; keys.forEach((k) => { if (k && !ART[k] && !WANT.has(k)) { WANT.add(k); n++; } }); if (n) { clearTimeout(wantT); const go = () => { if (artBusy) wantT = setTimeout(go, 800); else loadArts(); }; wantT = setTimeout(go, 500); } }
+  /* повторний запит — наверх черги: те, що екран показує зараз, вантажиться першим */
+  function want(keys) { let n = 0; keys.forEach((k) => { if (k && !ART[k]) { if (WANT.has(k)) WANT.delete(k); else n++; WANT.add(k); } }); if (n) { clearTimeout(wantT); const go = () => { if (artBusy) wantT = setTimeout(go, 800); else loadArts(); }; wantT = setTimeout(go, 500); } }
   const achArt = (id) => ART["ach:" + id] || null;
   const wantAch = (ids) => want(ids.map((id) => "ach:" + id));
   const artName = (kind, id) => { let h = 2166136261; const s = kind + ":" + id; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
@@ -329,25 +330,42 @@
       .concat([...WANT].filter((k) => !ART[k]).map((k) => [k.slice(0, k.indexOf(":")), k.slice(k.indexOf(":") + 1)]));
     if (!want.length) return;
     artBusy = true; let ch = false;
+    const notify = () => {
+      const A = API(); if (want.some(([k]) => k !== "relic" && k !== "scene") && A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); try { window.dispatchEvent(new Event("ordo-art")); } catch (e) {}
+      if (el && el.classList.contains("open") && mode === "shop") render("shop");
+      refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); }
+    };
     try {
       let cache = null; try { cache = await caches.open("ordo-art"); } catch (e) {}
-      const miss = LS.get("ordo.k.artMiss", {});
-      for (const [kind, id0] of want) {
-        const id = kind === "relic" ? id0 : kind + ":" + id0, n = artName(kind, id0), key = new Request(`${location.origin}/__art/${n}`);
-        let blob = null;
-        if (cache) { const r = await cache.match(key); if (r) blob = await r.blob(); }
-        if (!blob && !(miss[n] && Date.now() - miss[n] < 1800e3)) {
-          try { blob = await V.readSealedBlob(`art/sealed/${n}.json`); } catch (e) {}
-          if (blob) { delete miss[n]; if (cache) await cache.put(key, new Response(blob, { headers: { "Content-Type": blob.type } })); } else miss[n] = Date.now();
+      const miss = LS.get("ordo.k.artMiss", {}), reqOf = (n) => new Request(`${location.origin}/__art/${n}`);
+      const items = want.map(([kind, id0]) => ({ id: kind === "relic" ? id0 : kind + ":" + id0, n: artName(kind, id0) }));
+      /* 1) з кешу — усе разом і одразу на екран */
+      const hits = await Promise.all(items.map(async (it) => { if (!cache) return null; try { const r = await cache.match(reqOf(it.n)); return r ? await r.blob() : null; } catch (e) { return null; } }));
+      items.forEach((it, i) => { if (hits[i]) { ART[it.id] = URL.createObjectURL(hits[i]); ch = true; } });
+      if (ch) notify();
+      /* 2) чого нема — зі сховища, по чотири паралельно, і в кеш; що екран попросить тим часом — на початок черги */
+      const net = items.filter((it, i) => !hits[i] && !(miss[it.n] && Date.now() - miss[it.n] < 1800e3));
+      const seen = new Set(items.map((it) => it.id)); let got = false, shown = Date.now();
+      /* наступна — реліквія, далі те, що екран попросив найостанніше (порядок WANT живий: want() піднімає ключ наверх) */
+      const next = () => {
+        [...WANT].filter((k) => !ART[k] && !seen.has(k)).forEach((k) => { seen.add(k); net.push({ id: k, n: artName(k.slice(0, k.indexOf(":")), k.slice(k.indexOf(":") + 1)), late: 1 }); });
+        if (!net.length) return null;
+        const order = [...WANT], rank = (it) => it.id.indexOf(":") < 0 ? 1e9 : order.indexOf(it.id);
+        let bi = 0; net.forEach((it, j) => { if (rank(it) > rank(net[bi])) bi = j; }); return net.splice(bi, 1)[0];
+      };
+      const worker = async () => { for (let it = next(); it; it = next()) { let blob = null;
+        if (it.late && cache) { try { const r = await cache.match(reqOf(it.n)); if (r) blob = await r.blob(); } catch (e) {} }
+        if (!blob && !(it.late && miss[it.n] && Date.now() - miss[it.n] < 1800e3)) {
+          try { blob = await V.readSealedBlob(`art/sealed/${it.n}.json`); } catch (e) {}
+          if (blob) { delete miss[it.n]; if (cache) { try { await cache.put(reqOf(it.n), new Response(blob, { headers: { "Content-Type": blob.type } })); } catch (e) {} } } else miss[it.n] = Date.now();
         }
-        if (blob) { ART[id] = URL.createObjectURL(blob); ch = true; }
-      }
+        if (blob) { ART[it.id] = URL.createObjectURL(blob); got = true; if (Date.now() - shown > 800) { shown = Date.now(); notify(); } }     // показуємо поступово, не чекаючи всієї черги
+      } };
+      await Promise.all([0, 1, 2, 3].map(worker));
       LS.set("ordo.k.artMiss", miss);
+      if (got) { ch = true; notify(); }
     } finally { artBusy = false; }
     if (ch && Object.keys(G.own).some((id) => !ART[id] && relic(id))) setTimeout(loadArts, 300);     // реліквія, що зʼявилась посеред завантаження, — наступним колом
-    if (ch) { const A = API(); if (want.some(([k]) => k !== "relic" && k !== "scene") && A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); try { window.dispatchEvent(new Event("ordo-art")); } catch (e) {}
-      if (el && el.classList.contains("open") && mode === "shop") render("shop"); }
-    if (ch) { refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); } }
   }
   const face = (r, cls) => ART[r.id] ? `<img class="rl-img${cls ? " " + cls : ""}" src="${ART[r.id]}" alt="">` : gem(r.rar, cls);
   function html() {
@@ -608,7 +626,8 @@
     G.proc["ev:" + ev] = 1; const r = grant(id, "подія"); save();
     if (r) { reveals.push(Object.assign(r, { why: "Дар храмовника" })); setTimeout(nextReveal, 800); }
   }
-  setTimeout(loadArts, 5000);
+  setTimeout(loadArts, 600);                                   // з кешу — майже одразу
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}     // попросити браузер не викидати кеш артів
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
   window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };

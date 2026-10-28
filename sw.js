@@ -3,7 +3,7 @@
    тож нова версія приходить одразу після деплою; кеш — запасний для офлайну.
    Версію бампати при кожній зміні (+1 до номера нижче): так телефон дізнається
    про оновлення й тихо перезавантажить додаток. */
-const CACHE = "ordo-v180";
+const CACHE = "ordo-v181";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./hall.js", "./day.js", "./treasury.js", "./gold.js", "./arm.js", "./boot.js", "./vault.json",
   "./manifest.webmanifest", "./art/bg-dusk.webp", "./art/bg-night.webp",
@@ -34,7 +34,8 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== "ordo-call").map((k) => caches.delete(k))))
+      /* арти (ordo-art) — не частина версії додатку: при оновленні не стираємо, інакше після кожного оновлення все качається заново */
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== "ordo-call" && k !== "ordo-art").map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

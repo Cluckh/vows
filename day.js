@@ -197,6 +197,7 @@
   /* день: кроки зі «Здоровʼя» + сон, записаний уранці в додатку, + час першого відкриття (підйом) */
   const hDay = (k) => {
     const h = Object.assign({}, (HL && HL.days && HL.days[k]) || {}), sl = S.sleep[k];
+    if (h.mindF) h.mind = (h.mind || 0) + h.mindF;             // медитації: «Усвідомлені хвилини» зі «Здоровʼя» + сесії фокуса «Усвідомленість»
     if (sl && sl.min && (sl.manual || sl.segs || !h.sleepMin)) { if (h.sleepMin && (sl.manual || sl.segs)) h.sleepHealth = h.sleepMin; h.sleepMin = sl.min; }     // твої відрізки ночі точніші за «Здоровʼя» (фокус «Сон» вмикається за розкладом)
     if (S.wake[k]) h.up = S.wake[k];
     return Object.keys(h).length ? h : null;
@@ -265,13 +266,14 @@
   /* сесії медитації за місяць ("2026-10") чи рік ("2026"): з «Швидких команд», а якщо їх немає — сума записаних днів і місяців */
   function periodMind(key) {
     const D = (HL && HL.days) || {}, M = (HL && HL.months) || {};
-    const month = (mk) => { let n = 0; Object.keys(D).forEach((k) => { if (k.startsWith(mk)) n += D[k].mind || 0; });
+    const focus = (pre) => Object.keys(D).filter((k) => k.startsWith(pre)).reduce((a, k) => a + (D[k].mindF || 0), 0);     // сесії фокуса — лише з журналу
+    const month = (mk) => { let n = 0; Object.keys(D).forEach((k) => { if (k.startsWith(mk)) n += (D[k].mind || 0) + (D[k].mindF || 0); });
       const u = M[mk]; if (!u || !u.mind) return n;
       const from = u.at ? keyOf(new Date(u.at)) : "9999"; let extra = 0;          // з телефона — «місяць» лише до вчора (без дня, коли рахувалось): доклеюємо дні з журналу від того дня
       Object.keys(D).forEach((k) => { if (k.startsWith(mk) && k >= from) extra += D[k].mind || 0; });
-      return Math.max(u.mind + extra, n); };
+      return Math.max(u.mind + extra + focus(mk), n); };
     const mks = key.length === 7 ? [key] : [...new Set(Object.keys(D).concat(Object.keys(M)).map((k) => k.slice(0, 7)))].filter((m) => m.startsWith(key));
-    const y = key.length === 4 && HL && HL.years && HL.years[key] && HL.years[key].mind;
+    const y = key.length === 4 && HL && HL.years && HL.years[key] && HL.years[key].mind && HL.years[key].mind + focus(key);
     const n = Math.max(y || 0, mks.reduce((a, m) => a + month(m), 0));
     return n ? { steps: n, avg: null } : null;
   }
@@ -822,7 +824,7 @@
     const feed = (k) => appMin(k, "youtube") + appMin(k, "reddit");
     let calmRun = 0, calmBest = 0, prevK = null; tracked.forEach((k) => { const ok = feed(k) <= 30; calmRun = ok ? (prevK && add(prevK, 1) === k ? calmRun + 1 : 1) : 0; prevK = k; calmBest = Math.max(calmBest, calmRun); });
     const duoDays = Object.keys(HD).filter((k) => appMin(k, "duolingo") >= 10).length;
-    const mindN = Object.values(HD).reduce((a, d) => a + (d.mind || 0), 0);
+    const mindN = Object.values(HD).reduce((a, d) => a + (d.mind || 0) + (d.mindF || 0), 0);
     const wk = Object.keys(HD).filter((k) => HD[k].weight).sort(), wv = wk.map((k) => HD[k].weight);
     const avg = (a) => a.reduce((x, y) => x + y, 0) / (a.length || 1), wDrop = wv.length >= 6 ? avg(wv.slice(0, 3)) - avg(wv.slice(-3)) : 0;
     const sleep7 = Object.keys(HD).filter((k) => (hDay(k) || {}).sleepMin >= 420).length;

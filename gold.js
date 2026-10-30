@@ -196,8 +196,12 @@
 
   /* ----------------------------------------------------------- щоденний обхід */
   const reveals = [];
+  /* ще тягнемо копію з іншого пристрою (або вона вже тут, а памʼять стара) — нагороди, подвиги й скрині не рахуємо: інакше видамо вдруге те, що вже видано там */
+  const held = () => !!(window.ORDO_VAULT && window.ORDO_VAULT.hold && window.ORDO_VAULT.hold());
+  let heldT = null;
   function process() {
     const Dy = DAY(); if (!Dy || !Dy._state || !relics().length) return false;
+    if (held()) { clearTimeout(heldT); heldT = setTimeout(() => { if (process()) { save(); refreshViews(); setTimeout(nextReveal, 600); } }, 2000); return false; }
     const { Q } = Dy._state(); let ch = false;
     if (purge(G)) ch = true;                                     // відкат 27.10 — коли День уже порахував рівень
     if (!G.starter) { G.starter = 1; const r = grant("ring", "посвята"); if (r) reveals.push(Object.assign(r, { why: "Дар Магістра Аврелія — на початок шляху з реліквіями" })); ch = true; }
@@ -582,6 +586,7 @@
   function nextReveal() {
     clearTimeout(revealT); if (!reveals.length) return;
     const intro = $("intro");
+    if (held()) { revealT = setTimeout(nextReveal, 2000); return; }
     if (document.hidden || document.querySelector(".sheet.open, .hall.open, .rite.open, .confirm.open") || (intro && !intro.hasAttribute("hidden"))) { revealT = setTimeout(nextReveal, 4000); return; }
     const nx = reveals[0];
     if (nx && nx.id && !nx.dup && !ART[nx.id] && (nx.waited || 0) < 8) { nx.waited = (nx.waited || 0) + 1; loadArts(); revealT = setTimeout(nextReveal, 1500); return; }   // спершу — справжній арт (до ~12 с, поки підвантажиться)

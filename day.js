@@ -68,9 +68,13 @@
 
   /* ======================================================= ПОВТОРЕННЯ ===== */
   /* rep: { f: none|day|wd|we|week|month|year, n: кожні n, days: [1..7] } */
+  /* версії справи: зміна числа, розкладу, типу чи складності діє з дня зміни — минулі дні оцінюються за тим, що діяло тоді.
+     t.vers = [{ until: "РРРР-ММ-ДД", snap: { … } }] за зростанням until: snap — налаштування, що діяли по until включно */
+  const VKEYS = ["type", "target", "unit", "step", "rep", "diff", "src", "app", "bank", "gym"];
+  function ver(t, k) { const V = t && t.vers; if (!V || !V.length || !k) return t; const v = V.find((x) => k <= x.until); return v ? Object.assign({}, t, v.snap) : t; }
   function occurs(t, k) {
     if (t.del || k < t.start || (t.end && k > t.end)) return false;
-    const r = t.rep || { f: "none" }, n = Math.max(1, r.n || 1);
+    const r = ver(t, k).rep || { f: "none" }, n = Math.max(1, r.n || 1);
     switch (r.f) {
       case "day": return diff(t.start, k) % n === 0;
       case "wd": return wd(k) <= 5;
@@ -112,12 +116,13 @@
   }
   function items(k) {
     const out = [], seen = new Set(), day = S.log[k] || {};
-    Object.values(S.tasks).forEach((t) => { if (occurs(t, k)) { out.push({ t, r: day[t.id] || null }); seen.add(t.id); } });
-    Object.keys(day).forEach((id) => { const r = day[id]; if (!seen.has(id) && r && r.from && S.tasks[id] && !S.tasks[id].del) out.push({ t: S.tasks[id], r }); });
+    Object.values(S.tasks).forEach((t) => { if (occurs(t, k)) { out.push({ t: ver(t, k), r: day[t.id] || null }); seen.add(t.id); } });
+    Object.keys(day).forEach((id) => { const r = day[id]; if (!seen.has(id) && r && r.from && S.tasks[id] && !S.tasks[id].del) out.push({ t: ver(S.tasks[id], k), r }); });
     return out.sort((a, b) => (a.t.time || "99") < (b.t.time || "99") ? -1 : (a.t.time || "99") > (b.t.time || "99") ? 1 : (a.t.ord || 0) - (b.t.ord || 0));
   }
   /* стан екземпляра: open | done | fix | part | moved | cancel | miss */
   function stOf(t, r, k) {
+    t = ver(t, k);
     if (r && (r.st === "moved" || r.st === "cancel" || r.st === "fix")) return r.st;
     if (t.type === "count") {
       const cur = (r && r.cur) || 0;
@@ -707,6 +712,7 @@
   /* «з поправкою»: лічильник — частка зробленого (2 з 10 хв → 20%), але не більше 70%; справа без числа — 70% */
   const fixPct = (t, r) => t.type === "count" && t.target ? Math.min(0.7, Math.max(0, ((r && r.cur) || 0) / t.target)) : 0.7;
   function xpTask(t, r, k) {
+    t = ver(t, k);
     const st = stOf(t, r, k), base = ECON.task[rarOf(t)][0];
     const bonus = Math.min(0.3, 0.03 * chainBefore(t, k));
     if (st === "done") {
@@ -2162,7 +2168,14 @@
       if (d.type === "count" && !(d.target > 0)) { const i = $("dsN"); if (i) i.focus(); return; }
       if (srcOf(d) === "bank" && !(d.bank && d.bank.cats.length)) { toast("Обери хоча б одну категорію витрат"); return; }
       if (srcOf(d) === "app") { const a = appOf(d); if (!a.n) { const i = $("dsAN"); if (i) i.focus(); return; } if (!a.lim && !(a.min > 0) && d.type !== "count") { const i = $("dsAM"); if (i) i.focus(); return; } d.src = "app"; d.app = a; }
-      const nid = sh.id || uid();
+      const nid = sh.id || uid(), old = sh.id && S.tasks[sh.id], y = add(today(), -1);
+      /* зліпок: якщо змінилось число, розклад, тип чи складність, а справа вже має минуле, — старі налаштування діють по вчора */
+      const pick = (x) => JSON.stringify(VKEYS.map((f) => x[f] === undefined ? null : x[f]));
+      if (old && !old.del && old.start <= y && pick(old) !== pick(d)) {
+        const vers = (old.vers || []).slice();
+        if (!vers.length || vers[vers.length - 1].until < y) vers.push({ until: y, snap: JSON.parse(JSON.stringify(Object.fromEntries(VKEYS.map((f) => [f, old[f] === undefined ? null : old[f]])))) });
+        d.vers = vers;
+      }
       S.tasks[nid] = Object.assign({}, d, { id: nid, mt: Date.now(), created: d.created || today() });
       saveS(); fx("yes"); buzz("medium"); closeSheet(); after(before); return;
     }

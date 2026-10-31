@@ -1011,8 +1011,20 @@
     Q.list.forEach((q) => { if (q.pid === "w-m-no-change" && q.st === "active" && q.from) { q.until = add(q.from, 13); q.at = Date.now(); } }); saveQ();
     const GD = window.ORDO_GOLD; if (GD && GD.purge) { /* жетони повертає purge (і при злитті теж) */ }
   }
+  /* «Полегшене», видане до фіксу 31.10 з тією самою метою, що й оригінал («Замість 2 — 2»): прибираємо, оригінал повертаємо як був */
+  function unease() {
+    let ch = 0;
+    Q.list.forEach((q) => {
+      if (!q.replaces || (q.st !== "offer" && q.st !== "active")) return;
+      const o = Q.list.find((x) => x.id === q.replaces);
+      if (!o || !o.target || q.target < o.target) return;
+      q.st = "void"; q.at = Date.now(); delete X.e["q:" + q.id]; ch = 1;
+      if (o.st === "eased") { o.st = "active"; delete o.end; o.at = Date.now(); }
+    });
+    if (ch) saveQ();
+  }
   function settle() {
-    rewind(); rewind2();
+    rewind(); rewind2(); unease();
     restSeal();
     for (let k = add(today(), -3); k <= today(); k = add(k, 1)) settleTasks(k);
     settleDerived(); settleQuests();

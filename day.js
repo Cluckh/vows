@@ -1194,11 +1194,14 @@
     if (!again) for (const q of Q.list.filter((x) => x.st === "active" && x.type === "count" && x.target && !x.retry && !x.replaces && !x.easeAt && x.until && x.from)) {
       const total = diff(q.from, q.until) + 1, fr = diff(q.from, t0) / total, prog = (q.cur || 0) / q.target;
       if (total < 3 || fr < 0.6 || prog >= fr * 0.6) continue;
+      const tg = Math.max(1, Math.ceil(q.target * 0.7)), left = diff(t0, q.until) + 1;
+      if (tg >= q.target) continue;                                                  // 70% від малої мети — та сама мета: полегшувати нічого
+      if (/вірн|зал|тренуван|кардіо|сповід|ранк|дн/i.test(q.unit || "") && (q.cur || 0) + left < tg) continue;     // по одному на день — уже не встигнути навіть полегшене
       q.easeAt = t0;
       if (roll("ease" + q.id) >= 0.5) { saveQ(); continue; }
-      const rar = q.rar === "myth" ? "legend" : "rare", tg = Math.max(1, Math.ceil(q.target * 0.7));
+      const rar = q.rar === "myth" ? "legend" : "rare";
       Q.list.push({ id: q.id + "e", pid: q.pid + "~e", rar, giver: q.giver, t: `Полегшене: ${q.t}`, scope: "day", days: 1,
-        desc: `Замість ${fmtN(q.target)} — ${fmtN(tg)} ${q.unit || ""} до ${human(q.until)}. Зроблене зараховано, нагорода скромніша.`,
+        desc: `Менша мета: ${fmtN(tg)} ${q.unit || ""} замість ${fmtN(q.target)}. Строк той самий — по ${human(q.until)} включно (${left === 1 ? "лише сьогодні" : `ще ${left} дн. разом із сьогоднішнім`}). Уже є ${fmtN(q.cur || 0)} — вони зараховані. Нагорода скромніша.`,
         type: "count", target: tg, unit: q.unit || "", xp: ECON.quest[rar][0], cats: null, limitPct: 0, limit: 0, vow: q.vow || null, app: q.app || null, appMax: q.appMax != null ? q.appMax : null, weight: null,
         offer: "Бачу, брате, цей шлях зараз задовгий. Не кидай — візьми коротший: менша мета, той самий строк. Зроблене не пропаде.",
         accept: "Мудро. Краще дійти до ближчої вершини, ніж зірватися з далекої.", decline: "Добре. Тоді йди до повної мети — я вірю.", done: "Дійшов. Не так далеко, як планував, — але дійшов.",
@@ -1463,7 +1466,7 @@
   }
   function questHTML(q) {
     const r = RAR[q.rar], pr = qProg(q), left = q.until ? diff(today(), q.until) : 0;
-    const due = q.st === "fail" ? "не встиг — є «Друге дихання»" : q.st !== "active" ? "" : q.flash ? `⚡ до ${q.flash}` : left <= 0 ? "сьогодні останній день" : `ще ${left} ${API().daysWord ? API().daysWord(left) : "дн."}`;
+    const due = q.st === "fail" ? "не встиг — є «Друге дихання»" : q.st !== "active" ? "" : q.flash ? `⚡ до ${q.flash}` : left <= 0 ? "сьогодні останній день" : left === 1 ? "завтра останній день" : `до ${human(q.until)} включно`;
     const who = q.giver === "supreme" ? (D().KEEPERS || {}).supreme : q.giver === "seneschal" ? D().SENESCHAL : q.giver === "chronicler" ? D().CHRONICLER : (D().KEEPERS || {})[q.giver];
     const img = who && who.art ? `<img src="${esc(who.art)}" alt="">` : "";
     return `<li class="dy-q dy-q--${q.rar} st-${q.st}" data-dq="${q.id}">

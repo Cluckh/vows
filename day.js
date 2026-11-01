@@ -200,12 +200,14 @@
 
   /* ========================================================== ЗДОРОВʼЯ ===== */
   /* день: кроки зі «Здоровʼя» + сон, записаний уранці в додатку, + час першого відкриття (підйом) */
-  /* з 1.11 (прохання власника) медитація зараховується лише як сесія фокуса «Усвідомленість» від 10 хв (mind10 у журналі «Здоровʼя»):
-     денна справа — день із такою сесією, місяць і рік — кількість таких днів. Жовтень і раніше — як було (сесії Calm і фокуса) */
-  const MIND_CUT = "2026-11-01";
+  /* з 1.11 (прохання власника) медитація — день, коли у фокусі «Усвідомленість» сумарно набралось 10+ хв (як Duolingo й читання):
+     денна справа відмічається сама, місяць і рік — кількість таких днів. Жовтень і раніше — як було (сесії Calm і фокуса) */
+  const MIND_CUT = "2026-11-01", MIND_MIN = 10, MEDIT_RE = /^(meditat|mindful|mind$|медитац|усвідомл)/i;
+  const mindMinOf = (d) => Object.entries((d && d.apps) || {}).reduce((a, [n, x]) => a + (MEDIT_RE.test(n) ? (x && x.min) || 0 : 0), 0);
+  const mindDay = (d) => mindMinOf(d) >= MIND_MIN;
   const hDay = (k) => {
     const h = Object.assign({}, (HL && HL.days && HL.days[k]) || {}), sl = S.sleep[k];
-    if (k >= MIND_CUT) h.mind = h.mind10 || 0;                  // з листопада медитація — лише сесія фокуса від 10 хв
+    if (k >= MIND_CUT) h.mind = mindDay(h) ? 1 : 0;              // з листопада медитація — день із 10+ хв фокуса сумарно
     else if (h.mindF) h.mind = (h.mind || 0) + h.mindF;        // медитації: «Усвідомлені хвилини» зі «Здоровʼя» + сесії фокуса «Усвідомленість»
     if (sl && sl.min && (sl.manual || sl.segs || !h.sleepMin)) { if (h.sleepMin && (sl.manual || sl.segs)) h.sleepHealth = h.sleepMin; h.sleepMin = sl.min; }     // твої відрізки ночі точніші за «Здоровʼя» (фокус «Сон» вмикається за розкладом)
     if (S.wake[k]) h.up = S.wake[k];
@@ -255,7 +257,7 @@
         else if (a.lim && m > a.min && r && r.st === "done" && r.auto) { setRec(k, t.id, { st: null, auto: 0 }); ch = true; }   // запізніле «закрив»
       });
     }
-    /* медитації: ціль про медитацію відмічається сама (з 1.11 — лише сесія від 10 хв; автовідмітку за коротші знімаємо) */
+    /* медитації: ціль про медитацію відмічається сама (з 1.11 — лише коли за день набралось 10+ хв; автовідмітку за менше знімаємо) */
     for (let k = add(today(), -6); k <= today(); k = add(k, 1)) {
       const m = (hDay(k) || {}).mind || 0; if (!m && k < MIND_CUT) continue;
       items(k).forEach(({ t, r }) => {
@@ -274,10 +276,10 @@
   }
   const hm = (min) => `${Math.floor(min / 60)} год ${p2(min % 60)} хв`;
   /* медитації за місяць ("2026-10") чи рік ("2026"). До листопада — сесії: з «Швидких команд», а якщо їх немає — сума записаних днів і місяців;
-     з листопада — дні, коли була сесія від 10 хв (MIND_CUT) */
+     з листопада — дні, коли сумарно набралось 10+ хв (MIND_CUT) */
   function periodMind(key) {
     const D = (HL && HL.days) || {}, M = (HL && HL.months) || {}, CM = MIND_CUT.slice(0, 7), CY = MIND_CUT.slice(0, 4);
-    const days10 = (pre) => Object.keys(D).filter((k) => k.startsWith(pre) && k >= MIND_CUT && (D[k].mind10 || 0) > 0).length;
+    const days10 = (pre) => Object.keys(D).filter((k) => k.startsWith(pre) && k >= MIND_CUT && mindDay(D[k])).length;
     const focus = (pre) => Object.keys(D).filter((k) => k.startsWith(pre) && k < MIND_CUT).reduce((a, k) => a + (D[k].mindF || 0), 0);     // сесії фокуса — лише з журналу
     const month = (mk) => { let n = 0; Object.keys(D).forEach((k) => { if (k.startsWith(mk)) n += (D[k].mind || 0) + (D[k].mindF || 0); });
       const u = M[mk]; if (!u || !u.mind) return n;
@@ -838,7 +840,7 @@
     const feed = (k) => appMin(k, "youtube") + appMin(k, "reddit");
     let calmRun = 0, calmBest = 0, prevK = null; tracked.forEach((k) => { const ok = feed(k) <= 30; calmRun = ok ? (prevK && add(prevK, 1) === k ? calmRun + 1 : 1) : 0; prevK = k; calmBest = Math.max(calmBest, calmRun); });
     const duoDays = Object.keys(HD).filter((k) => appMin(k, "duolingo") >= 10).length;
-    const mindN = Object.entries(HD).reduce((a, [k, d]) => a + (k >= MIND_CUT ? ((d.mind10 || 0) > 0 ? 1 : 0) : (d.mind || 0) + (d.mindF || 0)), 0);
+    const mindN = Object.entries(HD).reduce((a, [k, d]) => a + (k >= MIND_CUT ? (mindDay(d) ? 1 : 0) : (d.mind || 0) + (d.mindF || 0)), 0);
     const wk = Object.keys(HD).filter((k) => HD[k].weight).sort(), wv = wk.map((k) => HD[k].weight);
     const avg = (a) => a.reduce((x, y) => x + y, 0) / (a.length || 1), wDrop = wv.length >= 6 ? avg(wv.slice(0, 3)) - avg(wv.slice(-3)) : 0;
     const sleep7 = Object.keys(HD).filter((k) => (hDay(k) || {}).sleepMin >= 420).length;
@@ -1829,7 +1831,7 @@
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
         <div class="dy-f"><label>Рідкість</label><div class="dy-chips dy-chips--wrap dy-rar" data-dk="diff">${Object.keys(ECON.task).map((v) => `<button type="button" data-dv="${v}" class="rar-${v}${rarOf(d) === v ? " is-on" : ""}">${RARN[v]} · ${ECON.task[v][0]} досв · ${ECON.task[v][1]} зол</button>`).join("")}</div></div>
         <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
-        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно за день є сесія медитації від 10 хв (фокус «Усвідомленість»).", journal: "Відмічається сама, щойно віддаси сповідь дня.", app: (d.app && d.app.lim ? "Зараховується наступного дня, якщо за день у програмі пробув не більше ліміту." : "Зараховується сама, щойно за день набереться потрібний час у програмі.") + ` Потрібні дві автоматизації: «Відкрито» зберігає час у файл на телефоні, «Закрито» шле <b>app: ${esc((d.app && d.app.n) || "назва")}</b>, <b>ev: close</b> і <b>openAt</b> (event_type health). «Число» — хвилини за день.`, weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
+        <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно за день у фокусі «Усвідомленість» набереться 10 хв (сесії сумуються).", journal: "Відмічається сама, щойно віддаси сповідь дня.", app: (d.app && d.app.lim ? "Зараховується наступного дня, якщо за день у програмі пробув не більше ліміту." : "Зараховується сама, щойно за день набереться потрібний час у програмі.") + ` Потрібні дві автоматизації: «Відкрито» зберігає час у файл на телефоні, «Закрито» шле <b>app: ${esc((d.app && d.app.n) || "назва")}</b>, <b>ev: close</b> і <b>openAt</b> (event_type health). «Число» — хвилини за день.`, weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
         ${srcOf(d) === "app" ? `<div class="dy-f dy-f--row"><label>Програма</label><input class="dy-in" id="dsAN" value="${esc(appOf(d).n)}" placeholder="duolingo, youtube, reading…" autocomplete="off" autocapitalize="off"></div>
           <div class="dy-f"><label>Скільки</label><div class="dy-chips" data-dk="alim"><button type="button" data-dv="" class="${appOf(d).lim ? "" : "is-on"}">щонайменше</button><button type="button" data-dv="1" class="${appOf(d).lim ? "is-on" : ""}">не більше</button></div></div>
           ${d.type === "count" ? "" : `<div class="dy-f dy-f--row"><label>Хвилин</label><input class="dy-in dy-in--n" id="dsAM" inputmode="numeric" value="${appOf(d).min}"><span class="dy-unit">${appOf(d).lim ? "на день, 0 — не відкривати" : "на день"}</span></div>`}` : ""}

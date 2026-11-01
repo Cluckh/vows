@@ -2516,6 +2516,11 @@
     appMigrate();
     Q.list.forEach((q) => { const v = ECON.quest[q.rar]; if (v && q.xp !== v[0]) { q.xp = v[0]; q.at = Date.now(); saveQ(); } });     // досвід квестів — за таблицею економіки
     if (!(S.mig && S.mig.read10)) { Object.values(S.tasks).forEach((t) => { if (!t.del && !t.end && t.type === "do" && !t.src && /^read\b|^читан/i.test((t.t || "").trim())) Object.assign(t, { src: "app", app: { n: "reading", min: 10, lim: false }, mt: Date.now() }); }); S.mig = Object.assign({}, S.mig, { read10: 1 }); saveS(); }     // денне читання — 10 хв у фокусі «Читання»
+    /* медитація — як Duolingo й читання: «час у програмі», 10 хв у фокусі «Усвідомленість» за день (з прогрес-баром); жовтень — за старими налаштуваннями (версія по 31.10) */
+    if (!(S.mig && S.mig.mind10)) { Object.values(S.tasks).forEach((t) => { if (!t.del && (!t.end || t.end >= MIND_CUT) && t.type === "do" && srcOf(t) === "mind") {
+      const snap = Object.fromEntries(VKEYS.map((f) => [f, t[f] === undefined ? null : t[f]])), y = add(MIND_CUT, -1), V = (t.vers || []).slice();
+      if (t.start <= y && (!V.length || V[V.length - 1].until < y)) V.push({ until: y, snap });
+      Object.assign(t, { vers: V, src: "app", app: { n: "meditation", min: MIND_MIN, lim: false }, mt: Date.now() }); } }); S.mig = Object.assign({}, S.mig, { mind10: 1 }); saveS(); }
     Object.values(S.tasks).forEach((t) => { const r = { easy: "common", normal: "rare", hard: "legend" }[t.diff]; if (r || !t.diff) { t.diff = r || "rare"; t.mt = Date.now(); saveS(); } });     // «вага» → рідкість
     /* «Monthly review» — разом із ревю місяця, зранку 1-го (раніше — останній день місяця) */
     const mr = S.tasks["rm-monthly-review"];

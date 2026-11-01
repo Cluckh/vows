@@ -1127,7 +1127,7 @@ window.ORDO_START = function () {
   function stepsFill(it, key) {
     const t = tyOf(it); if (t !== "count" && t !== "measure") return;
     const v = goalValue(it, key); if (v == null) return;
-    const lv = lastVal(it), link = goalSrc(it) === "link";
+    const lv = lastVal(it), link = goalSrc(it) === "link" || goalSrc(it) === "mind";          // медитації — точно за джерелом (правило з 1.11 може й зменшити)
     if (t === "count") { if (link ? it.cur === v : (it.cur || 0) >= v) return; it.cur = v; } else if (lv && lv.v === v) return;
     it.hist = it.hist || []; const td = todayKey();
     if (lv && lv.d === td) lv.v = v; else it.hist.push({ d: td, v });
@@ -1151,7 +1151,7 @@ window.ORDO_START = function () {
         if (v !== (p.cur || 0)) { p.cur = v; p.done = partDone(p) ? (p.done || todayKey()) : null; }
       } else if (src) {
         const v = goalValue({ t: p.t, type: "count", src }, key);
-        if (v != null && v > (p.cur || 0)) { p.cur = v; p.done = partDone(p) ? (p.done || todayKey()) : null; }
+        if (v != null && (src === "mind" ? v !== (p.cur || 0) : v > (p.cur || 0))) { p.cur = v; p.done = partDone(p) ? (p.done || todayKey()) : null; }
       } else if (bookPart(p) && DY.booksFor) { const r = DY.booksFor(p.t); if (r && r.ok && !p.done) { p.done = todayKey(); p.auto = 1; } }
       else if (!p.done && /пройти|пройду|подолати|закрити|добити/i.test(p.t || "") && window.ORDO_ARM && window.ORDO_ARM.gameDoneFor) {     // етап «пройти Elden Ring» — гра пройдена в бібліотеці
         const g = window.ORDO_ARM.gameDoneFor(p.t); if (g) { p.done = g.d && g.d.length === 10 ? g.d : todayKey(); p.auto = 1; } }
@@ -1454,7 +1454,7 @@ window.ORDO_START = function () {
       if (src === "jar") { const T = window.ORDO_TREASURY, accs = T && T.accs ? T.accs() : [];
         h += `<div class="cmp__ops gs-src">${accs.map((x) => `<button type="button" data-gjar="${esc(x.label)}" class="${it.jar === x.label ? "is-on" : ""}">${esc(x.label)} · ${T.money(x.bal, x.cur)}</button>`).join("") || `<span class="cmp__hint">чекаю виписку банку</span>`}</div>`; }
       if (src === "weight") h += `<div class="cmp__ops gs-src">${[["avg7", "середня за 7 днів"], ["last", "останнє зважування"]].map(([v, n]) => `<button type="button" data-gwm="${v}" class="${(it.wmode || "avg7") === v ? "is-on" : ""}">${n}</button>`).join("")}</div>`;
-      if (src && src !== "link") h += `<p class="cmp__hint">${src === "jar" ? "Баланс рахунку чи банки з виписки підставляється сам (4 рази на день)." : src === "faith" ? "Дні без жодного зриву за період — рахуються самі, коли день минув." : src === "journal" ? "Дні, коли віддано сповідь, — рахуються самі." : src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : src === "pages" ? "Сторінки, прочитані за цей період, — сума приростів зі справи читання (сторінка, до якої дійшов). Не номер сторінки в книжці." : src === "gym" || src === "cardio" ? "Тренування зі Зброярні рахуються самі." : src === "books" ? "Дочитані за період книжки з полиці рахуються самі." : src === "games" ? "Пройдені за період ігри з бібліотеки рахуються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
+      if (src && src !== "link") h += `<p class="cmp__hint">${src === "jar" ? "Баланс рахунку чи банки з виписки підставляється сам (4 рази на день)." : src === "faith" ? "Дні без жодного зриву за період — рахуються самі, коли день минув." : src === "journal" ? "Дні, коли віддано сповідь, — рахуються самі." : src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : src === "mind" ? "Медитації: з листопада — дні, коли була сесія від 10 хв (фокус «Усвідомленість»); до того — сесії, як було." : src === "pages" ? "Сторінки, прочитані за цей період, — сума приростів зі справи читання (сторінка, до якої дійшов). Не номер сторінки в книжці." : src === "gym" || src === "cardio" ? "Тренування зі Зброярні рахуються самі." : src === "books" ? "Дочитані за період книжки з полиці рахуються самі." : src === "games" ? "Пройдені за період ігри з бібліотеки рахуються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
     }
     if (!locked) {
       if (t === "once") h += `<button class="btn ${it.done ? "btn--ghost" : "btn--gold"}" type="button" data-gs="once">${it.done ? "Зняти позначку" : "Виконано"}</button>`;

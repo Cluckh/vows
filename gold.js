@@ -401,7 +401,7 @@
         <div class="rl-slots${slots() > 3 ? " rl-slots--" + slots() : ""}">${Array.from({ length: slots() }, (_, i) => i).map((i) => { const r = relic(G.eq[i]); return r ? `<button type="button" class="rl-slot is-on rl--${r.rar}" data-rl="${r.id}">${face(r)}<b>${esc(r.n)}</b><span>${esc(bonusText(r.bonus))}</span></button>` : `<div class="rl-slot"><i>порожньо</i></div>`; }).join("")}</div>
         <div class="rl-grid">${relics().map((r) => G.own[r.id] ? `<button type="button" class="rl-cell rl--${r.rar}${G.eq.includes(r.id) ? " is-eq" : ""}" data-rl="${r.id}" title="${esc(r.n)}">${face(r)}</button>`
           : `<button type="button" class="rl-cell is-locked rl--${r.rar}" data-rlx="${r.id}" title="${r.secret ? "таємна" : "ще не знайдена"}"><span>${r.secret ? "?" : ""}</span></button>`).join("")}</div>
-        <p class="tr-at">реліквії випадають за квести, зі скринь і за таємні подвиги. Активних — три</p></section>`;
+        <p class="tr-at">реліквії випадають за квести, зі скринь і за таємні подвиги. Активних — ${["", "одна", "дві", "три", "чотири", "пʼять"][slots()] || slots()}${slots() > 3 ? ` (понад три — за звання: ${((D().PERKS || {}).slots || []).filter((x) => rankIdx() >= x.rank).map((x) => `${x.n}-те — «${rankName(x.rank)}»`).join(", ")})` : ""}</p></section>`;
     }
     return h;
   }

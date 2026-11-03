@@ -562,7 +562,7 @@
       if (armId !== it.id) { armId = it.id; render("shop"); armT = setTimeout(() => { armId = null; if (el && el.classList.contains("open") && mode === "shop") render("shop"); }, 4000); return; }
       armId = null; boughtAt = Date.now(); boughtId = it.id;
       G.out["s" + Date.now().toString(36)] = { at: Date.now(), amt: it.p, kind: "shop", st: "done", item: it.n };
-      if (it.id === "chest" || it.id === "cmdchest") { save(); const cmd = it.id === "cmdchest", L = openChest(null, null, cmd); render("chest", cmd ? { kicker: "Скриня Командора", why: "Орест знімає печатку з короною…" } : null); fx("open"); chestPlay(L, cmd ? { kicker: "Скриня Командора" } : null); return; }
+      if (it.id === "chest" || it.id === "cmdchest") { boughtId = null; save(); const cmd = it.id === "cmdchest", L = openChest(null, null, cmd); render("chest", cmd ? { kicker: "Скриня Командора", why: "Орест знімає печатку з короною…" } : null); fx("open"); chestPlay(L, cmd ? { kicker: "Скриня Командора" } : null); return; }
       G.tk["t" + Date.now().toString(36)] = { kind: it.id, d: 1, at: Date.now() }; save(); fx("yes"); render("shop");
       toast(`${tkIc(it.id)} <b>+1</b> ${esc(it.n.toLowerCase())} · тепер ${tokens(it.id)}`);
       setTimeout(() => { boughtId = null; if (el && el.classList.contains("open") && mode === "shop") render("shop"); }, 1500); return;

@@ -150,6 +150,8 @@
 
   /* ---------------------------------------------------------------- реліквії */
   const equipped = () => G.eq.map(relic).filter(Boolean);
+  /* на вдягненій реліквії перекидання / відстрочки — чи готова вона зараз (ліміт спільний для всіх вдягнених того ж типу) */
+  const cdText = (r) => !r.bonus || (r.bonus.type !== "reroll" && r.bonus.type !== "extend") ? "" : relicLeft(r.bonus.type) > 0 ? " · готова" : ` · знову ${r.bonus.type === "reroll" ? "з понеділка" : "з 1-го числа"}`;
   const bonusOf = (type, src) => equipped().filter((r) => r.bonus && r.bonus.type === type && (!src || r.bonus.src === "all" || r.bonus.src === src)).reduce((a, r) => a + (r.bonus.v || 0), 0);
   function grant(id, src) {
     if (!relic(id)) return null;
@@ -281,11 +283,27 @@
     return Math.max(0, cap - used);
   };
   const can = (kind) => relicLeft(kind) > 0 || tokens(kind) > 0;
-  function use(kind) {
-    if (relicLeft(kind) > 0) G.use["u" + Date.now().toString(36)] = { kind, per: kind === "reroll" ? weekKey(today()) : today().slice(0, 7), at: Date.now() };
-    else if (tokens(kind) > 0) G.tk["t" + Date.now().toString(36)] = { kind, d: -1, at: Date.now() };
+  /* звідки візьметься наступне перекидання / відстрочка — видно ще до натискання: реліквія (поки не вичерпано тижня / місяця), потім жетон */
+  function srcInfo(kind) {
+    const rs = equipped().filter((r) => r.bonus && r.bonus.type === kind), left = relicLeft(kind), tk = tokens(kind);
+    return { relics: rs.map((r) => r.n), cap: bonusOf(kind), left, tk, from: left > 0 ? "relic" : tk > 0 ? "token" : null,
+      per: kind === "reroll" ? "цього тижня" : "цього місяця", renew: kind === "reroll" ? "з понеділка" : "з 1-го числа" };
+  }
+  const srcShort = (kind) => { const s = srcInfo(kind); return s.from === "relic" ? "реліквія" : s.from === "token" ? `жетон ×${s.tk}` : ""; };
+  function srcLabel(kind) {
+    const s = srcInfo(kind), nm = s.relics.map((n) => `«${n}»`).join(", ");
+    if (s.from === "relic") return `Реліквія ${nm}: ще ${s.left} з ${s.cap} ${s.per}. Жетони не витрачаються.`;
+    if (s.relics.length) return `Реліквія ${nm}: ${s.per} вже використано — знову ${s.renew}.${s.tk ? ` Зараз піде жетон (у тебе ${s.tk}).` : ""}`;
+    return s.tk ? `Піде жетон (у тебе ${s.tk}).` : "";
+  }
+  /* повертає текст «чим заплачено» (truthy) або false; quiet — без власного тосту (викликач покаже його разом зі своїм) */
+  function use(kind, quiet) {
+    const w = kind === "reroll" ? "перекидання" : "відстрочку", s = srcInfo(kind); let m;
+    if (s.left > 0) { G.use["u" + Date.now().toString(36)] = { kind, per: kind === "reroll" ? weekKey(today()) : today().slice(0, 7), at: Date.now() };
+      m = `Реліквія ${s.relics.map((n) => `«${esc(n)}»`).join(", ")}: ${w} використано${s.left > 1 ? ` · ще ${s.left - 1} ${s.per}` : ` · знову ${s.renew}`}`; }
+    else if (s.tk > 0) { G.tk["t" + Date.now().toString(36)] = { kind, d: -1, at: Date.now() }; m = `Жетон: ${w} використано · лишилось ${s.tk - 1}`; }
     else return false;
-    save(); return true;
+    save(); if (!quiet) toast(`${tkIc(kind)} ${m}`); return m;
   }
 
   /* ----------------------------------------------------------------- відгук */
@@ -398,7 +416,7 @@
     if (relics().length) {
       const own = relics().filter((r) => G.own[r.id]);
       h += `<section class="st-sec rl"><div class="st-h">Реліквії <em class="rl-n">${own.length} / ${relics().length}</em></div>
-        <div class="rl-slots${slots() > 3 ? " rl-slots--" + slots() : ""}">${Array.from({ length: slots() }, (_, i) => i).map((i) => { const r = relic(G.eq[i]); return r ? `<button type="button" class="rl-slot is-on rl--${r.rar}" data-rl="${r.id}">${face(r)}<b>${esc(r.n)}</b><span>${esc(bonusText(r.bonus))}</span></button>` : `<div class="rl-slot"><i>порожньо</i></div>`; }).join("")}</div>
+        <div class="rl-slots${slots() > 3 ? " rl-slots--" + slots() : ""}">${Array.from({ length: slots() }, (_, i) => i).map((i) => { const r = relic(G.eq[i]); return r ? `<button type="button" class="rl-slot is-on rl--${r.rar}" data-rl="${r.id}">${face(r)}<b>${esc(r.n)}</b><span>${esc(bonusText(r.bonus))}${cdText(r)}</span></button>` : `<div class="rl-slot"><i>порожньо</i></div>`; }).join("")}</div>
         <div class="rl-grid">${relics().map((r) => G.own[r.id] ? `<button type="button" class="rl-cell rl--${r.rar}${G.eq.includes(r.id) ? " is-eq" : ""}" data-rl="${r.id}" title="${esc(r.n)}">${face(r)}</button>`
           : `<button type="button" class="rl-cell is-locked rl--${r.rar}" data-rlx="${r.id}" title="${r.secret ? "таємна" : "ще не знайдена"}"><span>${r.secret ? "?" : ""}</span></button>`).join("")}</div>
         <p class="tr-at">реліквії випадають за квести, зі скринь і за таємні подвиги. Активних — ${["", "одна", "дві", "три", "чотири", "пʼять"][slots()] || slots()}${slots() > 3 ? ` (понад три — за звання: ${((D().PERKS || {}).slots || []).filter((x) => rankIdx() >= x.rank).map((x) => `${x.n}-те — «${rankName(x.rank)}»`).join(", ")})` : ""}</p></section>`;
@@ -454,7 +472,7 @@
     } else if (m === "relic") {
       const r = relic(arg), on = G.eq.includes(r.id);
       el.innerHTML = `${grip}<div class="gs-kicker rl-k--${r.rar}">${RN[r.rar]} реліквія</div><div class="rl-big rl--${r.rar}">${face(r, "rl-face")}</div>
-        <div class="sheet__title dy-sht">${esc(r.n)}</div><p class="rl-bonus">${esc(bonusText(r.bonus))}</p><p class="dy-note dy-note--t rl-lore">${esc(r.lore)}</p>
+        <div class="sheet__title dy-sht">${esc(r.n)}</div><p class="rl-bonus">${esc(bonusText(r.bonus))}</p>${r.bonus && (r.bonus.type === "reroll" || r.bonus.type === "extend") ? `<p class="dy-note">${!on ? "Діє, лише коли вдягнена." : relicLeft(r.bonus.type) > 0 ? `Готова: ще ${relicLeft(r.bonus.type)} з ${bonusOf(r.bonus.type)} ${srcInfo(r.bonus.type).per}. Спершу витрачається вона, жетони — лише потім.` : `Уже використана ${srcInfo(r.bonus.type).per} — знову ${srcInfo(r.bonus.type).renew}.`}</p>` : ""}<p class="dy-note dy-note--t rl-lore">${esc(r.lore)}</p>
         ${on ? `<button type="button" class="btn btn--line" data-rleq="${r.id}">Зняти</button>` : G.eq.length < slots() ? `<button type="button" class="btn btn--gold" data-rleq="${r.id}">Носити</button>`
           : `<p class="dy-note">Усі ${slots()} місця зайняті — обери, що зняти:</p><div class="dy-chips dy-chips--wrap">${G.eq.map((x) => `<button type="button" data-rlswap="${r.id}|${x}">${esc(relic(x).n)}</button>`).join("")}</div>`}
         <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
@@ -635,5 +653,5 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}     // попросити браузер не викидати кеш артів
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

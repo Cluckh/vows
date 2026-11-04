@@ -1144,6 +1144,7 @@
     applyBreaks();
     autoCount();
     Q.list.forEach((q) => {
+      if (q.st === "active" && !q.flash && q.from === t0 && q.until === t0) { const p = pool().find((x) => x.id === q.pid); if (p && /^\d\d:\d\d$/.test(p.flash || "")) { q.flash = p.flash; q.at = Date.now(); } }   // квест із часом у пулі, прийнятий до того, як час зʼявився
       if (q.st === "active" && q.flash && (q.until < t0 || (q.until === t0 && hmNow2() >= q.flash))) { q.st = "fail"; q.end = t0; q.at = Date.now(); return; }      // блискавичний: година минула — не встиг
       if (q.type === "budget" && q.st === "active" && T() && T().ready()) {          // бюджет: суддя — виписка банку
         const sp = qSpent(q);
@@ -1278,7 +1279,7 @@
     const open = q.offer || pick(lines) || "Брате, маю для тебе доручення.";
     if ((await h.say(fill(open, { rar: RAR[q.rar].n.toLowerCase() }))) === "closed") return false;
     const G = window.ORDO_GOLD, rr = G && G.can("reroll");                  // реліквія чи жетон перекидання — можна попросити інше доручення
-    const i = await h.choose(questCard(q), rr ? ["Приймаю", "Не цього разу", "Перекинути"] : ["Приймаю", "Не цього разу"], "hall__acts--row");
+    const i = await h.choose(questCard(q), rr ? ["Приймаю", "Не цього разу", `Перекинути · ${G.srcShort ? G.srcShort("reroll") : ""}`] : ["Приймаю", "Не цього разу"], "hall__acts--row");
     if (i === "closed") return false;
     if (i === 2) {
       const nq = draw(q.rar); if (nq && G.use("reroll")) { q.st = "rerolled"; q.at = Date.now(); Q.list.push(nq); saveQ(); await h.say("Добре. Маю для тебе інше."); return offerScene(nq); }
@@ -2371,6 +2372,7 @@
       ${canBreath(q) ? `<button class="btn btn--gold" type="button" data-dqs="breath">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("breath", "gd-tk--btn") : ""}Друге дихання — ще 2 дні, 85% мети</button>` : ""}
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
       ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
+      ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.srcLabel && window.ORDO_GOLD.srcLabel("extend") ? `<p class="dy-note">${esc(window.ORDO_GOLD.srcLabel("extend"))}</p>` : ""}
       ${q.st === "active" && q.hold ? `<p class="dy-note dy-note--t">Це обітниця на строк: виконано — коли витримаєш до ${human(q.until)} включно. Орден зарахує сам${q.from ? ` · день ${Math.min(diff(q.from, today()) + 1, diff(q.from, q.until) + 1)} з ${diff(q.from, q.until) + 1}` : ""}.</p>` : ""}
       ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : q.hold ? "" : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
@@ -2381,7 +2383,7 @@
       if (a === "close") { closeSheet(); el.onclick = null; return; }
       if (a === "done") { closeSheet(); el.onclick = null; qDone(q.id); return; }
       if (a === "cur") { const c = numIn(($("dqC") || {}).value); if (c != null) { q.cur = Math.max(0, c); q.at = Date.now(); if (q.target && q.cur >= q.target) { closeSheet(); el.onclick = null; qDone(q.id); return; } saveQ(); } closeSheet(); el.onclick = null; render(); return; }
-      if (a === "ext") { if (q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD.use("extend")) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b>`); } closeSheet(); el.onclick = null; render(); return; }
+      if (a === "ext") { const paid = q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD.use("extend", true); if (paid) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b> · ${paid}`); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "breath") { if (canBreath(q) && window.ORDO_GOLD.use("breath")) { secondWind(q); fx("yes"); buzz("medium"); toast(`Друге дихання: <b>${esc(q.t)}</b> — до ${human(add(today(), 1))}`, "is-gift"); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
     };

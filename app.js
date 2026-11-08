@@ -509,7 +509,7 @@ window.ORDO_START = function () {
         const tail = frozen ? `<span class="oath__frost">сьогодні заморожено</span>` : nm ? `ціль ${nm}` : "усі віхи";
         sub = `<span class="win" data-mark="${v.id}" role="button" aria-label="Відмітити вікно">${winPill(v)}</span><span class="oath__tail">${tail}</span>`;
       } else {
-        sub = nm ? `ціль ${nm} · лишилось ${nm - s} ${daysWord(nm - s)}` : "усі віхи взято";
+        sub = nm ? `ціль ${nm} · ще ${nm - s} ${daysWord(nm - s)}` : "усі віхи взято";
       }
       const f30 = faith30(v);                      // підказка, не головне: лише поки стрік молодий після зриву
       if (f30.fell && s < 30 && f30.n - s >= 3) sub += ` <span class="oath__faith">· вірних ${f30.n}/${f30.all}</span>`;

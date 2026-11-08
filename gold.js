@@ -25,7 +25,8 @@
   const START = "2026-11-08";                                  // нова економіка: золото, жетони й виведення до 8.11 обнулено (власник, 8.11)
   const START_T = Date.parse(START + "T00:00:00+02:00") / 1000;
   const RN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
-  const DROP = { rare: 0.15, legend: 0.4, myth: 1 };          // шанс реліквії за виконаний квест
+  const DROP = { rare: 0.15, legend: 0.4, myth: 1 };          // шанс спорядження за виконаний квест
+  const TOKEN_Q = { rare: 0.2, legend: 0.35, myth: 0.6 };      // шанс жетона (перекидання, відстрочка, друге дихання, печатка) чи еліксиру за виконаний квест
   const BLESS = 0.05;
   const CHEST_Q = 0.12;                                        // шанс несподіваної скрині за виконаний квест (писар може дати й напевно: chest: true)                                          // базовий шанс благословення
   /* місця для реліквій: 3, далі — за званням (D.PERKS.slots: Лицар Хреста — 4-те, Маршал — 5-те) */
@@ -35,11 +36,11 @@
   /* крамниця: базові товари + те, що відкриває звання (D.PERKS.shop) */
   const shopItems = () => SHOP.concat(((D().PERKS || {}).shop || []).map((x) => Object.assign({ perk: 1 }, x)));
   const SHOP = [
-    { id: "chest", n: "Скриня Сенешаля", p: 1500, d: "У 85% — спорядження, якого ще нема (рідкісне й вище — частіше, ніж здається), інакше — жетон. Без золотих джекпотів." },
-    { id: "reroll", n: "Жетон перекидання", p: 400, d: "Не твоє доручення? Попроси в храмовника інше." },
-    { id: "extend", n: "Жетон відстрочки", p: 500, d: "+1 день до активного квесту." },
-    { id: "elixir", n: "Еліксир Відродження", p: 900, d: "Завтрашній ідеальний день — ×1,5 до нагороди, навіть без Lay on Hands." },
-    { id: "scroll", n: "Пергамент доручення", p: 1200, d: "Верховний одразу пропонує легендарний квест. Раз на тиждень." }
+    /* золото = гривні білої картки: у крамниці — лише дешеві корисні дрібниці, ціна — частка того, що вони рятують. Скринь за гроші нема:
+       скрині — тільки нагорода (рівень, недільна, від храмовників, зрідка за квест) */
+    { id: "reroll", n: "Жетон перекидання", p: 60, d: "Не твоє доручення? Попроси в храмовника інше." },
+    { id: "extend", n: "Жетон відстрочки", p: 120, d: "+1 день до активного квесту — щоб не втратити 300–2000 золота за день." },
+    { id: "scroll", n: "Пергамент доручення", p: 200, d: "Верховний одразу пропонує легендарний квест (800 золота, якщо виконаєш). Раз на тиждень." }
   ];
 
   /* G синхронізується між пристроями (boot.js обʼєднує кожен розділ):
@@ -235,6 +236,11 @@
       if (cat === "quest") {
         const q = Q.list.find((y) => "q:" + y.id === x.id);
         if (q && q.st === "done" && (q.chest || roll("chest" + x.id) < CHEST_Q)) freeChest("q:" + q.id, `За квест «${q.t}»`, q.chest ? "Скриня за квест" : "Несподівана скриня");
+        if (q && q.st === "done" && roll("tok" + x.id) < (TOKEN_Q[q.rar] || 0)) {        // зрідка — жетон чи еліксир (той самий на всіх пристроях)
+          const y = roll("tokk" + x.id), t = y < 0.3 ? "reroll" : y < 0.6 ? "extend" : y < 0.75 ? "breath" : y < 0.9 ? "rest" : "elixir";
+          if (t === "elixir") G.elix = Object.assign({}, G.elix, { [addDay(today(), 1)]: Date.now() }); else G.tk["qt:" + x.id] = { kind: t, d: 1, at: Date.now() };
+          reveals.push({ loot: { kind: "token", t }, kicker: `За квест «${q.t}»` });
+        }
         if (q && q.st === "done" && roll("relic" + x.id) < (DROP[q.rar] || 0)) { const id = randomRelic(q.rar, "pick" + x.id); if (id) { const r = grant(id, `квест «${q.t}»`); if (r) reveals.push(Object.assign(r, { why: `За квест «${q.t}»` })); } }
       }
     });
@@ -535,7 +541,10 @@
   function lootHTML(L) { const r = lootRar(L); return `<div class="gd-loot rar-${r}"><p class="gd-loot__k">${MK(esc(LR[r] + " здобич"))}</p>${lootBody(L)}</div>`; }
   function lootBody(L) {
     if (L.kind === "relic") { const r = relic(L.id); return `<div class="rl-big rl--${r.rar} is-new">${face(r, "rl-face")}</div><div class="sheet__title dy-sht">${esc(r.n)}</div><p class="rl-bonus">${MK(RN[r.rar])} · ${esc(((SLOTS().find((x) => x.id === slotOf(r)) || {}).n || "").toLowerCase())} · ${esc(fxText(r))}</p><p class="dy-note dy-note--t rl-lore">${esc(r.lore)}</p>`; }
-    if (L.kind === "token") return `<div class="gd-tkbig">${tkIc(L.t, "gd-tk--big")}</div><div class="sheet__title dy-sht">Жетон ${L.t === "reroll" ? "перекидання" : "відстрочки"}</div><p class="dy-note dy-note--t">${L.t === "reroll" ? "Наступне непотрібне доручення можна буде замінити." : "Будь-який активний квест — на день довше."}</p>`;
+    if (L.kind === "token") { const TK = { reroll: ["Жетон перекидання", "Наступне непотрібне доручення можна буде замінити."], extend: ["Жетон відстрочки", "Будь-який активний квест — на день довше."],
+        breath: ["Жетон «Друге дихання»", "Провалений квест — друга спроба: ще 2 дні, 85% мети."], rest: ["Печатка відпочинку", "Вчорашній пропуск повторюваної справи не порве ланцюжка."],
+        elixir: ["Еліксир Відродження", "Уже діє: завтрашній ідеальний день — ×1,5 до нагороди."] }[L.t] || ["Жетон", ""];
+      return `<div class="gd-tkbig">${tkIc(L.t, "gd-tk--big")}</div><div class="sheet__title dy-sht">${TK[0]}</div><p class="dy-note dy-note--t">${TK[1]}</p>`; }
     return `<div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(L.g)}</b></div><div class="sheet__title dy-sht">${L.jack ? "СКАРБ!" : L.g >= 250 ? "Щедра скриня" : "Золото"}</div><p class="dy-note dy-note--t">${L.jack ? "Сенешаль мовчки дивиться на скриню. Таке трапляється раз на сотню." : "Сенешаль перелічує монети й киває."}</p>`;
   }
   /* скриня: звичайний випадок (Math.random) — здобич записується в синхронізовану книгу */

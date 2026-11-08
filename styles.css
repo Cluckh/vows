@@ -2066,6 +2066,13 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 /* ---- Lay on Hands: кнопка на Дні й повзунок ---- */
 .dy-loh-btn{display:flex;align-items:center;gap:10px;width:100%;margin:10px 0 2px;padding:10px 14px;font:inherit;text-align:left;color:var(--ash);background:rgba(240,214,138,.05);border:1px dashed rgba(240,214,138,.35);border-radius:12px;cursor:pointer}
 .dy-loh-btn span{font-size:18px}
+.dy-letter{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"i b" "i e" "i x";column-gap:12px;align-items:center;width:100%;margin:10px 0 2px;padding:12px 14px;font:inherit;text-align:left;color:var(--ash);background:linear-gradient(135deg,rgba(240,214,138,.12),rgba(140,40,30,.10));border:1px solid rgba(240,214,138,.45);border-radius:12px;cursor:pointer;box-shadow:0 0 18px rgba(240,214,138,.08)}
+.dy-letter span{grid-area:i;font-size:24px}
+.dy-letter b{grid-area:b;font-family:var(--f-display);font-weight:500;font-size:16px;color:var(--halo);letter-spacing:.03em}
+.dy-letter em{grid-area:e;font-style:normal;font-size:12.5px;opacity:.8}
+.dy-letter i{grid-area:x;font-style:normal;font-size:12.5px;color:var(--halo);margin-top:4px}
+.dy-letter.is-read{background:transparent;border:1px dashed rgba(240,214,138,.2);box-shadow:none;padding:8px 14px;opacity:.7}
+.dy-letter.is-read span{font-size:16px}.dy-letter.is-read b{font-size:14px}
 .dy-loh-btn b{font-family:var(--f-display);font-weight:500;font-size:15px;color:var(--halo);letter-spacing:.04em}
 .dy-loh-btn em{margin-left:auto;font-style:normal;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-dim)}
 .loh-list{list-style:none;display:flex;flex-direction:column;gap:6px;margin:12px 0 16px;font-size:14px;color:var(--ash)}

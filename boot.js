@@ -166,7 +166,7 @@
       const sleep = Object.assign({}, b.sleep, a.sleep), sv = (x) => (x && !x.skip ? 1e15 : 0) + ((x && x.at) || 0);       // ранковий звіт: заповнений сильніший за «не зараз», далі — новіший
       Object.keys(b.sleep || {}).forEach((k) => { if (a.sleep && a.sleep[k] && sv(b.sleep[k]) > sv(a.sleep[k])) sleep[k] = b.sleep[k]; });
       const night = Object.assign({}, b.night, a.night); Object.keys(b.night || {}).forEach((k) => { if (a.night && a.night[k] && (b.night[k].ts || 0) > (a.night[k].ts || 0)) night[k] = b.night[k]; });
-      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep, ev: Object.assign({}, b.ev, a.ev), loh: Object.assign({}, b.loh, a.loh), mom: Object.assign({}, b.mom, a.mom), heard: Object.assign({}, b.heard, a.heard), arch: Object.assign({}, b.arch, a.arch) }));
+      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep, ev: Object.assign({}, b.ev, a.ev), loh: Object.assign({}, b.loh, a.loh), lt: Object.assign({}, b.lt, a.lt), mom: Object.assign({}, b.mom, a.mom), heard: Object.assign({}, b.heard, a.heard), arch: Object.assign({}, b.arch, a.arch) }));
     }
     if (L["ordo.exiles"] || R["ordo.exiles"]) {        // Вигнані: та сама людина — новіша правка (mt)
       const a = P(L, "ordo.exiles", {}), b = P(R, "ordo.exiles", {}), list = Object.assign({}, b.list, a.list);

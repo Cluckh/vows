@@ -602,17 +602,25 @@
 
   /* вість: храмовник, що прийшов на сповіщення, — його слово, далі звичайна розмова */
   /* лист голубиною поштою: сургуч, від кого, діалог */
-  async function letter(lid) {
-    const L = (D().LETTERS || []).find((x) => x.id === lid), K = D().KEEPERS || {}; if (!L) return;
+  /* o.offer — лист прийшов сам: «зламати печатку» або «пізніше» (тоді повертає "later");
+     пройдений до кінця — true і позначка в Дні (зарахування ревю), закритий посередині — false */
+  async function letter(lid, o) {
+    const L = (D().LETTERS || []).find((x) => x.id === lid), K = D().KEEPERS || {}; if (!L) return false;
     const v = (D().VOWS || []).find((x) => x.id === L.from);
     const from = v ? { id: L.from, icon: v.icon } : L.from === "supreme" ? SUPREME : Object.assign({ id: "seneschal", head: "plume" }, D().SENESCHAL || {});
     const fromName = from.id === "supreme" ? (K.supreme || {}).name : from.name || (K[from.id] || {}).name || "";
     /* спершу — сам лист із сургучем, тоді той, хто писав */
     show({ id: "letter", art: "art/p/letter.webp", name: "Голубина пошта", title: L.title ? `«${L.title}»` : "Лист із печаткою Ордену" });
-    if ((await say(`✉ Лист із печаткою Ордену${fromName ? ". Від: " + fromName : ""}. Торкнись, щоб зламати печатку.`)) === "closed") return;
+    if (o && o.offer) {
+      const i = await ask(`✉ Голуб приніс лист із печаткою Ордену${fromName ? ". Від: " + fromName : ""}.`, ["Зламати печатку", "Пізніше"], "hall__acts--row");
+      if (i === "closed") return false;
+      if (i === 1) { await say("Лист чекатиме в «Дні» — до кінця тижня."); if (isOpen()) close(); return "later"; }
+    } else if ((await say(`✉ Лист із печаткою Ордену${fromName ? ". Від: " + fromName : ""}. Торкнись, щоб зламати печатку.`)) === "closed") return false;
     show(from);
-    await runDialog(L);
+    const ok = await runDialog(L);
     if (isOpen()) close();
+    if (ok && window.ORDO_DAY && window.ORDO_DAY.letterRead) window.ORDO_DAY.letterRead(lid);
+    return ok;
   }
   async function summon(id, text, mode) {
     if (id === "letter") return letter(text);

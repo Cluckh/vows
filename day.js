@@ -1513,6 +1513,8 @@
       if (held()) return later();
       if (!(await momentScene("open"))) return;
       if (held()) return later();
+      if (!(await letterScene())) return;
+      if (held()) return later();
       if (window.ORDO_TREASURY) await window.ORDO_TREASURY.scenes();
       if (H().isOpen()) H().close();
       if (pendingUp) { const u = pendingUp; pendingUp = null; await rankScene(u); }
@@ -1822,6 +1824,7 @@
     if (k === today() && !(S.loh && S.loh[k])) h += `<button type="button" class="dy-loh-btn" data-dloh="1"><span>✋</span><b>Важкий день?</b><em>Lay on Hands</em></button>`;
     if (S.loh && S.loh[k]) h += `<div class="dy-loh"><b>✋ Lay on Hands</b><span>ноша дня — наполовину · ${lohHealed(k) ? "зцілення виконано — нагорода сповна" : "нагороди ×0,5, зцілення поверне сповна"}</span></div>`;
     else if (S.loh && S.loh[add(k, -1)] && k <= today()) h += `<div class="dy-loh dy-loh--re"><b>Відродження</b><span>повний день сьогодні — нагорода за нього ×1,5</span></div>`;
+    h += letterCard(k);
     const W = k === today() ? watch() : [], bad = W.filter((x) => x.st === "bad");
     if (bad.length) h += `<button type="button" class="dy-watch" data-dwatch="1"><svg><use href="#i-bell"/></svg><span><b>Сторож:</b> ${esc(bad[0].name.toLowerCase())} — ${esc(bad[0].what)}${bad.length > 1 ? ` · ще ${bad.length - 1}` : ""}</span><i>›</i></button>`;
     const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
@@ -2534,6 +2537,7 @@
     if (e.target.closest("[data-dnight]")) { nightOpen = !nightOpen; buzz("light"); render(); return; }
     if (e.target.closest("[data-dmore]")) { dayMore = !dayMore; buzz("light"); render(); return; }
     if (e.target.closest("[data-dloh]")) { buzz("medium"); lohConfirm(); return; }
+    { const lt = e.target.closest("[data-dletter]"); if (lt) { buzz("light"); openLetter(lt.dataset.dletter); return; } }
     const gg = e.target.closest("[data-dgymgo]"); if (gg) { buzz("light"); openSheet("gym", gg.dataset.dgymgo, view || today()); return; }
     const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; if (srcOf(t) === "journal" && (view || today()) <= today()) { openJournal(view); return; } openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
@@ -2620,6 +2624,68 @@
 
   /* ============================================================ ПИСАР ====== */
   /* зведення для нічного писаря: що відбувається в житті Ордену (шифрується ключем сховища) */
+  /* ====================================================== ЛИСТИ-ЗВІТИ =====
+     Писар пише лист-звіт у неділю (тиждень) і в останній день місяця (місяць). Лист приходить раз на день сам
+     («зламати печатку» або «пізніше»), відкладений — чекає карткою в «Дні». Пройдений до кінця — позначка в S.lt
+     (синхронізується) і зарахування справи «Weekly review» / «Monthly review» на дату листа. */
+  const LTR_FROM = "2026-11-08";
+  const LTRS = () => ((window.ORDO_DATA && window.ORDO_DATA.LETTERS) || []).filter((l) => l && l.id >= LTR_FROM);
+  const ltKind = (L) => L.kind || (L.id === endOfMonth(L.id) ? "month" : wd(L.id) === 7 ? "week" : null);
+  const ltRead = (id) => !!(S.lt && S.lt[id]);
+  /* лист для дня k: на сам день; на сьогодні — ще й непрочитаний за останні 6 днів (відкладений) */
+  function letterFor(k) {
+    const L = LTRS().find((l) => l.id === k); if (L) return L;
+    if (k !== today()) return null;
+    return LTRS().filter((l) => l.id < k && l.id >= add(k, -6) && !ltRead(l.id)).sort((a, b) => (a.id < b.id ? 1 : -1))[0] || null;
+  }
+  function ltFrom(L) {
+    const D = window.ORDO_DATA || {}, K = D.KEEPERS || {};
+    if (L.from === "seneschal") return (D.SENESCHAL || {}).name || "Сенешаль";
+    return (K[L.from] || {}).name || "Магістр";
+  }
+  function letterCard(k) {
+    const L = letterFor(k); if (!L) return "";
+    const kind = ltKind(L), what = kind === "month" ? "звіт місяця" : kind === "week" ? "звіт тижня" : "лист";
+    if (ltRead(L.id)) return `<button type="button" class="dy-letter is-read" data-dletter="${esc(L.id)}"><span>✉</span><b>${esc(L.title || "Лист Ордену")}</b><em>${what} · прочитано — перечитати</em></button>`;
+    const task = kind ? reviewTask(kind, L.id) : null;
+    return `<button type="button" class="dy-letter" data-dletter="${esc(L.id)}"><span>✉</span><b>${esc(L.title || "Лист Ордену")}</b><em>${what} від: ${esc(ltFrom(L))}${L.id !== k ? ` · від ${human(L.id)}` : ""}${task ? ` · зарахує «${esc(task.t)}»` : ""}</em><i>зламати печатку ›</i></button>`;
+  }
+  /* справа-ревю: за назвою (Weekly review / Monthly review, або «тижневе / місячне ревю») */
+  function reviewTask(kind, k) {
+    const re = kind === "month" ? /month(ly)?\s*review|місячн\S*\s+(ревю|огляд|звіт)/i : /week(ly)?\s*review|тижнев\S*\s+(ревю|огляд|звіт)/i;
+    return Object.values(S.tasks).find((x) => !x.del && x.start <= k && (!x.end || x.end >= k) && re.test(ver(x, k).t || "")) || null;
+  }
+  function reviewDone(kind, k) {
+    const t = reviewTask(kind, k); if (!t) return null;
+    const id = t.id; if (isWin(stOf(t, rec(k, id), k))) return null;
+    const before = totalXP();
+    if (!items(k).some((x) => x.t.id === id)) {          // справа на інший день (ревю місяця — 1-го, а лист — 30-го): найближчий її день переїжджає сюди
+      let nk = null; for (let i = 1; i <= 40 && !nk; i++) { const c = add(k, i), rc = rec(c, id); if (occurs(t, c) && !(rc && (rc.st === "moved" || isFull(stOf(t, rc, c))))) nk = c; }
+      if (nk) setRec(nk, id, { st: "moved", to: k, early: 1 }); setRec(k, id, { from: nk || k });
+    }
+    setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); after(before);
+    return t;
+  }
+  /* лист пройдено до кінця (кличе ORDO_HALL.letter — з картки, з автопоказу й з пуша) */
+  function letterRead(id) {
+    const L = LTRS().find((l) => l.id === id); if (!L) return;
+    S.lt = S.lt || {}; if (S.lt[id]) return;
+    S.lt[id] = Date.now(); saveS();
+    const kind = ltKind(L), t = kind ? reviewDone(kind, id) : null;
+    render(); toast(t ? `✉ Лист прочитано — <b>${esc(t.t)}</b> зараховано` : "✉ Лист прочитано", "is-gift");
+  }
+  async function openLetter(id) {
+    const h = H(); if (!h || !h.letter || h.isOpen()) return;
+    LS.set("ordo.k.ltOff", today());
+    await h.letter(id);
+  }
+  /* сам приходить раз на день: «зламати печатку» або «пізніше» (тоді — картка в «Дні») */
+  async function letterScene() {
+    const L = letterFor(today()); if (!L || ltRead(L.id) || LS.get("ordo.k.ltOff", "") === today()) return true;
+    LS.set("ordo.k.ltOff", today());
+    const r = await H().letter(L.id, { offer: true });
+    return r !== false;
+  }
   function writerState() {
     const A = API(), t0 = today(), vows = D().VOWS || [], LOG = LS.get("ordo.log", []), lv = levelOf(totalXP());
     const since = (n) => add(t0, -n), days14 = []; for (let i = 13; i >= 0; i--) days14.push(add(t0, -i));
@@ -2632,6 +2698,7 @@
       at: new Date().toISOString(), today: t0, weekday: WDL[wd(t0)],
       rank: { name: lv.rank.name, level: lv.L, xp: lv.xp, toNext: lv.to - lv.xp },
       loh: Object.keys(S.loh || {}).filter((k) => k >= add(t0, -30)).sort(),                       // дні Lay on Hands за місяць
+      lettersRead: Object.keys(S.lt || {}).filter((k) => k >= add(t0, -60)).sort(),            // листи-звіти, пройдені до кінця (ревю зараховано)
       exiles: Object.values((LS.get("ordo.exiles", { list: {} }) || {}).list || {}).filter((e) => e.st === "on").map((e) => ({ n: e.n, left: e.days - diff(e.from, t0) })),
       gear: (() => { const G = window.ORDO_GOLD, g = LS.get("ordo.gold", {}) || {}, R = D().RELICS || []; return { on: (g.eq || []).map((id) => (R.find((r) => r.id === id) || {}).n).filter(Boolean), own: Object.keys(g.own || {}).filter((id) => R.some((r) => r.id === id)).length, gold: G && G.balance ? G.balance() : null }; })(),
       xp7: days14.slice(-7).map((k) => ({ d: k, xp: Object.values(X.e).filter((e) => e.d === k).reduce((a, e) => a + e.xp, 0) })),
@@ -2756,7 +2823,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, goalLaw, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, goalLaw, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

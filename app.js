@@ -1535,8 +1535,9 @@ window.ORDO_START = function () {
       <div class="gs-title rar-${it.rar || "rare"}">${esc(it.t)}</div>`;
     if (!locked) h += `<div class="cmp__types gs-types">${Object.keys(GT).map((k) => `<button type="button" data-gty="${k}" class="${k === t ? "is-on" : ""}">${GT[k].name}</button>`).join("")}</div>`;
     if (!locked) { const E = window.ORDO_ECON, RN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" }, ek = gs.kind === "y" ? "year" : "month";
-      if (E) { const [xp, gold] = E[ek][it.rar || "rare"], old = it.done && it.done < "2026-10-26";
-        h += `<div class="gs-h">Рідкість</div><div class="cmp__ops gs-src gs-rar">${Object.keys(RN).map((r) => `<button type="button" data-grar="${r}" class="rar-${r}${(it.rar || "rare") === r ? " is-on" : ""}">${RN[r]} · ${E[ek][r][0]} досв · ${E[ek][r][1]} зол</button>`).join("")}</div>
+      if (E) { const DY = window.ORDO_DAY, law = (r) => DY && DY.goalLaw ? DY.goalLaw(gs.kind, gs.key, P.items.map((x) => (x.id === it.id ? Object.assign({}, x, { rar: r }) : x)), Object.assign({}, it, { rar: r })) : 1;
+        const m = law(it.rar || "rare"), [xp, gold] = E[ek][it.rar || "rare"].map((v) => Math.round(v * m)), old = it.done && it.done < "2026-10-26";
+        h += `<div class="gs-h">Рідкість</div><div class="cmp__ops gs-src gs-rar">${Object.keys(RN).map((r) => `<button type="button" data-grar="${r}" class="rar-${r}${(it.rar || "rare") === r ? " is-on" : ""}">${RN[r]} · ${Math.round(E[ek][r][0] * law(r))} досв · ${Math.round(E[ek][r][1] * law(r))} зол</button>`).join("")}</div>${m < 1 ? `<p class="cmp__hint">Закон рідкості: ${Math.round(m * 100)}% — у цьому ${gs.kind === "y" ? "році" : "місяці"} вже є ${it.rar === "myth" ? "міфічна" : "легендарна"} ціль раніше в списку.</p>` : ""}
           <p class="cmp__hint">${old ? "Виконано до 26 жовтня, коли Орден ще не платив досвідом і золотом, — нагороди за неї нема." : it.done ? `Зараховано: ${xp} досвіду й ${gold} золота.` : `Коли виконаєш: ${xp} досвіду й ${gold} золота.`}</p>`; } }
     const withPlus = !locked && t === "count";
     h += `<p class="cmp__hint">${GT[t].hint}</p><div class="gs-detail${withPlus ? " gs-detail--plus" : ""}" data-stepbox="cur"><div>${detailHTML(it, gs.kind, gs.key, true)}</div>${withPlus ? plusBtn("cur", true) : ""}</div>`;

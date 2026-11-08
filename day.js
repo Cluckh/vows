@@ -753,6 +753,12 @@
   /* рідкість, обрана чи змінена з 8.11, діє з наступного дня (rarAt; до того — rarPrev);
      «закон рідкості»: такі справи (lawful) однієї рідкості — легендарні чи міфічні — платять за порядком дня 100 / 70 / 50 / 35 % */
   const LAW = [1, 0.7, 0.5, 0.35];
+  /* закон рідкості для цілей (з листопада 2026 і для років з 2027): легендарні й міфічні цілі одного періоду платять за порядком у списку 100 / 70 / 50 / 35 % */
+  function goalLaw(kind, key, list, it) {
+    const r = it.rar || "rare"; if ((r !== "legend" && r !== "myth") || (kind === "m" ? key < "2026-11" : key < "2027")) return 1;
+    const i = (list || []).filter((x) => (x.rar || "rare") === r).findIndex((x) => x.id === it.id);
+    return i < 0 ? 1 : LAW[Math.min(i, LAW.length - 1)];
+  }
   const effRar = (t, k) => t.rarAt && k < t.rarAt ? (t.rarPrev || "rare") : rarOf(t);
   function lawRank(t, k, list) {
     const r = effRar(t, k); if (r !== "legend" && r !== "myth") return -1;
@@ -824,7 +830,7 @@
     const G = LS.get("ordo.goals", { y: {}, m: {} });
     ["m", "y"].forEach((kind) => Object.keys(G[kind] || {}).forEach((key) => {
       const P = G[kind][key];
-      (P.items || []).forEach((it) => { if (it.done && it.done >= XP_START_DAY) { const [xp, gold] = ECON[kind === "y" ? "year" : "month"][it.rar || "rare"]; X.e[`g:${it.id}`] = { d: it.done, xp, gold, src: "goal", why: it.t }; } });
+      (P.items || []).forEach((it) => { if (it.done && it.done >= XP_START_DAY) { const [xp, gold] = ECON[kind === "y" ? "year" : "month"][it.rar || "rare"], m = goalLaw(kind, key, P.items, it); X.e[`g:${it.id}`] = { d: it.done, xp: Math.round(xp * m), gold: Math.round(gold * m), src: "goal", why: it.t }; } });
       if (P.res && P.items && P.items.length) {
         const pct = Math.round(100 * P.items.filter((i) => P.res[i.id]).length / P.items.length);
         const when = kind === "y" ? `${key}-12-31` : endOfMonth(`${key}-01`);
@@ -2743,7 +2749,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, goalLaw, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

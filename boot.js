@@ -191,7 +191,7 @@
       const un = (k) => Object.assign({}, b[k], a[k]), own = un("own"); Object.keys(b.own || {}).forEach((k) => { if (a.own && a.own[k] && b.own[k].at < a.own[k].at) own[k] = b.own[k]; });
       const eqs = (b.eqAt || 0) > (a.eqAt || 0) ? { eq: b.eq, eqAt: b.eqAt } : { eq: a.eq || b.eq || [], eqAt: a.eqAt || b.eqAt };
       const uns = un("uns"); Object.keys(b.uns || {}).forEach((k) => { if (a.uns && a.uns[k] && a.uns[k].st === "ask" && b.uns[k].st !== "ask") uns[k] = b.uns[k]; });   // відповідь сильніша за «ще не питали»
-      const G2 = Object.assign({}, b, a, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), wk: un("wk"), uns, own, starter: a.starter || b.starter,
+      const G2 = Object.assign({}, b, a, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), wk: un("wk"), uns, own, elix: Object.assign({}, b.elix, a.elix), v2: a.v2 || b.v2, starter: a.starter || b.starter,
         lv: Math.max(a.lv || 0, b.lv || 0) || undefined, ri: Math.max(a.ri || 0, b.ri || 0) || undefined }, eqs);
       if (window.ORDO_GOLD && window.ORDO_GOLD.purge) window.ORDO_GOLD.purge(G2);      // тестові покупки 26.10 не воскресають з іншого пристрою
       out["ordo.gold"] = JSON.stringify(G2);

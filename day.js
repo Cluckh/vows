@@ -739,11 +739,12 @@
   function chainBefore(t, k) {
     if (!t.rep || t.rep.f === "none") return 0;
     let c = 0, d = add(k, -1);
+    let spare = GEAR("chainGuard");                              // спорядження: стільки пропусків за останній тиждень ланцюжок прощає
     for (let guard = 0; guard < 400 && c < 60 && d >= t.start; guard++, d = add(d, -1)) {
       if (!occurs(t, d)) continue;
       const st = stOf(t, rec(d, t.id), d);
       if (st === "moved" || st === "cancel") continue;
-      if (isFull(st)) c++; else break;
+      if (isFull(st)) c++; else if (spare > 0 && diff(d, k) <= 7) spare--; else break;
     }
     return c;
   }
@@ -849,8 +850,8 @@
   }
   /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані */
   function perfect(k) {
-    const its = items(k).map(({ t, r }) => stOf(t, r, k)).filter((s) => s !== "moved" && s !== "cancel");
-    return its.length >= 3 && its.every(isFull);
+    const its = items(k).map(({ t, r }) => stOf(t, r, k)).filter((s) => s !== "moved" && s !== "cancel"), miss = its.filter((s) => !isFull(s)).length;
+    return its.length >= 3 && (miss === 0 || (miss === 1 && k < today() && roughNight(k) && GEAR("nightGuard") > 0));     // спорядження: після тривожної ночі — одна справа прощається
   }
   function settleTasks(k) { items(k).forEach(({ t, r }) => putXP(`t:${t.id}:${k}`, xpTask(t, r, k), "task", t.t, k)); }
 
@@ -1088,8 +1089,8 @@
   const LOH_DAYCAT = /^(t|pd|gy|jr|st|er|sl|nw):/;
   const lohHealed = (d) => Q.list.some((q) => q.pid === "loh:" + d && q.st === "done");
   function lohMul(d, id) {
-    if (S.loh && S.loh[d]) return lohHealed(d) ? 1 : 0.5;
-    if (id.startsWith("pd:") && S.loh && S.loh[add(d, -1)]) return 1.5;
+    if (S.loh && S.loh[d]) return lohHealed(d) ? 1 : Math.min(1, 0.5 + GEAR("lohMul"));
+    if (id.startsWith("pd:") && ((S.loh && S.loh[add(d, -1)]) || (window.ORDO_GOLD && window.ORDO_GOLD.elixir && window.ORDO_GOLD.elixir(d)))) return 1.5 + GEAR("rebirth");
     return 1;
   }
   function lohSettle() {
@@ -1290,7 +1291,11 @@
   }
   /* обрати квест із пулу: потрібної рідкості, ще не бачений */
   /* only — конкретний квест (писар призначив на дату); квести з датою в випадковий розіграш не потрапляють */
+  /* спорядження: ефект з одягненого (gold.js) */
+  const GEAR = (type) => (window.ORDO_GOLD && window.ORDO_GOLD.gear ? window.ORDO_GOLD.gear(type) : 0);
+  const wkKey = (k) => add(k, -(wd(k) - 1));                     // понеділок тижня
   function draw(rar, tag, only) {
+    if (!only && rar !== "myth" && GEAR("questUp") > 0 && Q.clock.up !== wkKey(today())) { Q.clock.up = wkKey(today()); rar = rar === "legend" ? "myth" : "legend"; }     // спорядження: раз на тиждень — квест на рідкість вищий
     const seen = new Set(Q.list.filter((q) => q.st !== "void").map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.app || appTracked(p.app));
     let c = pool().filter((p) => (only || p.rar === rar) && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
     const free = (p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer"));
@@ -1675,7 +1680,7 @@
   function archive(key, e) { S.arch = S.arch || {}; if (!S.arch[key]) { S.arch[key] = Object.assign({ d: today(), at: Date.now() }, e); saveS(); } }
   const archiveFor = (who) => Object.entries(S.arch || {}).filter(([, e]) => e.who === who).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).map(([key, e]) => Object.assign({ key }, e));
   /* нагорода за момент (якщо писар позначив reward): досвід і золото — за рідкістю, як і всюди в Ордені */
-  const MO_REW = { common: [5, 2], rare: [15, 8], legend: [40, 20], myth: [100, 50] };
+  const MO_REW = { common: [5, 10], rare: [15, 25], legend: [40, 60], myth: [100, 150] };     // золото — у шкалі економіки з 8.11
   function refreshViews() {
     const A = API(); render(); teaserDots();
     if (A.renderBoard) A.renderBoard();
@@ -2566,6 +2571,9 @@
     return {
       at: new Date().toISOString(), today: t0, weekday: WDL[wd(t0)],
       rank: { name: lv.rank.name, level: lv.L, xp: lv.xp, toNext: lv.to - lv.xp },
+      loh: Object.keys(S.loh || {}).filter((k) => k >= add(t0, -30)).sort(),                       // дні Lay on Hands за місяць
+      exiles: Object.values((LS.get("ordo.exiles", { list: {} }) || {}).list || {}).filter((e) => e.st === "on").map((e) => ({ n: e.n, left: e.days - diff(e.from, t0) })),
+      gear: (() => { const G = window.ORDO_GOLD, g = LS.get("ordo.gold", {}) || {}, R = D().RELICS || []; return { on: (g.eq || []).map((id) => (R.find((r) => r.id === id) || {}).n).filter(Boolean), own: Object.keys(g.own || {}).filter((id) => R.some((r) => r.id === id)).length, gold: G && G.balance ? G.balance() : null }; })(),
       xp7: days14.slice(-7).map((k) => ({ d: k, xp: Object.values(X.e).filter((e) => e.d === k).reduce((a, e) => a + e.xp, 0) })),
       vows: vows.map((v) => ({ id: v.id, name: v.name, streak: A.streak ? A.streak(v) : null, start: (LS.get("ordo.starts", {})[v.id]) || v.start, best: (LS.get("ordo.best", {})[v.id]) || null })),
       breaches30: LOG.filter((e) => e.k === "breach" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, why: e.why || "" })),

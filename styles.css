@@ -2053,3 +2053,12 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .cd-row .cd-m,.cd-row .cd-l{width:64px;flex:none;text-align:center}
 .cd-tot{margin:6px 0 10px}
 .dy-loh-note{color:var(--halo)}
+
+/* ---- спорядження: 5 слотів ---- */
+.rl-slots--5{grid-template-columns:repeat(6,minmax(0,1fr))}
+.rl-slots--5>.rl-slot{grid-column:span 2;min-height:168px}
+.rl-slots--5>.rl-slot:nth-child(4){grid-column:2 / span 2}
+.rl-slots--5>.rl-slot:nth-child(5){grid-column:4 / span 2}
+.rl-sn{font-style:normal;font-family:var(--f-ui);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-dim)}
+.rl-slot.is-on .rl-sn{color:var(--gold)}
+.rl-gh{font-family:var(--f-ui);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ash-2);margin:12px 0 6px}

@@ -753,11 +753,14 @@
   /* рідкість, обрана чи змінена з 8.11, діє з наступного дня (rarAt; до того — rarPrev);
      «закон рідкості»: такі справи (lawful) однієї рідкості — легендарні чи міфічні — платять за порядком дня 100 / 70 / 50 / 35 % */
   const LAW = [1, 0.7, 0.5, 0.35];
-  /* закон рідкості для цілей (з листопада 2026 і для років з 2027): легендарні й міфічні цілі одного періоду платять за порядком у списку 100 / 70 / 50 / 35 % */
+  /* закон рідкості для цілей (місяці з листопада 2026, роки з 2027): легендарні й міфічні цілі періоду платять за порядком ВИКОНАННЯ —
+     перша 100 %, друга 70 %, далі 50 %, тобто не дешевше за рідкість нижче. Поки не виконав — усі однакові: ціна «наступної» */
+  const GOAL_LAW = [1, 0.7, 0.5];
   function goalLaw(kind, key, list, it) {
     const r = it.rar || "rare"; if ((r !== "legend" && r !== "myth") || (kind === "m" ? key < "2026-11" : key < "2027")) return 1;
-    const i = (list || []).filter((x) => (x.rar || "rare") === r).findIndex((x) => x.id === it.id);
-    return i < 0 ? 1 : LAW[Math.min(i, LAW.length - 1)];
+    const same = (list || []).filter((x) => (x.rar || "rare") === r && x.done && x.id !== it.id);
+    const i = it.done ? same.filter((x) => x.done < it.done || (x.done === it.done && String(x.id) < String(it.id))).length : same.length;
+    return GOAL_LAW[Math.min(i, GOAL_LAW.length - 1)];
   }
   const effRar = (t, k) => t.rarAt && k < t.rarAt ? (t.rarPrev || "rare") : rarOf(t);
   function lawRank(t, k, list) {
@@ -766,16 +769,12 @@
       .sort((a, b) => String(a.created || "").localeCompare(String(b.created || "")) || String(a.id).localeCompare(String(b.id)));
     return peers.findIndex((x) => x.id === t.id);
   }
-  const lawMul = (t, k) => { if (!t.lawful) return 1; const i = lawRank(t, k); return i < 0 ? 1 : LAW[Math.min(i, LAW.length - 1)]; };
+  const lawMul = () => 1;                                          // денні справи — без закону рідкості (власник, 8.11): кожна платить за своєю рідкістю
   function lawNote(d, orig) {
     const r = rarOf(d); if (orig && rarOf(orig) === r && orig.lawful === d.lawful) return "";
     const k = add(today(), 1), others = Object.values(S.tasks).filter((x) => x.id !== d.id && occurs(x, k)).map((x) => ver(x, k));
-    let tail = "";
-    if (r === "legend" || r === "myth") {
-      const i = lawRank(Object.assign({}, d, { lawful: 1, rarAt: null, created: d.created || today(), id: d.id || "~new" }), k, others.concat([Object.assign({}, d, { lawful: 1, rarAt: null, created: d.created || today(), id: d.id || "~new" })]));
-      tail = ` Закон рідкості: це ${i + 1}-а ${r === "myth" ? "міфічна" : "легендарна"} справа дня — ${Math.round(LAW[Math.min(Math.max(i, 0), LAW.length - 1)] * 100)}% нагороди.`;
-    }
-    return `<p class="dy-note dy-note--law">Нова рідкість діє з завтра.${tail}</p>`;
+    const RK = { common: 0, rare: 1, legend: 2, myth: 3 };
+    return orig && RK[r] > RK[rarOf(orig)] || !orig && RK[r] > 1 ? `<p class="dy-note dy-note--law">Вища рідкість діє з завтра.</p>` : "";
   }
   function xpTask(t, r, k) {
     t = ver(t, k);
@@ -1567,8 +1566,16 @@
       <div class="dy-rank__bar"><i style="width:${Math.round(p * 100)}%"></i></div>
       <em class="dy-rank__n">${fmtN(lv.xp - lv.from)} / ${fmtN(lv.to - lv.from)}${window.ORDO_GOLD ? window.ORDO_GOLD.chip() : ""}</em></button>`;
   }
+  /* золото справи: виконана — скільки дала; відкрита — скільки дасть (з ланцюжком і Lay on Hands) */
+  function goldTag(t, r, k) {
+    const st = stOf(t, r, k); if (st === "moved" || st === "cancel") return "";
+    const G = window.ORDO_GOLD, cn = G && G.coin ? G.coin("gd-coin--xs") : "", got = isWin(st) && G && G.goldFor ? G.goldFor(`t:${t.id}:${k}`) : 0;
+    if (got) return `<span class="dy-gold is-got">${cn}+${fmtN(got)}</span>`;
+    const m = (1 + Math.min(0.3, 0.03 * chainBefore(t, k))) * (S.loh && S.loh[k] && !lohHealed(k) ? Math.min(1, 0.5 + GEAR("lohMul")) : 1);
+    return `<span class="dy-gold">${cn}${fmtN(Math.max(1, Math.round(ECON.task[effRar(t, k)][1] * m)))}</span>`;
+  }
   function metaOf(t, r, k) {
-    const bits = [];
+    const bits = [], gt = goldTag(t, r, k); if (gt) bits.push(gt);
     if (t.time) bits.push(t.time);
     const rt = repText(t); if (rt) bits.push(`<span class="dy-rep">↻ ${rt}</span>`);
     const wr = isGym(t) && GYM.w[wKey(k, t.id)];

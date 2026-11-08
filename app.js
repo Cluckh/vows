@@ -381,6 +381,8 @@ window.ORDO_START = function () {
       });
       /* starts: перенести старт обітниці */
       if (p.starts) { Object.keys(p.starts).forEach((id) => { STARTS[id] = p.starts[id]; }); LS.set("ordo.starts", STARTS); }
+      /* exiles: люди до списку Вигнаних (Мовчання), якщо ще нема */
+      if (p.exiles) { const E = LS.get("ordo.exiles", { list: {} }); E.list = E.list || {}; p.exiles.forEach((x) => { if (!E.list[x.id]) E.list[x.id] = Object.assign({ st: "on", mt: Date.now() }, x); }); LS.set("ordo.exiles", E); }
       /* spent: вікна місяця вичерпано */
       if (p.spent) { const sp = LS.get("ordo.spent", {}); p.spent.forEach((x) => { sp[`${x.v}|${x.m}`] = true; }); LS.set("ordo.spent", sp); }
       (p.log || []).forEach((e) => {
@@ -571,7 +573,68 @@ window.ORDO_START = function () {
     if (mb) mb.hidden = !v.window;
     if (v.window && w) { const u = windowsUsed(v), o = oversIn(v); w.textContent = `${u} з ${v.window.limit}` + (o ? ` · зривів ${o}` : ""); }
     const di = $("shDate"); if (di) { di.value = STARTS[v.id]; di.max = todayKey(); }
+    renderExiles(v);
   }
+
+  /* ======================================================= ВИГНАНІ (Мовчання) ===
+     Людина в списку — нуль контакту з обох боків до кінця строку (від 180 днів); минув — виходить сама.
+     Зрив з людиною (відповів) чи прибрати її до строку — зрив Мовчання; відлік інших людей триває.
+     ordo.exiles: { list: { id: { id, n, from, days, st: on|broke|out|done|free, end, mt } } } */
+  const EXILE_VOW = "silence", EXILE_MIN = 180;
+  const exGet = () => { const E = LS.get("ordo.exiles", { list: {} }); E.list = E.list || {}; return E; };
+  const exSave = (E) => LS.set("ordo.exiles", E);
+  const dDiff = (a, b) => Math.round((Date.parse(b + "T12:00:00") - Date.parse(a + "T12:00:00")) / 864e5);
+  const exLeft = (e) => e.days - dDiff(e.from, todayKey());
+  function exTick() {                                           // строк минув — людина виходить сама
+    const E = exGet(); let ch = false;
+    Object.values(E.list).forEach((e) => { if (e.st === "on" && exLeft(e) <= 0) { e.st = "done"; e.end = todayKey(); e.mt = Date.now(); ch = true; } });
+    if (ch) exSave(E);
+    return E;
+  }
+  let exArm = null;                                             // перший тап по «Зрив» / «Прибрати» — підтвердження, другий — дія
+  function renderExiles(v) {
+    const box = $("shExile"); if (!box) return;
+    if (!v || v.id !== EXILE_VOW) { box.hidden = true; box.innerHTML = ""; return; }
+    const E = exTick(), all = Object.values(E.list);
+    const on = all.filter((e) => e.st === "on").sort((a, b) => exLeft(a) - exLeft(b));
+    const broke = all.filter((e) => e.st === "broke" && e.end && dDiff(e.end, todayKey()) <= 14);
+    const row = (e) => { const L = exLeft(e), pct = Math.max(0, Math.min(100, (1 - L / e.days) * 100));
+      return `<li class="exile__it"><div class="exile__top"><b>${esc(e.n)}</b><span class="exile__left">ще ${L} ${daysWord(L)}</span></div>
+        <div class="exile__bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+        <div class="exile__acts"><button type="button" class="exile__btn exile__btn--br${exArm === "br:" + e.id ? " is-armed" : ""}" data-exbr="${e.id}">${exArm === "br:" + e.id ? "Так, був контакт — зрив" : "Зрив"}</button>
+        <button type="button" class="exile__btn${exArm === "out:" + e.id ? " is-armed" : ""}" data-exout="${e.id}">${exArm === "out:" + e.id ? "Прибрати до строку — це зрив" : "Прибрати"}</button></div></li>`; };
+    box.hidden = false;
+    box.innerHTML = `<div class="exile__h">Вигнані <em>${on.length}</em></div>
+      ${on.length ? `<ul class="exile__ls">${on.map(row).join("")}</ul>` : `<p class="exile__empty">Список порожній.</p>`}
+      ${broke.map((e) => `<div class="exile__again"><span>«${esc(e.n)}»: зрив ${fmtShort(new Date(e.end + "T12:00:00"))}. Що далі?</span>
+        <div class="exile__acts"><button type="button" class="exile__btn exile__btn--gold" data-exagain="${e.id}">Вигнати знову на ${EXILE_MIN} днів</button><button type="button" class="exile__btn" data-exfree="${e.id}">Відпустити</button></div></div>`).join("")}
+      <div class="exile__add"><input type="text" id="exName" maxlength="40" placeholder="Імʼя" autocomplete="off"><select id="exDays"><option value="180">180 днів</option><option value="270">270 днів</option><option value="365">рік</option></select><button type="button" class="exile__btn exile__btn--gold" data-exadd>Вигнати</button></div>`;
+  }
+  function exBreach(e, why) {
+    const v = vowById(EXILE_VOW); if (!v) return;
+    breach(v, why); renderBoard();
+    FX.play("reset", true); FX.buzz("heavy"); flashRow(v.id, "oath--fall");
+  }
+  document.addEventListener("click", (ev) => {
+    const box = $("shExile"); if (!box || box.hidden || !box.contains(ev.target)) return;
+    const b = ev.target.closest("button"); if (!b) return;
+    const E = exGet(), id = b.dataset.exbr || b.dataset.exout || b.dataset.exagain || b.dataset.exfree, e = id && E.list[id], t = todayKey();
+    if (b.dataset.exbr || b.dataset.exout) {
+      const k = (b.dataset.exbr ? "br:" : "out:") + id;
+      if (exArm !== k) { exArm = k; FX.buzz("medium"); renderExiles(vowById(EXILE_VOW)); return; }
+      exArm = null; if (!e) return;
+      e.st = b.dataset.exbr ? "broke" : "out"; e.end = t; e.mt = Date.now(); exSave(E);
+      exBreach(e, b.dataset.exbr ? "exile-contact" : "exile-out"); fillSheet(); return;
+    }
+    if (b.dataset.exagain && e) { e.st = "free"; e.mt = Date.now(); const nid = e.id.split("~")[0] + "~" + t; E.list[nid] = { id: nid, n: e.n, from: t, days: EXILE_MIN, st: "on", mt: Date.now() }; exSave(E); FX.buzz("light"); renderExiles(vowById(EXILE_VOW)); return; }
+    if (b.dataset.exfree && e) { e.st = "free"; e.mt = Date.now(); exSave(E); FX.buzz("light"); renderExiles(vowById(EXILE_VOW)); return; }
+    if (b.hasAttribute("data-exadd")) {
+      const nm = ($("exName") && $("exName").value || "").trim(), days = Math.max(EXILE_MIN, +($("exDays") && $("exDays").value) || EXILE_MIN);
+      if (!nm) { $("exName") && $("exName").focus(); return; }
+      const nid = nm.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 24) + "~" + t + "~" + Date.now().toString(36).slice(-3);
+      E.list[nid] = { id: nid, n: nm, from: t, days, st: "on", mt: Date.now() }; exSave(E); FX.play("mark", true); FX.buzz("medium"); renderExiles(vowById(EXILE_VOW));
+    }
+  });
   function openSheet(id) {
     { const kb = $("shKeeper"), K = D.KEEPERS && D.KEEPERS[id]; if (kb) { kb.hidden = !K; if (K) kb.textContent = `Покликати: ${K.name}`; } }
     sheetVow = id; fillSheet();

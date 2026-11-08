@@ -1998,3 +1998,26 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-qs1>i{margin-left:auto;font-style:normal;color:var(--gold-2)}
 .dy-qsec.is-open .dy-qs1{margin-bottom:8px}
 .ar-cardio{font-family:var(--f-serif);font-size:14.5px;color:var(--bone);margin:-6px 0 12px} .ar-cardio em{color:var(--ash)}
+
+/* ---- Вигнані (Мовчання) ---- */
+.exile{margin:4px 0 10px;padding:12px 0 2px;border-top:1px solid var(--edge-soft)}
+.exile__h{font-family:var(--f-display);font-size:17px;color:var(--gold);letter-spacing:.06em;margin-bottom:8px}
+.exile__h em{font-style:normal;color:var(--ash-2);font-size:14px;margin-left:6px}
+.exile__ls{list-style:none;display:flex;flex-direction:column;gap:10px}
+.exile__it{padding:11px 12px;border:1px solid var(--edge-soft);border-radius:12px;background:rgba(205,163,73,.035)}
+.exile__top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.exile__top b{font-family:var(--f-serif);font-size:17px;font-weight:500;color:var(--bone)}
+.exile__left{font-size:13px;color:var(--gold-2);white-space:nowrap}
+.exile__bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);margin:8px 0 9px;overflow:hidden}
+.exile__bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold-2))}
+.exile__acts{display:flex;gap:8px;flex-wrap:wrap}
+.exile__btn{font:inherit;font-size:12.5px;letter-spacing:.04em;color:var(--ash);background:transparent;border:1px solid var(--edge);border-radius:999px;padding:6px 12px;cursor:pointer}
+.exile__btn--br{color:var(--ember-2);border-color:rgba(208,106,79,.35)}
+.exile__btn.is-armed{background:rgba(181,86,63,.18);color:#f0b4a3;border-color:var(--ember-2)}
+.exile__btn--gold{color:var(--gold-2);border-color:var(--gold-dim)}
+.exile__empty{font-family:var(--f-serif);font-style:italic;color:var(--ash-2);font-size:15px}
+.exile__again{margin-top:10px;padding:10px 12px;border:1px dashed rgba(208,106,79,.4);border-radius:12px;font-size:14px;color:var(--ash);display:flex;flex-direction:column;gap:8px}
+.exile__add{display:flex;gap:8px;margin-top:12px;align-items:center}
+.exile__add input,.exile__add select{font:inherit;font-size:14px;color:var(--bone);background:rgba(255,255,255,.04);border:1px solid var(--edge);border-radius:10px;padding:8px 10px;min-width:0}
+.exile__add input{flex:1}
+.exile__add select{flex:none}

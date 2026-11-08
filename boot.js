@@ -168,6 +168,11 @@
       const night = Object.assign({}, b.night, a.night); Object.keys(b.night || {}).forEach((k) => { if (a.night && a.night[k] && (b.night[k].ts || 0) > (a.night[k].ts || 0)) night[k] = b.night[k]; });
       out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep, ev: Object.assign({}, b.ev, a.ev), mom: Object.assign({}, b.mom, a.mom), heard: Object.assign({}, b.heard, a.heard), arch: Object.assign({}, b.arch, a.arch) }));
     }
+    if (L["ordo.exiles"] || R["ordo.exiles"]) {        // Вигнані: та сама людина — новіша правка (mt)
+      const a = P(L, "ordo.exiles", {}), b = P(R, "ordo.exiles", {}), list = Object.assign({}, b.list, a.list);
+      Object.keys(b.list || {}).forEach((id) => { const x = (a.list || {})[id], y = b.list[id]; if (x && (y.mt || 0) > (x.mt || 0)) list[id] = y; });
+      out["ordo.exiles"] = JSON.stringify({ list });
+    }
     if (L["ordo.quests"] || R["ordo.quests"]) {
       const a = P(L, "ordo.quests", {}), b = P(R, "ordo.quests", {}), by = {};
       [].concat(b.list || [], a.list || []).forEach((q) => { const o = by[q.id]; if (!o || (q.at || 0) >= (o.at || 0)) by[q.id] = q; });

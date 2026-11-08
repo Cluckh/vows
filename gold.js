@@ -239,13 +239,13 @@
       }
     });
     secrets().forEach((id) => { const r = grant(id, "таємний подвиг"); if (r) reveals.push(Object.assign(r, { why: relic(id).hint })); ch = true; });
-    /* церемонія рівня: за кожен новий рівень — золото (50 + 10 × рівень), за нове звання — ще й реліквія */
+    /* церемонія рівня: за кожен новий рівень — золото (200 + 40 × рівень, шкала 8.11), за нове звання — ще й спорядження */
     const lv = Dy.levelOf ? Dy.levelOf() : null;
     if (lv) {
       if (G.lv == null) { G.lv = lv.L; G.ri = lv.ri; ch = true; }
       else if (lv.L > G.lv) {
         for (let L = G.lv + 1; L <= lv.L; L++) {
-          const g = 50 + 10 * L; G.inc["lv:" + L] = { at: Date.now(), amt: g, why: `рівень ${L}` };
+          const g = 200 + 40 * L; G.inc["lv:" + L] = { at: Date.now(), amt: g, why: `рівень ${L}` };
           const up = { level: L, rank: L === lv.L ? lv.rank.name : "", g, newRank: L === lv.L && lv.ri > (G.ri || 0), page: L <= 30 ? L : null };
           if (L % 2 === 1) { const kd = L % 4 === 1 ? "reroll" : "extend"; G.tk["lv:" + L] = { kind: kd, d: 1, at: Date.now() }; up.token = kd; } else up.lvChest = true;   // непарний — жетон, парний — скриня
           if (up.newRank) { const id = randomRelic(lv.ri >= 6 ? "legend" : "rare", "rank" + lv.ri); if (id) { const r = grant(id, `звання «${lv.rank.name}»`); if (r && !r.dup) up.relic = id; } }

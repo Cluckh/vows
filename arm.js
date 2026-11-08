@@ -286,8 +286,17 @@
     return el;
   }
   function show(m, arg) { sheet(); mode = m; sel = arg; render(); const sc = $("scrim"); if (sc) { sc.classList.add("open"); sc.onclick = () => { close(); sc.onclick = null; }; } requestAnimationFrame(() => el.classList.add("open")); fx("open"); }
-  function close() { if (!el) return; el.classList.remove("open"); const sc = $("scrim"); if (sc && !document.querySelector(".sheet.open")) sc.classList.remove("open"); refresh(); }
+  function close() { if (!el) return;
+    if (mode === "game" || mode === "book") { saveNote(); mode = "lib"; render(); el.classList.add("open"); el.style.transform = ""; el.scrollTop = 0; const sc = $("scrim"); if (sc) { sc.classList.add("open"); sc.onclick = () => { close(); sc.onclick = null; }; } return; }     // з гри чи книги — назад у бібліотеку, не в Літопис
+    el.classList.remove("open"); const sc = $("scrim"); if (sc && !document.querySelector(".sheet.open")) sc.classList.remove("open"); refresh(); }
   const grip = `<div class="sheet__grip"></div>`;
+  /* коментар до гри чи книги: зберігається при виході з картки й по ходу (за паузою) */
+  function saveNote() {
+    const t = $("lbCm"); if (!t || !sel || (mode !== "game" && mode !== "book")) return;
+    const box = mode === "game" ? LIB.games : LIB.books, v = t.value.trim(), o = box[sel] = box[sel] || {};
+    if ((o.cm || "") === v) return; o.cm = v; o.mt = Date.now(); saveL();
+  }
+  let noteT = 0; document.addEventListener("input", (e) => { if (e.target && e.target.id === "lbCm") { clearTimeout(noteT); noteT = setTimeout(saveNote, 700); } });
   function render() {
     if (!el) return;
     let h = grip;
@@ -329,12 +338,14 @@
       const g = libGames().find((x) => x.id === sel) || {}, a = art("game:" + (g.art || (g.t || "").toLowerCase()));
       h += `<div class="lb-big">${a ? `<img src="${a}" alt="">` : ""}</div><div class="gs-kicker">${g.st === "play" ? "у процесі" : "пройдено" + (g.d ? " · " + (g.d.length === 10 ? human(g.d) : g.d) : "")}</div>
         <div class="sheet__title dy-sht">${esc(g.t)}</div>${g.note ? `<p class="dy-note dy-note--t">${esc(g.note)}</p>` : ""}
+        <textarea class="dy-in dy-in--note lb-cm" id="lbCm" rows="3" placeholder="Мій коментар: враження, що запамʼяталось, оцінка">${esc((LIB.games[sel] || {}).cm || "")}</textarea>
         ${g.st === "play" ? `<button type="button" class="btn btn--gold" data-ar="gdone">Пройдено!</button><button type="button" class="btn btn--line" data-ar="gdrop">Кинув — прибрати</button>` : `<button type="button" class="btn btn--line" data-ar="gundo">Ще не пройдено</button>`}
         <button type="button" class="btn btn--ghost" data-ar="lib">До бібліотеки</button>`;
     } else if (mode === "book") {
       const b = libBooks().find((x) => x.id === sel) || {}, a = art("book:" + (b.art || String(b.t || "").toLowerCase().trim()));
       h += `<div class="lb-big lb-big--book">${a ? `<img src="${a}" alt="">` : ""}</div><div class="gs-kicker">${b.st === "done" ? "прочитано" + (b.end ? " · " + human(b.end) : "") : b.st === "read" ? "читаю" : "на черзі"}</div>
         <div class="sheet__title dy-sht">${esc(b.t)}</div>${b.a ? `<p class="dy-note">${esc(b.a)}</p>` : ""}${b.note ? `<p class="dy-note dy-note--t">${esc(b.note)}</p>` : ""}
+        <textarea class="dy-in dy-in--note lb-cm" id="lbCm" rows="3" placeholder="Мій коментар: думки, цитата, оцінка">${esc((LIB.books[sel] || {}).cm || "")}</textarea>
         ${b.take && b.take.length ? `<div class="gs-h">Що забрав собі</div><ul class="ar-rules">${b.take.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
         ${b.st === "queue" || (b.st === "read" && b.src === "lib") ? `<button type="button" class="btn btn--gold" data-ar="bstart">Почати читати — на полицю Дня</button><button type="button" class="btn btn--line" data-ar="bdrop">Прибрати з черги</button>` : ""}
         ${b.st === "read" && b.src === "bk" ? `<p class="dy-note">Сторінки й «дочитав» — на полиці в справі читання (День).</p>` : ""}
@@ -356,7 +367,7 @@
     if (a === "spadd") { readSplit(); const d = String.fromCharCode(65 + ARM.split.order.length); ARM.split.order.push(d); ARM.split.labels[d] = ""; ARM.split.mt = Date.now(); saveA(); render(); return; }
     if (a === "spsave") { readSplit(); ARM.split.mt = Date.now(); saveA(); fx("yes", "medium"); close(); return; }
     if (a === "close") { close(); return; }
-    if (a === "lib") { mode = "lib"; render(); return; }
+    if (a === "lib") { saveNote(); mode = "lib"; render(); return; }
     if (a === "hide") { const o = ARM.ex[sel] = ARM.ex[sel] || {}; o.hide = true; o.mt = Date.now(); saveA(); fx(null); close(); return; }
     if (a === "man") {
       const w = parseFloat(($("arW").value || "0").replace(",", ".")) || 0, reps = ($("arR").value || "").split(/[^\d]+/).map(Number).filter((x) => x > 0);
@@ -406,7 +417,8 @@
       month: monthCount(t0.slice(0, 7)), goal: AR().goal, months: months().map((m) => [m.key, m.gym, m.cardio]),
       lifts: catalog().map((e) => { const s = stats(e); return { n: e.n, day: e.day, last: s.last ? [s.last.w, s.last.reps.join("/")] : null, best: s.best ? [s.best.w, s.best.reps.join("/")] : null }; }),
       counts: counts(),
-      books: libBooks().map((b) => ({ t: b.t, st: b.st, end: b.end || null, art: b.art || null })), games: libGames().map((g) => ({ t: g.t, st: g.st, d: g.d || null, art: g.art || null })) };   // art — ключ арту: писар бачить, чого бракує
+      books: libBooks().map((b) => ({ t: b.t, st: b.st, end: b.end || null, art: b.art || null, cm: (LIB.books[b.id] || {}).cm || null })), games: libGames().map((g) => ({ t: g.t, st: g.st, d: g.d || null, art: g.art || null, cm: (LIB.games[g.id] || {}).cm || null })),
+      cardio: (() => { const Y = DY(); return Y && Y.cardioLog ? Y.cardioLog() : null; })() };   // art — ключ арту: писар бачить, чого бракує
   }
   /* таблиця для аркуша залу з Дня: план Северина (вправи й ваги) */
   const planTable = () => { try { const P = plan(); return P && P.ex.length ? planSets(P) : null; } catch (e) { return null; } };

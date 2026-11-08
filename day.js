@@ -880,7 +880,14 @@
       siren: Object.values(S.night).filter((x) => x && x.kind === "siren").length,
       books: Object.values(BK.list).filter((b) => b.end).length, pages: periodPages("2000-01-01", "2999-12-31"),
       st10: stepDays(10000), st15: stepDays(15000),
-      flash: Q.list.filter((q) => q.st === "done" && q.flash).length, chain: Q.list.filter((q) => q.st === "done" && (q.step || 1) >= 3).length
+      flash: Q.list.filter((q) => q.st === "done" && q.flash).length, chain: Q.list.filter((q) => q.st === "done" && (q.step || 1) >= 3).length,
+      /* 8.11: Lay on Hands, Відродження, ідеальні тижні, спорядження, Вигнані, кардіо з конструктора */
+      lohHeal: Q.list.filter((q) => q.loh && q.st === "done").length,
+      reborn: Object.entries(X.e).filter(([id, e]) => id.startsWith("pd:") && (e.mul || 0) > 1).length,
+      pw: Object.keys(X.e).filter((i) => i.startsWith("pw:")).length,
+      gearFull: (() => { const g = LS.get("ordo.gold", {}) || {}, R = D().RELICS || []; return new Set((g.eq || []).map((id) => (R.find((r) => r.id === id) || {}).slot).filter(Boolean)).size; })(),
+      exileDone: Object.values((LS.get("ordo.exiles", { list: {} }) || {}).list || {}).filter((e) => e.st === "done").length,
+      cdN: Object.keys(GYM.cd || {}).length
     };
     const R = window.ORDO_ARM && window.ORDO_ARM.counts ? window.ORDO_ARM.counts() : {};
     /* покер, екран, розум, тіло, цілі — все, що трекаємо */
@@ -981,9 +988,16 @@
     { id: "sc30", g: "e", ic: "eye", tier: "gold", n: "Господар уваги", h: "30 днів з YouTube і Reddit не більше 30 хв", ok: (c) => c.calmDays >= 30, xp: 300 },
     { id: "du30", g: "e", ic: "scroll", tier: "silver", n: "Сова-учень", h: "30 днів Duolingo від 10 хв", ok: (c) => c.duoDays >= 30, xp: 120 },
     { id: "du100", g: "e", ic: "scroll", tier: "gold", n: "Поліглот Ордену", h: "100 днів Duolingo від 10 хв", ok: (c) => c.duoDays >= 100, xp: 400 },
-    { id: "md10", g: "e", ic: "moon", tier: "bronze", n: "Тиша всередині", h: "10 медитацій", ok: (c) => c.mindN >= 10, xp: 40 },
-    { id: "md50", g: "e", ic: "moon", tier: "silver", n: "Спокійне серце", h: "50 медитацій", ok: (c) => c.mindN >= 50, xp: 150 },
-    { id: "md100", g: "e", ic: "moon", tier: "gold", n: "Сто тиш", h: "100 медитацій", ok: (c) => c.mindN >= 100, xp: 350 },
+    { id: "loh1", g: "s", ic: "sun", tier: "bronze", n: "Руки на щиті", h: "Пройти день Lay on Hands і виконати квест «Зцілення»", ok: (c) => c.lohHeal >= 1, xp: 60 },
+    { id: "reb1", g: "s", ic: "sun", tier: "silver", n: "Відродження", h: "Повний день одразу після Lay on Hands чи еліксиру", ok: (c) => c.reborn >= 1, xp: 120 },
+    { id: "pw1", g: "d", ic: "medal", tier: "silver", n: "Ідеальний тиждень", h: "Сім ідеальних днів із понеділка по неділю", ok: (c) => c.pw >= 1, xp: 200 },
+    { id: "pw4", g: "d", ic: "medal", tier: "gold", n: "Залізний місяць", h: "Чотири ідеальні тижні", ok: (c) => c.pw >= 4, xp: 600 },
+    { id: "gear5", g: "b", ic: "shield", tier: "silver", n: "У повному обладунку", h: "Спорядження в усіх пʼяти слотах", ok: (c) => c.gearFull >= 5, xp: 150 },
+    { id: "ex1", g: "v", ic: "seal", tier: "gold", n: "Вигнання відбуто", h: "Людина з Вигнаних відбула весь строк без жодного контакту", ok: (c) => c.exileDone >= 1, xp: 400 },
+    { id: "cd10", g: "a", ic: "swords", tier: "bronze", n: "Серце в ритмі", h: "10 кардіо-сесій з інтервалами", ok: (c) => c.cdN >= 10, xp: 80 },
+    { id: "md10", g: "e", ic: "moon", tier: "bronze", n: "Тиша всередині", h: "10 медитацій (з листопада — дні від 10 хв)", ok: (c) => c.mindN >= 10, xp: 40 },
+    { id: "md50", g: "e", ic: "moon", tier: "silver", n: "Спокійне серце", h: "50 медитацій (з листопада — дні від 10 хв)", ok: (c) => c.mindN >= 50, xp: 150 },
+    { id: "md100", g: "e", ic: "moon", tier: "gold", n: "Сто тиш", h: "100 медитацій (з листопада — дні від 10 хв)", ok: (c) => c.mindN >= 100, xp: 350 },
     /* тіло й сон */
     { id: "wt10", g: "h", ic: "steps", tier: "bronze", n: "Ваги не брешуть", h: "10 зважувань", ok: (c) => c.weighN >= 10, xp: 40 },
     { id: "wt3", g: "h", ic: "steps", tier: "gold", n: "Мінус три", h: "−3 кг: середнє останніх трьох зважувань проти перших трьох", ok: (c) => c.wDrop >= 3, xp: 300 },
@@ -1020,7 +1034,7 @@
   /* що дає звання: місце для реліквії, товар у крамниці, реліквія при посвяті */
   function rankPerks(ri) {
     const P = D().PERKS || {}, out = [];
-    if (ri > 0) out.push(ri >= 6 ? "легендарна реліквія при посвяті" : "рідкісна реліквія при посвяті");
+    if (ri > 0) out.push(ri >= 6 ? "легендарне спорядження при посвяті" : "рідкісне спорядження при посвяті");
     (P.slots || []).filter((x) => x.rank === ri).forEach((x) => out.push(`${x.n}-те місце для реліквій`));
     (P.shop || []).filter((x) => x.rank === ri).forEach((x) => out.push(`у крамниці — «${x.n}»`));
     return out;
@@ -2696,7 +2710,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, layOnHands, cardioOpen, lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, layOnHands, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

@@ -57,7 +57,7 @@
     X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
     X.e = X.e || {};
     ACH = LS.get("ordo.ach", {}) || {};
-    GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {}; GYM.w = GYM.w || {};
+    GYM = LS.get("ordo.gym", null) || {}; GYM.log = GYM.log || {}; GYM.w = GYM.w || {}; GYM.cd = GYM.cd || {};     // cd — кардіо-сесії { день: { n, iv: [{ m, l }], at } }
   }
   let PK = LS.get("ordo.k.poker", null);                    // роздачі й сесії з бази HM3 (з компа через приватний репозиторій)
   let HL = LS.get("ordo.k.health", null);                   // кроки й сон зі «Здоровʼя» (лише на пристрої; джерело — приватний репозиторій)
@@ -601,7 +601,7 @@
       const L = GYM.log[k] || {};
       const text = Object.keys(GYM.w).filter((x) => x.startsWith(k + "|") && GYM.w[x].fin && (GYM.w[x].text || "").trim())
         .map((x) => { const t = S.tasks[x.split("|")[1]]; return (t ? `${t.t}: ` : "") + GYM.w[x].text.trim(); }).join("\n");
-      return { k, ex: L.ex || [], note: L.note || "", text };
+      return { k, ex: L.ex || [], note: L.note || "", text, custom: !!L.custom };
     });
   }
   /* для Зброярні: дні залу (таблиця підходів або повністю виконана справа «зал») і кардіо за період */
@@ -611,7 +611,7 @@
     for (let k = a; k <= end; k = add(k, 1)) {
       const its = items(k), fin = (t) => GYM.w[wKey(k, t.id)] && GYM.w[wKey(k, t.id)].fin;
       if ((GYM.log[k] && GYM.log[k].ex && GYM.log[k].ex.length) || its.some(({ t, r }) => isLift(t) && (isFull(stOf(t, r, k)) || fin(t)))) gym.push(k);
-      if (its.some(({ t, r }) => CARDIO_RE.test(t.t || "") && (isFull(stOf(t, r, k)) || fin(t)))) cardio.push(k);
+      if ((GYM.cd[k] && GYM.cd[k].iv && GYM.cd[k].iv.length) || its.some(({ t, r }) => CARDIO_RE.test(t.t || "") && (isFull(stOf(t, r, k)) || fin(t)))) cardio.push(k);
     }
     return { gym, cardio };
   }
@@ -624,10 +624,27 @@
     return null;
   }
   /* Зброярня → «Почати тренування»: аркуш залу на сьогодні з планом (вправи й ваги, які радить Северин) */
-  function gymOpen(plan) {
+  /* Зброярня → «Кардіо»: аркуш справи-кардіо на сьогодні з конструктором інтервалів */
+  function cardioOpen() {
+    const t0 = today(), t = (items(t0).find(({ t }) => CARDIO_RE.test(t.t || "")) || {}).t || Object.values(S.tasks).find((x) => !x.del && CARDIO_RE.test(x.t || "") && x.rep && x.rep.f !== "none");
+    if (!t) { toast("Додай справу «Кардіо» — і записуй сюди"); return false; }
+    openSheet("gym", t.id, t0); renderSheet(); return true;
+  }
+  /* кардіо: вправа й інтервали «хвилини — режим» (велик: 3 хв — 3, 10 хв — 4…) */
+  const cardioTxt = (c) => c ? `${c.n}: ${c.iv.filter((x) => x.m).map((x) => `${fmtN(x.m)} хв${x.l ? ` — режим ${x.l}` : ""}`).join(", ")}` : "";
+  function cardioNames() { const s = new Set(); Object.keys(GYM.cd).sort().reverse().forEach((k) => GYM.cd[k].n && s.add(GYM.cd[k].n)); s.add("Велик вдома"); return [...s].slice(0, 6); }
+  function lastCardio() { const ks = Object.keys(GYM.cd).filter((k) => GYM.cd[k].iv && GYM.cd[k].iv.length).sort(); const c = ks.length ? GYM.cd[ks[ks.length - 1]] : null; return c ? { n: c.n, iv: JSON.parse(JSON.stringify(c.iv)) } : { n: "Велик вдома", iv: [{ m: 10, l: 3 }] }; }
+  function readCardio() {
+    if (!sh.cardio) return; const n = $("cdN"); if (n) sh.cardio.n = n.value.trim() || sh.cardio.n;
+    document.querySelectorAll("[data-cvm]").forEach((x) => { const i = +x.dataset.cvm; if (sh.cardio.iv[i]) sh.cardio.iv[i].m = numIn(x.value); });
+    document.querySelectorAll("[data-cvl]").forEach((x) => { const i = +x.dataset.cvl; if (sh.cardio.iv[i]) sh.cardio.iv[i].l = numIn(x.value); });
+  }
+  function gymOpen(plan, custom) {
     const t0 = today(), its = items(t0), t = (its.find(({ t }) => isLift(t)) || {}).t || Object.values(S.tasks).find((x) => isLift(x) && x.rep && x.rep.f !== "none") || Object.values(S.tasks).find(isLift);
     if (!t) return false;
-    openSheet("gym", t.id, t0); sh.table = true; sh.plan = plan || null; renderSheet(); return true;
+    openSheet("gym", t.id, t0); sh.table = true; sh.plan = plan || null;
+    if (custom && !GYM.log[t0]) { sh.gym = { ex: [], note: "", custom: 1 }; sh.gymTpl = gymSig(sh.gym); sh.pick = "new"; }     // довільний день — одразу вибір першої вправи
+    renderSheet(); return true;
   }
   /* порада на наступний зал: прогресія ваги/повторів і черговість вправ */
   function gymAdvice(k) {
@@ -2012,7 +2029,9 @@
             <button type="button" class="btn btn--ghost" data-ds="gpickno">Назад до таблиці</button>`;
         } else if (tableOn) {
           const P = R && R.plan && sh.k === today() ? R.plan() : null, g = sh.gym;
-          if (P && P.k === sh.k && !GYM.log[sh.k]) h += `<div class="gy-head"><b>День ${P.type}</b><span>${esc(P.label)}</span>${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}</div>`;
+          if (g.custom) h += `<div class="gy-head"><b>Довільний день</b><span>вправа за вправою — що робиш сьогодні</span><button type="button" class="gy-alt" data-ds="gplan">← план Зброярні</button></div>`;
+          else if (P && P.k === sh.k && !GYM.log[sh.k]) h += `<div class="gy-head"><b>День ${P.type}</b><span>${esc(P.label)}</span>${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}${!g.ex.some((e) => e.sets.some((x) => x.d)) ? `<button type="button" class="gy-alt" data-ds="gcustom">Довільний день — свої вправи</button>` : ""}</div>`;
+          else if (!GYM.log[sh.k] && !g.ex.some((e) => e.sets.some((x) => x.d))) h += `<div class="gy-head"><button type="button" class="gy-alt" data-ds="gcustom">Довільний день — свої вправи</button></div>`;
           h += `<ol class="gy-how"><li>Роби вправи по черзі — підходи, повтори й вага вже стоять (повтори × кг).</li><li>Зробив підхід — тап на його номер: ✓. Усі підходи ✓ — вправа згортається.</li><li>Зробив інакше — виправ число. Менше підходів — «− підхід». Не робив — ×. Інша вправа — тап на назву, порядок — ↑ ↓.</li><li>Наприкінці — «Готово». Писати текст не обовʼязково.</li></ol>`;
           const lastTxt = (n) => { const e = R && R.catalog ? R.catalog().find((x) => x.n.toLowerCase() === (n || "").toLowerCase()) : null; if (!e) return ""; const st = R.stats(e).last; return st ? `минулого: ${fmtN(st.w)}${e.inv ? " кг компенс." : e.per ? " кг/стор" : " кг"} · ${st.reps.join("/")}` : ""; };
           const exDone = (e) => e.sets.length && e.sets.every((x) => x.d), doneN = g.ex.filter(exDone).length;
@@ -2023,6 +2042,14 @@
             <button type="button" class="gy-plus" data-ds="gset" data-i="${i}">+ підхід</button>${e.sets.length > 1 ? `<button type="button" class="gy-plus gy-minus" data-ds="gunset" data-i="${i}">− підхід</button>` : ""}</div></div>`).join("") +
             `<button type="button" class="gl-new" data-ds="gpicknew"><svg><use href="#i-plus"/></svg>Вправа зі списку</button>
             <textarea class="dy-in dy-in--note" id="gyNote" rows="2" placeholder="Як пройшло (необовʼязково): самопочуття, що боліло, що вдалось">${esc(g.note || "")}</textarea>`;
+        } else if (t && CARDIO_RE.test(t.t || "")) {
+          if (!sh.cardio) sh.cardio = GYM.cd[sh.k] ? { n: GYM.cd[sh.k].n, iv: JSON.parse(JSON.stringify(GYM.cd[sh.k].iv)) } : lastCardio();
+          const c = sh.cardio, tot = c.iv.reduce((a, x) => a + (x.m || 0), 0);
+          if (S.loh && S.loh[sh.k]) h += `<p class="dy-note dy-loh-note">✋ Lay on Hands: досить 10 хвилин легко — режим нижчий, ніж зазвичай.</p>`;
+          h += `<div class="dy-f"><label>Вправа</label><input class="dy-in" id="cdN" value="${esc(c.n || "")}" placeholder="напр. Велик вдома"><div class="dy-chips dy-chips--wrap cd-names">${cardioNames().map((n) => `<button type="button" data-ds="cdname" data-n="${esc(n)}" class="${n === c.n ? "is-on" : ""}">${esc(n)}</button>`).join("")}</div></div>
+            <div class="cd-iv">${c.iv.map((x, i) => `<div class="cd-row"><span class="cd-no">${i + 1}</span><input class="dy-in cd-m" data-cvm="${i}" inputmode="numeric" value="${x.m == null ? "" : x.m}" placeholder="хв"><span>хв · режим</span><input class="dy-in cd-l" data-cvl="${i}" inputmode="numeric" value="${x.l == null ? "" : x.l}" placeholder="—">${c.iv.length > 1 ? `<button type="button" class="gy-x" data-ds="cddel" data-i="${i}" aria-label="Прибрати">×</button>` : ""}</div>`).join("")}</div>
+            <button type="button" class="gy-plus" data-ds="cdadd">+ інтервал</button><p class="dy-note cd-tot">разом <b>${fmtN(tot)} хв</b></p>
+            <textarea class="dy-in dy-in--note" id="gyText" rows="2" placeholder="Як пройшло (необовʼязково)">${esc(w.cnote || "")}</textarea>`;
         } else {
           h += `<p class="dy-note">Пиши по ходу: вправа, підходи, відчуття. Кожна літера зберігається сама — можна закривати й повертатися.</p>
           <textarea class="dy-in gy-text" id="gyText" rows="9" placeholder="напр.: велик 30 хв, режим 4">${esc(w.text || "")}</textarea>
@@ -2360,6 +2387,8 @@
         g.ex.forEach((e) => { delete e.open; e.sets.forEach((x) => delete x.d); });
         sh.before = gymBefore(k);
         g.ex = g.ex.filter((e) => e.n && e.sets.some((x) => x.r)); g.at = Date.now(); if (g.ex.length) GYM.log[k] = g; else if (GYM.log[k] && sh.table) delete GYM.log[k]; }
+      if (sh.cardio) { readCardio(); const c = { n: sh.cardio.n || "Кардіо", iv: sh.cardio.iv.filter((x) => x.m > 0) };
+        if (c.iv.length) { GYM.cd[k] = Object.assign(c, { at: Date.now() }); w.cnote = gt ? gt.value.trim() : w.cnote || ""; w.text = cardioTxt(c) + (w.cnote ? "\n" + w.cnote : ""); } }
       if (GYM.draft && GYM.draft.k === k) delete GYM.draft;
       const wasDone = !!(t && isWin(stOf(t, rec(k, id), k)));
       if (a === "gundo") { w.fin = null; setRec(k, id, { st: null, note: null }); saveG(); buzz("light"); after(before); renderSheet(); return; }
@@ -2368,6 +2397,11 @@
       after(before); sh.fin = true; renderSheet(); return;
     }
     if (a === "gtable") { sh.table = true; renderSheet(); return; }
+    if (a === "gcustom") { readGym(); sh.gym = { ex: [], note: (sh.gym && sh.gym.note) || "", custom: 1 }; sh.gymTpl = gymSig(sh.gym); sh.pick = "new"; buzz("light"); renderSheet(); el0().scrollTop = 0; return; }
+    if (a === "gplan") { sh.gym = null; sh.pick = null; buzz("light"); renderSheet(); return; }
+    if (a === "cdadd") { readCardio(); const l = sh.cardio.iv[sh.cardio.iv.length - 1] || {}; sh.cardio.iv.push({ m: null, l: l.l == null ? null : l.l }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".cd-m"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
+    if (a === "cddel") { readCardio(); sh.cardio.iv.splice(+b.dataset.i, 1); renderSheet(); return; }
+    if (a === "cdname") { readCardio(); sh.cardio.n = b.dataset.n; renderSheet(); return; }
     if (a === "gmore") { gyFlush(); openSheet("item", id, k); return; }
     if (a === "gcopy") {
       gyFlush(); readGym();
@@ -2654,7 +2688,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, layOnHands, lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, layOnHands, cardioOpen, lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

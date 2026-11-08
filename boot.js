@@ -236,7 +236,8 @@
       const log = {}, w = {};
       new Set(Object.keys(a.log || {}).concat(Object.keys(b.log || {}))).forEach((k) => { log[k] = newer((a.log || {})[k], (b.log || {})[k]); });
       new Set(Object.keys(a.w || {}).concat(Object.keys(b.w || {}))).forEach((k) => { w[k] = newer((a.w || {})[k], (b.w || {})[k]); });
-      out["ordo.gym"] = JSON.stringify(Object.assign({}, b, a, { log, w }));
+      const cd = {}; new Set(Object.keys(a.cd || {}).concat(Object.keys(b.cd || {}))).forEach((k) => { cd[k] = newer((a.cd || {})[k], (b.cd || {})[k]); });     // кардіо-сесії
+      out["ordo.gym"] = JSON.stringify(Object.assign({}, b, a, { log, w, cd }));
     }
     if (L["ordo.bank"] || R["ordo.bank"]) { const a = P(L, "ordo.bank", {}), b = P(R, "ordo.bank", {}); out["ordo.bank"] = JSON.stringify(Object.assign({}, b, a, { seen: Object.assign({}, b.seen, a.seen) })); }
     ["ordo.spent"].forEach((k) => { if (L[k] || R[k]) out[k] = JSON.stringify(Object.assign({}, P(R, k, {}), P(L, k, {}))); });

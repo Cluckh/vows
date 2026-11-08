@@ -2041,3 +2041,15 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-loh--re{border-color:rgba(205,163,73,.35)}
 .dy-loh-was{font-size:12px;color:var(--halo);opacity:.85;margin-left:4px;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.loh-flash{animation-duration:.8s}.crest__btn.is-beat::after{animation:none}}
+
+/* ---- зброярня: довільний день, кардіо ---- */
+.gy-alt{font:inherit;font-size:13px;letter-spacing:.03em;color:var(--gold-2);background:transparent;border:1px solid var(--gold-dim);border-radius:999px;padding:7px 13px;margin-top:8px;cursor:pointer;align-self:flex-start}
+.gy-head{display:flex;flex-direction:column;gap:2px}
+.ar-alt{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.cd-names{margin-top:8px}
+.cd-iv{display:flex;flex-direction:column;gap:8px;margin:12px 0 6px}
+.cd-row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ash)}
+.cd-no{width:22px;height:22px;border-radius:50%;border:1px solid var(--edge);display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:var(--gold);flex:none}
+.cd-row .cd-m,.cd-row .cd-l{width:64px;flex:none;text-align:center}
+.cd-tot{margin:6px 0 10px}
+.dy-loh-note{color:var(--halo)}

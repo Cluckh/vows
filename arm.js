@@ -92,7 +92,7 @@
   function plan() {
     const Y = DY(), A = AR(), t0 = today(); if (!Y || !Y.trainDays) return null;
     const td = Y.trainDays(add(t0, -70), t0), gym = td.gym, ss = Y.sessions ? Y.sessions() : [];
-    const typed = ss.filter((s) => s.ex && s.ex.length).map((s) => ({ k: s.k, type: typeOf(s.ex) })).filter((x) => x.type);
+    const typed = ss.filter((s) => s.ex && s.ex.length && !s.custom).map((s) => ({ k: s.k, type: typeOf(s.ex) })).filter((x) => x.type);     // довільний день не зсуває черги спліту
     const lastK = gym.length ? gym[gym.length - 1] : A.seedTo || null;
     const lastT = typed.length ? typed[typed.length - 1] : null, DS = days();
     const doneToday = gym.includes(t0);
@@ -119,6 +119,8 @@
     const lastB = [...typed].reverse().find((x) => restDay(x.type));
     if (!manual && restDay(type) && lastB && diff(lastB.k, k) < 5) { const alt = DS.find((d) => !restDay(d)); if (alt && alt !== type) { reasons.push(`плечам пауза 5 днів після ${human(lastB.k)} — замість дня ${type} день ${alt}`); type = alt; } }
     reasons.push(src === "task" ? `дата — з твоєї справи «${(ng && ng.t) || "зал"}»` : `справи з міткою «зал» нема — за графіком ${(A.days || []).map((d) => WDS[d]).join(" · ")}`);
+    const loh = k === t0 && Y.lohOn && Y.lohOn();
+    if (loh) { light = true; warn.unshift("✋ Lay on Hands: легкий зал — ваги −15%, по 2 підходи, без рекордів. Зовсім не можеш — перенеси справу «зал»."); }
     if (k !== t0) light = false;
     const pause = lastK ? diff(lastK, k) : 0, deload = pause >= 7, rough = k === t0 && Y.roughNight && Y.roughNight(t0) && !light;
     if (deload) warn.push(`Пауза ${pause} днів — ваги −25%, далі кроками вгору.`);
@@ -141,7 +143,7 @@
     const abs = catalog().find((e) => e.day === "*"); if (abs) pick.push({ e: abs, s: stats(abs) });
     let prog = null;
     const ex = pick.map(({ e, s }) => {
-      const L = s.last || { w: 0, reps: [10, 10, 10] }, n = Math.max(3, L.reps.length);
+      const L = s.last || { w: 0, reps: [10, 10, 10] }, n = loh ? 2 : Math.max(3, L.reps.length);
       let w = L.w, reps = Array.from({ length: n }, (_, i) => L.reps[i] || L.reps[L.reps.length - 1] || 10);
       if (deload && !e.body) { w = Math.max(0, Math.round((e.inv ? w * 1.25 : w * 0.75) / (e.step || 2.5)) * (e.step || 2.5)); reps = reps.map(() => 10); }
       else if (light && !e.body) w = Math.max(0, Math.round((e.inv ? w * 1.15 : w * 0.85) / (e.step || 2.5)) * (e.step || 2.5));
@@ -249,6 +251,7 @@
         <ul class="ar-plan">${P.ex.map((x) => `<li class="${x.prog ? "is-prog" : ""}" data-arex="${x.id}"><span class="ar-plan__n">${esc(x.n)}</span>
           <span class="ar-plan__l">${x.last ? esc(setsTxt(x.last, x.e)) : "—"}</span><span class="ar-plan__t">${x.prog ? "↑ " : "→ "}${esc(setsTxt({ w: x.w, reps: x.reps }, x.e))}</span></li>`).join("")}</ul>
         <p class="ar-why">${P.reasons.map(esc).join(" · ")}</p>
+        <div class="ar-alt"><button type="button" class="btn btn--line" data-ar="cardio">Кардіо — інтервали й режими</button><button type="button" class="btn btn--ghost" data-ar="custom">Довільне тренування</button></div>
         ${P.cardio ? `<p class="ar-cardio">Кардіо — ${P.cardio.k === today() ? "сьогодні" : diff(today(), P.cardio.k) === 1 ? "завтра" : `${WDN[wd(P.cardio.k)]}, ${human(P.cardio.k)}`} <em>(${esc(P.cardio.t)})</em></p>` : ""}
         ${P.today && !P.doneToday ? `<button type="button" class="btn btn--gold" data-ar="start">Почати тренування — таблиця вже заповнена</button>` : P.doneToday ? `<p class="ar-done">Сьогодні зал уже є. Відпочивай — наступний ${human(P.k)}.</p>` : `<button type="button" class="btn btn--line" data-ar="start">Відкрити таблицю на сьогодні</button>`}
       </section>
@@ -390,6 +393,8 @@
     if (e.target.closest('[data-ar="split"]')) { show("split"); return; }
     const st = e.target.closest('[data-ar="start"]');
     if (st) { const P = plan(), Y = DY(); if (P && Y && Y.gymOpen) Y.gymOpen(planSets(P)); return; }
+    if (e.target.closest('[data-ar="cardio"]')) { const Y = DY(); if (Y && Y.cardioOpen) Y.cardioOpen(); return; }
+    if (e.target.closest('[data-ar="custom"]')) { const Y = DY(); if (Y && Y.gymOpen) Y.gymOpen(null, true); return; }
   });
   window.addEventListener("ordo-art", () => { refresh(); if (el && el.classList.contains("open")) render(); });
 

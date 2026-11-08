@@ -2120,3 +2120,10 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .crest__btn{margin-bottom:6px}
 .crest__rule{margin-top:6px}
 .crest__hint{margin-top:4px}
+.oath__sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crest{padding-bottom:6px}
+.crest__btn{margin-bottom:4px}
+.sl-focus{margin:2px 0 12px;padding:9px 12px;font-size:13px;line-height:1.45;color:var(--ash);background:rgba(240,214,138,.05);border:1px solid rgba(240,214,138,.18);border-radius:10px}
+.sl-focus svg{width:14px;height:14px;vertical-align:-2px;margin-right:6px;color:var(--gold)}
+.sl-focus b{color:var(--bone);font-weight:600}
+.sl-focus em{font-size:12px;opacity:.8}

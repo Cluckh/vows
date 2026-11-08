@@ -214,8 +214,25 @@
   const MIND_CUT = "2026-11-01", MIND_MIN = 10, MEDIT_RE = /^(meditat|mindful|mind$|медитац|усвідомл)/i;
   const mindMinOf = (d) => Object.entries((d && d.apps) || {}).reduce((a, [n, x]) => a + (MEDIT_RE.test(n) ? (x && x.min) || 0 : 0), 0);
   const mindDay = (d) => mindMinOf(d) >= MIND_MIN;
+  /* фокус «Сон» (власник вмикає, лягаючи, і вимикає, вставши; з 8.11): сервер шле відрізки [увімкнув, вимкнув] у sleepF за днем вимкнення.
+     Ніч на день k — відрізки, що почались між 18:00 напередодні й 14:00 цього дня; коротші за 10 хв — випадкові, не рахуються;
+     перерви до 5 хв зшиваються. Відрізки, що почались між 14:00 і 20:00, — денний сон («досипав»). Незакритий — open (ще спить або забув вимкнути). */
+  const locMs = (k, hm) => new Date(`${k}T${hm}:00`).getTime(), ck = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  function focusSleep(k) {
+    const y = add(k, -1), D = (HL && HL.days) || {}, all = [...((D[y] || {}).sleepF || []), ...((D[k] || {}).sleepF || [])];
+    const inWin = (o, a, b) => o >= a && o < b, seg = (a, b) => all.filter(([o, c]) => inWin(o, a, b) && c - o >= 10 * 6e4).sort((p, q) => p[0] - q[0])
+      .reduce((m, [o, c]) => { const l = m[m.length - 1]; if (l && o - l[1] <= 5 * 6e4) l[1] = Math.max(l[1], c); else if (!m.some((x) => x[0] === o)) m.push([o, c]); return m; }, []);
+    const nA = locMs(y, "18:00"), nB = locMs(k, "14:00"), segs = seg(nA, nB), naps = seg(nB, locMs(k, "20:00"));
+    let open = null; [y, k].forEach((d) => { const f = ((D[d] || {}).focus || {}).sleep; if (f && f.openAt && inWin(f.openAt, nA, nB) && Date.now() - f.openAt < 16 * 3600e3 && !segs.some(([o]) => o >= f.openAt)) open = f.openAt; });
+    if (!segs.length && !open && !naps.length) return null;
+    const mins = (L) => Math.round(L.reduce((n, [o, c]) => n + (c - o) / 6e4, 0));
+    const gap = segs.slice(1).reduce((n, [o], i) => n + (o - segs[i][1]) / 6e4, 0);
+    return { segs, open, naps, min: mins(segs), gap: Math.round(gap), nap: mins(naps), bed: segs.length ? segs[0][0] : open, wake: !open && segs.length ? segs[segs.length - 1][1] : null,
+      txt: segs.map(([o, c]) => `${ck(o)}–${ck(c)}`).concat(open ? [`${ck(open)}–…`] : []).join(" · ") };
+  }
   const hDay = (k) => {
     const h = Object.assign({}, (HL && HL.days && HL.days[k]) || {}), sl = S.sleep[k];
+    { const F = k >= "2026-11-08" ? focusSleep(k) : null; if (F && F.min && !F.open && !(sl && sl.min && sl.manual)) { if (h.sleepMin) h.sleepHealth = h.sleepMin; h.sleepMin = F.min; h.sleepFocus = F.txt; } }   // відрізки фокуса «Сон» точніші за «Здоровʼя»; ранковий звіт (ручний) — ще точніший
     if (k >= MIND_CUT) h.mind = mindDay(h) ? 1 : 0;              // з листопада медитація — день із 10+ хв фокуса сумарно
     else if (h.mindF) h.mind = (h.mind || 0) + h.mindF;        // медитації: «Усвідомлені хвилини» зі «Здоровʼя» + сесії фокуса «Усвідомленість»
     if (sl && sl.min && (sl.manual || sl.segs || !h.sleepMin)) { if (h.sleepMin && (sl.manual || sl.segs)) h.sleepHealth = h.sleepMin; h.sleepMin = sl.min; }     // твої відрізки ночі точніші за «Здоровʼя» (фокус «Сон» вмикається за розкладом)
@@ -2020,10 +2037,11 @@
     } else if (sh.mode === "sleep") {                  // сон — чотири рядки зі стрілками (‹ ›), час можна й тапнути; вдень — ще «досипав»
       const t0 = today(), sl = S.sleep[t0] || {}, hd = hDay(t0) || {}, N = S.night[t0];
       const now5 = (() => { const d = new Date(); return `${p2(d.getHours())}:${p2(Math.floor(d.getMinutes() / 5) * 5)}`; })();
-      if (sh.bed == null) sh.bed = sl.bed || hhmm(hd.bed) || "23:00";
-      if (sh.wakeV == null) sh.wakeV = sl.wake || (S.wake[t0] && S.wake[t0] >= "05:00" ? S.wake[t0] : "") || hhmm(hd.wake) || now5;     // перше відкриття о 3-й ночі — не підйом
-      if (sh.awake == null) { const w = sl.gap != null ? sl.gap : N && N.at && N.end ? span(N.at, N.end) : N && N.at ? 30 : 0; sh.awake = Math.round(w / 15) * 15; }
-      if (sh.nap == null) sh.nap = sl.nap || 0;
+      const F = focusSleep(t0);                      // фокус «Сон»: відрізки ночі підставляються самі (ручне, вже записане, — головніше)
+      if (sh.bed == null) sh.bed = sl.bed || (F && F.bed ? clock(F.bed) : "") || hhmm(hd.bed) || "23:00";
+      if (sh.wakeV == null) sh.wakeV = sl.wake || (F && F.wake ? clock(F.wake) : "") || (S.wake[t0] && S.wake[t0] >= "05:00" ? S.wake[t0] : "") || hhmm(hd.wake) || now5;     // перше відкриття о 3-й ночі — не підйом
+      if (sh.awake == null) { const w = sl.gap != null ? sl.gap : F && F.segs.length > 1 ? F.gap : N && N.at && N.end ? span(N.at, N.end) : N && N.at ? 30 : 0; sh.awake = F && sl.gap == null && F.segs.length > 1 ? w : Math.round(w / 15) * 15; }   // з фокуса — точно, до хвилини
+      if (sh.nap == null) sh.nap = sl.nap || (F && F.nap) || 0;
       if (sh.siren == null) sh.siren = sl.siren != null ? !!sl.siren : !!(N && N.kind === "siren");
       if (sh.dream == null) sh.dream = sl.dream || "";
       const morning = !sl.at || sl.skip || sl.reset, tot = slTotal(sh), dur = (m) => (m ? hm(m).replace(" 00 хв", "") : "ні");
@@ -2031,6 +2049,7 @@
         ${timeIn ? `<label class="sl-val"><b>${val}</b><input type="time" data-slt="${f}" value="${val}"></label>` : `<b class="sl-val">${val}</b>`}<button type="button" data-ds="slst" data-f="${f}" data-d="1" aria-label="більше">›</button></div>`;
       const chip = (v, n, on) => `<button type="button" data-dv="${v}" class="${on ? "is-on" : ""}">${n}</button>`;
       h += `<div class="gs-kicker">Сон · ніч на ${human(t0)}</div><div class="sheet__title dy-sht">${morning ? "Доброго ранку. Як спав?" : "Сон — поправити"}</div>
+        ${F ? `<p class="sl-focus"><svg><use href="#i-moon"/></svg>фокус «Сон»: <b>${esc(F.txt || "—")}</b>${F.open ? `<br><em>ще увімкнений — вимкни, коли встанеш; «Встав» поки — зараз</em>` : F.segs.length > 1 ? `<br><em>перерви між відрізками — «Не спав уночі»</em>` : ""}${F.nap ? `<br><em>удень — ${hm(F.nap)}</em>` : ""}</p>` : ""}
         <div class="sl-sts">${row("bed", "Ліг", sh.bed, 1)}${row("wakeV", "Встав", sh.wakeV, 1)}${row("awake", "Не спав уночі", dur(sh.awake))}${!morning ? row("nap", "Досипав", dur(sh.nap)) : ""}</div>
         <div class="dy-chips sl-feel" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => chip(v, n, String(sh.q || sl.q || "") === v)).join("")}</div>
         <div class="sl-q--row"><button type="button" class="sl-tog${sh.siren ? " is-on" : ""}" data-dv="siren" data-dk="sltog"><svg><use href="#i-siren"/></svg><span>тривога</span></button>
@@ -2750,7 +2769,7 @@
       journal: Object.keys(S.journal).filter((k) => k >= since(14) && jSent(k)).sort().map((k) => { const J = S.journal[k]; return { d: k, mood: J.mood ? +J.mood : null, meal: J.meal || null, tags: J.tags || [], text: (J.text || "").trim().slice(0, 1500) }; }),
       nights: Object.keys(S.night).filter((k) => k >= since(14)).sort().map((k) => { const N = S.night[k]; return { d: k, at: N.at, kind: N.kind || "", topic: N.topic || "", text: (N.text || "").slice(0, 140), dealt: N.dealt || "" }; }),
       poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
-      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, bed: (S.sleep[k] || {}).bed || null, wake: (S.sleep[k] || {}).wake || null, awakeMin: (S.sleep[k] || {}).gap || null, napMin: (S.sleep[k] || {}).nap || null, sleepHealth: (hDay(k) || {}).sleepHealth || null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),
+      health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, bed: (S.sleep[k] || {}).bed || null, wake: (S.sleep[k] || {}).wake || null, awakeMin: (S.sleep[k] || {}).gap || null, napMin: (S.sleep[k] || {}).nap || null, sleepHealth: (hDay(k) || {}).sleepHealth || null, sleepFocus: (focusSleep(k) || {}).txt || null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       books: { now: curBook() ? { t: curBook().t, page: bookPage(curBook().id), pages: curBook().pages } : null, done: Object.values(BK.list).filter((b) => b.end).map((b) => ({ t: b.t, end: b.end })), pages14: days14.map((k) => ({ d: k, p: pagesOn(k) })).filter((x) => x.p) },
       seenEvents: Object.keys(S.ev || {}),

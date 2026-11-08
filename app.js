@@ -512,7 +512,7 @@ window.ORDO_START = function () {
         sub = nm ? `ціль ${nm} · ще ${nm - s} ${daysWord(nm - s)}` : "усі віхи взято";
       }
       const f30 = faith30(v);                      // підказка, не головне: лише поки стрік молодий після зриву
-      if (f30.fell && s < 30 && f30.n - s >= 3) sub += ` <span class="oath__faith">· вірних ${f30.n}/${f30.all}</span>`;
+      if (f30.fell && s < 30 && f30.n - s >= 3) sub = (v.window ? sub : nm ? `ще ${nm - s} ${daysWord(nm - s)}` : sub) + ` <span class="oath__faith">· вірних ${f30.n}/${f30.all}</span>`;   // коротко, щоб рядок не переносився: ціль видно зі смуги
       const li = document.createElement("li");
       const btn = document.createElement("div");
       btn.className = "oath" + (frozen ? " oath--frozen" : ""); btn.setAttribute("role", "button"); btn.tabIndex = 0; btn.dataset.id = v.id;

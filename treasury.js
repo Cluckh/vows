@@ -188,8 +188,28 @@
     if (prev && (await h.say(fill(pick(s <= prev ? L.less : L.more) || "", o))) === "closed") return false;
     return true;
   }
+  /* Скарбниця (обітниця): на білу прийшло не виведене золото — Скарбник питає, звідки */
+  async function vaultScene(u) {
+    const h = H(), A = API(), G = window.ORDO_GOLD; if (!h || !G) return false;
+    const L = ((D().DAY || {}).bank || {}).vault || {}, d = new Date(u.at);
+    const o = { sum: money(u.amt * 100), when: `${d.getDate()} ${MG[d.getMonth()]}` };
+    h.stage(L.giver || "seneschal");
+    if ((await h.say(fill(L.ask || "Брате, на білу картку прийшло {sum} — {when}. Це не виведене золото Ордену. Звідки воно?", o))) === "closed") return false;
+    const opts = L.c || [{ t: "Кешаут з покеру", v: "poker", r: "Добре. Кешаут — чесна здобич. Записав у книгу." },
+      { t: "Повернення, кешбек, випадкове", v: "ok", r: "Добре, записав. Випадкове — не гріх." },
+      { t: "Поповнив сам — це зрив", v: "breach", r: "Дякую за правду. Відміть зрив Скарбниці — і з завтра знову лише заслужене." },
+      { t: "Не зараз", v: "later", r: "Гаразд. Спитаю пізніше." }];
+    const i = await h.choose(fill(L.q || "Що це було?", o), opts.map((x) => fill(x.t, o)), "hall__acts--list");
+    if (i === "closed") return false;
+    const ch = opts[i]; G.setUnsealed(u.id, ch.v);
+    await h.say(fill(ch.r, o));
+    if (ch.v === "breach" && A.openVow) { h.close(); setTimeout(() => A.openVow("dignity"), 450); return false; }
+    return true;
+  }
   async function scenes() {
-    if (!B || !B.watch) return;
+    const U = window.ORDO_GOLD && window.ORDO_GOLD.unsealed ? window.ORDO_GOLD.unsealed() : [];
+    for (const u of U.slice(0, 2)) { if (!(await vaultScene(u))) return; }
+    if (!B || !B.watch) { const h = H(); if (U.length && h && h.isOpen()) h.close(); return; }
     const cutoff = Date.now() / 1000 - 3 * 86400;                  // питаємо лише про свіже; старше — у списку сторожі
     const ask = BK().ask || [], named = BK().named || [];
     const todo = B.watch.filter((t) => ask.includes(t.w) && !W.seen[t.id] && t.t >= cutoff && !(named.includes(t.w) && W.ok.includes(t.cn))).slice(0, 2);

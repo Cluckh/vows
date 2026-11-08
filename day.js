@@ -703,14 +703,16 @@
   /* ===== ЕКОНОМІКА ОРДЕНУ: одна таблиця досвіду й золота за все (її ж знає писар — WRITER.md) =====
      рідкість: common — звичайна, rare — рідкісна (жовта), legend — легендарна (помаранчева), myth — міфічна (фіолетова) */
   const ECON = window.ORDO_ECON = {
-    task: { common: [8, 2], rare: [15, 3], legend: [30, 6], myth: [60, 12] },              // справа дня: [досвід, золото] за виконання
-    month: { common: [60, 40], rare: [120, 80], legend: [240, 160], myth: [480, 320] },     // ціль місяця
-    year: { common: [200, 150], rare: [400, 300], legend: [800, 600], myth: [1600, 1200] }, // ціль року
-    quest: { rare: [150, 100], legend: [400, 250], myth: [1200, 800] },                     // квест: завжди більше за ціль місяця тієї ж рідкості, менше за ціль року
-    day: { pd: [25, 20], gy: [20, 10], jr: [10, 5], st: [10, 5], er: [5, 3], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
-    vowDay: [4, 1],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
-    milestone: { 10: [60, 30], 25: [120, 60], 75: [250, 150], 180: [500, 350], 365: [1000, 1000], 500: [1300, 1200], 730: [1800, 1600], 1000: [2500, 2500] },
-    ach: [0, 50], review: { m: [2, 1], y: [6, 3] }                                           // нагорода; ревю — за кожен відсоток виконаного
+    /* економіка з 8.11 (золото = гривні білої картки): слабкий місяць ≈ 3–5 тис., середній ≈ 8–12 тис., майже ідеальний ≈ 20 тис.
+       досвід — як і був; змінено лише золото */
+    task: { common: [8, 3], rare: [15, 6], legend: [30, 12], myth: [60, 25] },              // справа дня: [досвід, золото] за виконання
+    month: { common: [60, 300], rare: [120, 600], legend: [240, 1200], myth: [480, 2400] },     // ціль місяця
+    year: { common: [200, 1000], rare: [400, 2000], legend: [800, 4000], myth: [1600, 8000] }, // ціль року
+    quest: { rare: [150, 300], legend: [400, 800], myth: [1200, 2000] },                     // квест: завжди більше за ціль місяця тієї ж рідкості, менше за ціль року
+    day: { pd: [25, 120], pw: [100, 400], gy: [20, 30], jr: [10, 15], st: [10, 15], er: [5, 10], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
+    vowDay: [4, 2],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
+    milestone: { 10: [60, 60], 25: [120, 150], 75: [250, 400], 180: [500, 900], 365: [1000, 2000], 500: [1300, 2500], 730: [1800, 3500], 1000: [2500, 5000] },
+    ach: [0, 100], review: { m: [2, 1], y: [6, 3] }                                           // нагорода; ревю — за кожен відсоток виконаного
   };
   const RARN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
   const rarOf = (t) => ({ easy: "common", normal: "rare", hard: "legend" })[t && t.diff] || (t && ECON.task[t.diff] ? t.diff : "rare");
@@ -730,9 +732,30 @@
   }
   /* «з поправкою»: лічильник — частка зробленого (2 з 10 хв → 20%), але не більше 70%; справа без числа — 70% */
   const fixPct = (t, r) => t.type === "count" && t.target ? Math.min(0.7, Math.max(0, ((r && r.cur) || 0) / t.target)) : 0.7;
+  /* рідкість, обрана чи змінена з 8.11, діє з наступного дня (rarAt; до того — rarPrev);
+     «закон рідкості»: такі справи (lawful) однієї рідкості — легендарні чи міфічні — платять за порядком дня 100 / 70 / 50 / 35 % */
+  const LAW = [1, 0.7, 0.5, 0.35];
+  const effRar = (t, k) => t.rarAt && k < t.rarAt ? (t.rarPrev || "rare") : rarOf(t);
+  function lawRank(t, k, list) {
+    const r = effRar(t, k); if (r !== "legend" && r !== "myth") return -1;
+    const peers = (list || items(k).map((x) => x.t)).filter((x) => x.lawful && effRar(x, k) === r)
+      .sort((a, b) => String(a.created || "").localeCompare(String(b.created || "")) || String(a.id).localeCompare(String(b.id)));
+    return peers.findIndex((x) => x.id === t.id);
+  }
+  const lawMul = (t, k) => { if (!t.lawful) return 1; const i = lawRank(t, k); return i < 0 ? 1 : LAW[Math.min(i, LAW.length - 1)]; };
+  function lawNote(d, orig) {
+    const r = rarOf(d); if (orig && rarOf(orig) === r && orig.lawful === d.lawful) return "";
+    const k = add(today(), 1), others = Object.values(S.tasks).filter((x) => x.id !== d.id && occurs(x, k)).map((x) => ver(x, k));
+    let tail = "";
+    if (r === "legend" || r === "myth") {
+      const i = lawRank(Object.assign({}, d, { lawful: 1, rarAt: null, created: d.created || today(), id: d.id || "~new" }), k, others.concat([Object.assign({}, d, { lawful: 1, rarAt: null, created: d.created || today(), id: d.id || "~new" })]));
+      tail = ` Закон рідкості: це ${i + 1}-а ${r === "myth" ? "міфічна" : "легендарна"} справа дня — ${Math.round(LAW[Math.min(Math.max(i, 0), LAW.length - 1)] * 100)}% нагороди.`;
+    }
+    return `<p class="dy-note dy-note--law">Нова рідкість діє з завтра.${tail}</p>`;
+  }
   function xpTask(t, r, k) {
     t = ver(t, k);
-    const st = stOf(t, r, k), base = ECON.task[rarOf(t)][0];
+    const st = stOf(t, r, k), base = ECON.task[effRar(t, k)][0] * lawMul(t, k);
     const bonus = Math.min(0.3, 0.03 * chainBefore(t, k));
     if (st === "done") {
       let m = 1 + bonus;
@@ -766,7 +789,7 @@
   const MS_XP = Object.fromEntries(Object.entries(ECON.milestone).map(([m, v]) => [m, v[0]]));
   function settleDerived() {
     const A = API(), t0 = today();
-    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|sl|st|gy|er|rt|nw|jr):/.test(id)) delete X.e[id]; });
+    Object.keys(X.e).forEach((id) => { if (/^(v|vm|g|gm|pd|pw|sl|st|gy|er|rt|nw|jr):/.test(id)) delete X.e[id]; });
     const vows = D().VOWS || [], starts = LS.get("ordo.starts", {});
     if (A.dayState) for (let k = XP_START_DAY; k < t0; k = add(k, 1)) vows.forEach((v) => {
       /* день стріку важить більше, що довше серія йде підряд: +1 за кожні 30 днів (до +6); дні до зриву досвіду не дають */
@@ -792,6 +815,7 @@
     }));
     for (let k = XP_START_DAY; k <= t0; k = add(k, 1)) {
       if (perfect(k)) X.e[`pd:${k}`] = { d: k, xp: 25, src: "day", why: "чистий день" };
+      if (wd(k) === 7) { let all = true; for (let i = 0; i < 7; i++) if (!perfect(add(k, -i))) { all = false; break; } if (all && add(k, -6) >= XP_START_DAY) X.e[`pw:${k}`] = { d: k, xp: 100, src: "day", why: "ідеальний тиждень" }; }
       const h = hDay(k);
       if (h && h.sleepMin >= 420) X.e[`sl:${k}`] = { d: k, xp: 10, src: "body", why: "сон 7+ годин" };
       if (h && h.steps >= 10000) X.e[`st:${k}`] = { d: k, xp: 10, src: "body", why: "10 000 кроків" };
@@ -1901,7 +1925,7 @@
         <div class="dy-f dy-f--row"><label>${r.f === "none" ? "Дата" : "Починаючи з"}</label><input class="dy-in" id="dsD" type="date" value="${d.start}"></div>
         <div class="dy-f dy-f--row"><label>Час</label><input class="dy-in" id="dsH" type="time" value="${d.time || ""}"></div>
         <div class="dy-f"><label>Нотатка</label><textarea class="dy-in dy-in--note" id="dsO" rows="2" placeholder="деталі, норма, що саме">${esc(d.notes || "")}</textarea></div>
-        <div class="dy-f"><label>Рідкість</label><div class="dy-chips dy-chips--wrap dy-rar" data-dk="diff">${Object.keys(ECON.task).map((v) => `<button type="button" data-dv="${v}" class="rar-${v}${rarOf(d) === v ? " is-on" : ""}">${RARN[v]} · ${ECON.task[v][0]} досв · ${ECON.task[v][1]} зол</button>`).join("")}</div></div>
+        <div class="dy-f"><label>Рідкість</label><div class="dy-chips dy-chips--wrap dy-rar" data-dk="diff">${Object.keys(ECON.task).map((v) => `<button type="button" data-dv="${v}" class="rar-${v}${rarOf(d) === v ? " is-on" : ""}">${RARN[v]} · ${ECON.task[v][0]} досв · ${ECON.task[v][1]} зол</button>`).join("")}</div>${lawNote(d, sh.id && S.tasks[sh.id])}</div>
         <div class="dy-f"><label>Дані</label><div class="dy-chips dy-chips--wrap" data-dk="src">${Object.keys(SRC).map((v) => `<button type="button" data-dv="${v}" class="${srcOf(d) === v ? "is-on" : ""}">${SRC[v]}</button>`).join("")}</div></div>
         <p class="dy-note dy-note--src">${{ "": "Відмічаєш сам.", steps: "Кроки зі «Здоровʼя» підтягуються самі.", poker: "Роздачі з HM3 підтягуються самі (з компа, через рандомайзер).", mind: "Відмічається сама, щойно за день у фокусі «Усвідомленість» набереться 10 хв (сесії сумуються).", journal: "Відмічається сама, щойно віддаси сповідь дня.", app: (d.app && d.app.lim ? "Зараховується наступного дня, якщо за день у програмі пробув не більше ліміту." : "Зараховується сама, щойно за день набереться потрібний час у програмі.") + ` Потрібні дві автоматизації (event_type health): «Відкрито» шле <b>app: ${esc((d.app && d.app.n) || "назва")}</b>, <b>ev: open</b>, <b>prevOpenAt</b> і <b>prevCloseAt</b> з файлів на телефоні й записує час відкриття у файл; «Закрито» записує час закриття у файл і шле <b>ev: close</b> з <b>openAt</b>. Так сесія спарюється точно, навіть якщо одна з подій не дійшла. «Число» — хвилини за день.`, weight: "Відмічається сама, щойно в «Здоровʼї» є зважування за день.", bank: "Зараховується сама, якщо за день витрати в категоріях не перевищили ліміт (за випискою)." }[srcOf(d)]}</p>
         ${srcOf(d) === "app" ? `<div class="dy-f dy-f--row"><label>Програма</label><input class="dy-in" id="dsAN" value="${esc(appOf(d).n)}" placeholder="duolingo, youtube, reading…" autocomplete="off" autocapitalize="off"></div>
@@ -2272,6 +2296,10 @@
         const vers = (old.vers || []).slice();
         if (!vers.length || vers[vers.length - 1].until < y) vers.push({ until: y, snap: JSON.parse(JSON.stringify(Object.fromEntries(VKEYS.map((f) => [f, old[f] === undefined ? null : old[f]])))) });
         d.vers = vers;
+      }
+      if (!old || rarOf(old) !== rarOf(d)) {                    // нова рідкість — з завтра, якщо вища (нижча — одразу); закон рідкості
+        const RK = { common: 0, rare: 1, legend: 2, myth: 3 }, prev = old ? rarOf(old) : (RK[rarOf(d)] <= 1 ? rarOf(d) : "rare");
+        d.lawful = 1; if (RK[rarOf(d)] > RK[prev]) { d.rarPrev = prev; d.rarAt = add(today(), 1); } else { delete d.rarPrev; delete d.rarAt; }
       }
       S.tasks[nid] = Object.assign({}, d, { id: nid, mt: Date.now(), created: d.created || today() });
       saveS(); fx("yes"); buzz("medium"); closeSheet(); after(before); return;

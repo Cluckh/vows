@@ -21,7 +21,7 @@
     return `${t.getFullYear()}-W${p2(1 + Math.round(((t - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7))}`; };
   const fx = (s) => { const A = API(); if (A.FX) { if (A.FX.play) A.FX.play(s); if (A.FX.buzz) A.FX.buzz(s === "yes" ? "medium" : "light"); } };
 
-  const START = "2026-10-26";                                  // з цього дня Орден платить золотом
+  const START = "2026-11-08";                                  // нова економіка: золото, жетони й виведення до 8.11 обнулено (власник, 8.11)
   const START_T = Date.parse(START + "T00:00:00+02:00") / 1000;
   const RN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
   const DROP = { rare: 0.15, legend: 0.4, myth: 1 };          // шанс реліквії за виконаний квест
@@ -34,16 +34,17 @@
   /* крамниця: базові товари + те, що відкриває звання (D.PERKS.shop) */
   const shopItems = () => SHOP.concat(((D().PERKS || {}).shop || []).map((x) => Object.assign({ perk: 1 }, x)));
   const SHOP = [
-    { id: "chest", n: "Скриня Сенешаля", p: 150, d: "Що всередині — не знає навіть Орест: золото, жетони, реліквія… а інколи й скарб." },
-    { id: "reroll", n: "Жетон перекидання", p: 60, d: "Не твоє доручення? Попроси в храмовника інше." },
-    { id: "extend", n: "Жетон відстрочки", p: 80, d: "+1 день до активного квесту." }
+    { id: "chest", n: "Скриня Сенешаля", p: 900, d: "Що всередині — не знає навіть Орест: золото, жетони, реліквія… а інколи й скарб." },
+    { id: "reroll", n: "Жетон перекидання", p: 400, d: "Не твоє доручення? Попроси в храмовника інше." },
+    { id: "extend", n: "Жетон відстрочки", p: 500, d: "+1 день до активного квесту." }
   ];
 
   /* G синхронізується між пристроями (boot.js обʼєднує кожен розділ):
      out — виведення й покупки, inc — здобич зі скринь, bon — бонуси реліквій і благословення, proc — уже оброблені записи досвіду,
      own — реліквії, eq — активні (eqAt — коли змінено), tk — жетони (+1 куплено / −1 використано), use — використання бонусів реліквій */
   let G = LS.get("ordo.gold", null) || {};
-  ["out", "inc", "bon", "proc", "own", "tk", "use"].forEach((k) => { G[k] = G[k] || {}; });
+  ["out", "inc", "bon", "proc", "own", "tk", "use", "uns"].forEach((k) => { G[k] = G[k] || {}; });
+  const START_MS = Date.parse(START + "T00:00:00+02:00"), fresh = (x) => ((x && x.at) || 0) >= START_MS;      // запис нової економіки
   G.eq = G.eq || [];
   const save = () => LS.set("ordo.gold", G);
   /* 26.10: покупки в крамниці й здобич зі скринь під час тестів — не рахуються. Чиститься на кожному пристрої й при кожному злитті (boot.js), тож не воскресне */
@@ -141,10 +142,12 @@
     return Object.entries(X.e || {}).filter(([, e]) => e.d >= START).map(([id, e]) => ({ id, d: e.d, why: e.why, g: goldOf(id, e, Q, S) })).filter((x) => x.g > 0);
   }
   const sum = (o) => Object.values(o).reduce((a, x) => a + (typeof x === "number" ? x : x.amt || 0), 0);
-  const earned = () => ledger().reduce((a, x) => a + x.g, 0) + sum(G.bon) + sum(G.inc);
+  const earned = () => { const L = ledger(), ids = new Set(L.map((x) => x.id));
+    const bon = Object.entries(G.bon).filter(([k]) => ids.has(k.replace(/^(rb|bl):/, ""))).reduce((a, [, v]) => a + (typeof v === "number" ? v : v.amt || 0), 0);
+    return L.reduce((a, x) => a + x.g, 0) + bon + Object.values(G.inc).filter(fresh).reduce((a, x) => a + (x.amt || 0), 0); };
   const VOID = new Set(["Dgfr0npIMXPwnwND1g", "V3fxyJBNAJgM_mQqIg"]);   // тестові перекази 26.10 (3 ₴ і 1 ₴) — до старту золота, не рахуються
   const live = (o) => o.st !== "cancel" && !VOID.has(o.tx);
-  const spent = () => Object.values(G.out).filter(live).reduce((a, o) => a + o.amt, 0);
+  const spent = () => Object.values(G.out).filter((o) => live(o) && fresh(o)).reduce((a, o) => a + o.amt, 0);
   const balance = () => earned() - spent();
   const pending = () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "pending");
 
@@ -259,15 +262,20 @@
   }
 
   /* --------------------------------------------------- біла картка: звірка з банком */
+  const dayOf = (ms) => { const d = new Date(ms), p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
+  /* поповнення білої, про які ще не спитали (не частіше ніж раз на 6 год, якщо відклав) */
+  const unsealed = () => Object.entries(G.uns).filter(([, u]) => u.st === "ask" && Date.now() - (u.later || 0) > 6 * 3600e3).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => a.at - b.at);
+  function setUnsealed(id, st) { const u = G.uns[id]; if (!u) return; if (st === "later") u.later = Date.now(); else { u.st = st; u.ans = Date.now(); } save(); }
   function reconcile() {
     const W = T() && T().white && T().white(); if (!W) return false;
     let ch = false;
     const linked = new Set(Object.values(G.out).map((o) => o.tx).filter(Boolean));
-    (W.in || []).filter((t) => t.t >= START_T && !linked.has(t.id)).sort((a, b) => a.t - b.t).forEach((t) => {
+    (W.in || []).filter((t) => t.t >= START_T && !linked.has(t.id) && !G.uns[t.id]).sort((a, b) => a.t - b.t).forEach((t) => {
       const amt = Math.round(t.a / 100);
       const p = pending().sort((a, b) => (a.amt === amt ? -1 : 0) - (b.amt === amt ? -1 : 0) || a.at - b.at)[0];
       if (p) Object.assign(p, { st: "done", amt, tx: t.id, done: t.t * 1000 });                       // очікуване виведення прийшло (можна й іншою сумою)
-      else G.out["w" + t.id] = { at: t.t * 1000, amt, kind: "white", st: "done", tx: t.id, auto: 1 };  // поповнив сам, без кнопки — теж виведення
+      /* поповнення без виводу золота: 8.11 — стартові 10 000 (останні власні); далі — Скарбник спитає (кешаут покеру, повернення чи зрив Скарбниці) */
+      else G.uns[t.id] = { at: t.t * 1000, amt, st: dayOf(t.t * 1000) === START ? "seed" : "ask" };
       ch = true;
     });
     pending().forEach((p) => { if (Date.now() - p.at > 24 * 3600e3) { p.st = "cancel"; ch = true; } });   // доба без поповнення — золото повертається
@@ -276,10 +284,10 @@
   }
 
   /* ------------------------------------------------- жетони й бонуси квестів */
-  const tokens = (kind) => Object.values(G.tk).filter((t) => t.kind === kind).reduce((a, t) => a + t.d, 0);
+  const tokens = (kind) => Object.values(G.tk).filter((t) => t.kind === kind && fresh(t)).reduce((a, t) => a + t.d, 0);
   const relicLeft = (kind) => {                                 // скільки разів ще можна цього тижня (перекидання) чи місяця (відстрочка)
     const per = kind === "reroll" ? weekKey(today()) : today().slice(0, 7), cap = bonusOf(kind);
-    const used = Object.values(G.use).filter((u) => u.kind === kind && u.per === per).length;
+    const used = Object.values(G.use).filter((u) => u.kind === kind && u.per === per && fresh(u)).length;
     return Math.max(0, cap - used);
   };
   const can = (kind) => relicLeft(kind) > 0 || tokens(kind) > 0;
@@ -653,5 +661,5 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}     // попросити браузер не викидати кеш артів
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
+  window.ORDO_GOLD = { html, chip, tick, balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

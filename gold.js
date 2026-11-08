@@ -131,7 +131,7 @@
     }
     if (E.day[p]) return Math.round(E.day[p][1] * (e.mul || 1));          // ×0,5 у день Lay on Hands, ×1,5 — Відродження                                           // ідеальний день, зал, сповідь, кроки, підйом
     if (p === "v") return E.vowDay[1];                                          // чистий день обітниці
-    if (p === "a") return E.ach[1];
+    if (p === "a") return E.achGold ? E.achGold(e.xp0 || e.xp) : E.ach[1];              // нагорода: золото за складністю (досвід × 2, від 50)
     if (p === "mo") return e.gold || 0;                                           // нагорода за момент від писаря
     if (p === "g") return e.xp >= 400 ? 300 : 80;                               // старі записи цілей без ціни
     if (p === "gm") return Math.round(e.xp / 2);                                // ревю: відсоток виконаного

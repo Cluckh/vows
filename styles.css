@@ -2090,3 +2090,28 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-gold{display:inline-flex;align-items:center;gap:3px;color:var(--gold);font-style:normal;white-space:nowrap}
 .dy-gold.is-got{color:var(--gold-2)}
 .gd-coin--xs{width:12px;height:12px}
+
+/* нова медаль у Літописі (за 7 днів) і банер здобутої */
+.dy-a.is-new{position:relative}
+.dy-a.is-new .dy-a__m.has-art{box-shadow:0 0 0 2px rgba(240,214,138,.55),0 0 22px rgba(240,214,138,.45);animation:achGlow 2.4s ease-in-out infinite}
+.dy-a.is-new::after{content:"нова";position:absolute;top:-4px;right:calc(50% - 46px);padding:1px 6px;font:600 9.5px/1.4 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:#1a1408;background:var(--halo,#f0d68a);border-radius:8px}
+@keyframes achGlow{50%{box-shadow:0 0 0 2px rgba(240,214,138,.8),0 0 30px rgba(240,214,138,.7)}}
+.ach-ban{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(5,7,14,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .25s}
+.ach-ban.on{opacity:1}
+.ach-ban__card{position:relative;overflow:hidden;width:100%;max-width:340px;padding:22px 20px 18px;text-align:center;background:linear-gradient(180deg,#151a2c,#0c0f1b);border:1px solid rgba(240,214,138,.45);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 40px rgba(240,214,138,.12);transform:scale(.88) translateY(14px);transition:transform .35s cubic-bezier(.2,1.4,.4,1)}
+.ach-ban.on .ach-ban__card{transform:none}
+.ach-ban__rays{position:absolute;left:50%;top:118px;width:520px;height:520px;margin:-260px 0 0 -260px;background:repeating-conic-gradient(rgba(240,214,138,.09) 0 6deg,transparent 6deg 18deg);-webkit-mask-image:radial-gradient(circle,#000 8%,transparent 42%);mask-image:radial-gradient(circle,#000 8%,transparent 42%);animation:achRays 18s linear infinite;pointer-events:none}
+@keyframes achRays{to{transform:rotate(360deg)}}
+.ach-ban__card>*:not(.ach-ban__rays){position:relative}
+.ach-ban__k{font:500 11px/1.4 var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--ash)}
+.ach-ban .ach-big{margin:14px auto 10px}
+.ach-ban__t{font:500 12px/1.4 var(--f-display);letter-spacing:.2em;text-transform:uppercase;color:var(--halo,#f0d68a)}
+.ach-ban__n{margin-top:4px;font-family:var(--f-display);font-size:24px;color:var(--bone)}
+.ach-ban__h{margin:6px 0 0;font-family:var(--f-serif);font-style:italic;font-size:15px;color:var(--ash)}
+.ach-ban__r{margin:12px 0 16px;font-size:14px;color:var(--bone)}
+.ach-ban__r b{color:var(--halo,#f0d68a)}
+.ach-ban .btn{width:100%}
+.ach-ban.tier-legend .ach-ban__card{border-color:rgba(255,138,43,.6);box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 46px rgba(255,138,43,.22)}
+.ach-ban.tier-myth .ach-ban__card{border-color:rgba(176,124,255,.65);box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 46px rgba(176,124,255,.28)}
+@media (prefers-reduced-motion:reduce){.ach-ban__rays,.dy-a.is-new .dy-a__m.has-art{animation:none}}
+.dy-a.is-new .dy-a__m:not(.has-art) svg{filter:drop-shadow(0 0 8px rgba(240,214,138,.8))}

@@ -729,7 +729,7 @@
     day: { pd: [25, 120], pw: [100, 400], gy: [20, 30], jr: [10, 15], st: [10, 15], er: [5, 10], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
     vowDay: [4, 2],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
     milestone: { 10: [60, 60], 25: [120, 150], 75: [250, 400], 180: [500, 900], 365: [1000, 2000], 500: [1300, 2500], 730: [1800, 3500], 1000: [2500, 5000] },
-    ach: [0, 100], review: { m: [2, 1], y: [6, 3] }                                           // нагорода; ревю — за кожен відсоток виконаного
+    ach: [0, 100], achGold: (xp) => (xp > 0 ? Math.max(50, Math.round(xp * 2 / 10) * 10) : 0), review: { m: [2, 1], y: [6, 3] }                                           // нагорода; ревю — за кожен відсоток виконаного
   };
   const RARN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
   const rarOf = (t) => ({ easy: "common", normal: "rare", hard: "legend" })[t && t.diff] || (t && ECON.task[t.diff] ? t.diff : "rare");
@@ -999,7 +999,7 @@
     { id: "pw4", g: "d", ic: "medal", tier: "gold", n: "Залізний місяць", h: "Чотири ідеальні тижні", ok: (c) => c.pw >= 4, xp: 600 },
     { id: "gear5", g: "b", ic: "shield", tier: "silver", n: "У повному обладунку", h: "Спорядження в усіх пʼяти слотах", ok: (c) => c.gearFull >= 5, xp: 150 },
     { id: "ex1", g: "v", ic: "seal", tier: "gold", n: "Вигнання відбуто", h: "Людина з Вигнаних відбула весь строк без жодного контакту", ok: (c) => c.exileDone >= 1, xp: 400 },
-    { id: "cd10", g: "a", ic: "swords", tier: "bronze", n: "Серце в ритмі", h: "10 кардіо-сесій з інтервалами", ok: (c) => c.cdN >= 10, xp: 80 },
+    { id: "cdi10", g: "a", ic: "swords", tier: "bronze", n: "Серце в ритмі", h: "10 кардіо-сесій з інтервалами", ok: (c) => c.cdN >= 10, xp: 80 },
     { id: "md10", g: "e", ic: "moon", tier: "bronze", n: "Тиша всередині", h: "10 медитацій (з листопада — дні від 10 хв)", ok: (c) => c.mindN >= 10, xp: 40 },
     { id: "md50", g: "e", ic: "moon", tier: "silver", n: "Спокійне серце", h: "50 медитацій (з листопада — дні від 10 хв)", ok: (c) => c.mindN >= 50, xp: 150 },
     { id: "md100", g: "e", ic: "moon", tier: "gold", n: "Сто тиш", h: "100 медитацій (з листопада — дні від 10 хв)", ok: (c) => c.mindN >= 100, xp: 350 },
@@ -1024,7 +1024,7 @@
     mo1: ["heard", 1], mo15: ["heard", 15], mo50: ["heard", 50], mgift: ["gifts", 5], mleg: ["legendH", 1], mmyth: ["mythH", 1],
     ml1: ["meals", 1], mlg7: ["greenBest", 7], mlg30: ["greenBest", 30], ml60: ["meals", 60], sl7: ["mornings", 7], sl30: ["mornings", 30], sl100: ["mornings", 100], siren: ["siren", 1],
     pg100: ["pages", 100], pg1k: ["pages", 1000], bk1: ["books", 1], bk5: ["books", 5], st10: ["st10", 1], st10x: ["st10", 10], st15: ["st15", 1], qf: ["flash", 1], qf5: ["flash", 5], qch: ["chain", 1],
-    gp1: ["prs", 1], gp10: ["prs", 10], gmon: ["gmon", 1], g100: ["gymTotal", 100], cd10: ["cardioTotal", 10], gm1: ["games", 1], gm5: ["games", 5], gm10: ["games", 10], rd12: ["booksYear", 12], kq: ["knight", 1],
+    gp1: ["prs", 1], gp10: ["prs", 10], gmon: ["gmon", 1], g100: ["gymTotal", 100], cd10: ["cardioTotal", 10], cdi10: ["cdN", 10], gm1: ["games", 1], gm5: ["games", 5], gm10: ["games", 10], rd12: ["booksYear", 12], kq: ["knight", 1],
     pk10k: ["pkHands", 10000], pk100k: ["pkHands", 100000], pk500k: ["pkHands", 500000], pkday: ["pkBest", 3000], sc7: ["calmBest", 7], sc30: ["calmDays", 30], du30: ["duoDays", 30], du100: ["duoDays", 100],
     md10: ["mindN", 10], md50: ["mindN", 50], md100: ["mindN", 100], wt10: ["weighN", 10], wt3: [(c) => Math.max(0, Math.round(c.wDrop * 10) / 10), 3], wt6: [(c) => Math.max(0, Math.round(c.wDrop * 10) / 10), 6],
     zz7: ["sleep7", 7], zz30: ["sleep7", 30], gl1: ["goalsDone", 1], gl10: ["goalsDone", 10], gl50: ["goalsDone", 50], gw1: ["whiteN", 1], gw10: ["whiteN", 10] };
@@ -1518,7 +1518,7 @@
       if (window.ORDO_TREASURY) await window.ORDO_TREASURY.scenes();
       if (H().isOpen()) H().close();
       if (pendingUp) { const u = pendingUp; pendingUp = null; await rankScene(u); }
-    } finally { busy = false; }
+    } finally { busy = false; setTimeout(medalCheck, 600); }
   }
   let pendingUp = null;
   const pendingDone = [], pendingBroke = [];
@@ -1535,7 +1535,7 @@
   function after(before) {
     const res = settle(), gain = totalXP() - before;
     if (gain > 0) toast(`<b>+${gain}</b> досвіду`);
-    res.fresh.forEach((a, i) => setTimeout(() => { toast(`<span>нагорода</span><b>${esc(a.n)}</b>`, "dy-toast--ach"); fx("date"); }, 900 + i * 1800));
+    if (res.fresh.length) setTimeout(medalCheck, 900);
     if (res.up) { pendingUp = res.up; setTimeout(() => { toast(`<span>новий рівень</span><b>${res.up.to.L} · ${esc(res.up.to.rank.name)}</b>`, "dy-toast--lv"); scenes(); }, 600); }
     const A = API(); if (A.goalsSync) A.goalsSync();          // привʼязані місячні й річні цілі
     if (window.ORDO_GOLD) window.ORDO_GOLD.tick();          // золото — слідом за досвідом
@@ -2194,7 +2194,7 @@
         <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "ach") {                     // картка нагороди: за що, коли, скільки дала (або скільки лишилось)
       const a = ACHS.find((x) => x.id === sh.id) || ACHS[0], got = ACH[a.id], pr = got ? null : progOf(a, ctx()), gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "";
-      const gold = a.xp && (!got || got >= "2026-10-26") ? ECON.ach[1] : 0;
+      const gold = !got || got >= "2026-11-08" ? ECON.achGold(a.xp) : 0;
       h += `<div class="ach-big tier-${got ? a.tier || "gold" : "ash"}${got ? " is-on" : ""}">${achFace(a, true)}</div>
         <div class="gs-kicker ach-k rar-${{ legend: "legend", myth: "myth" }[a.tier] || "common"}">${TIERN[a.tier] || "золота"} нагорода · ${esc(gname.toLowerCase())}</div>
         <div class="sheet__title dy-sht">${esc(a.n)}</div><p class="dy-note dy-note--t">${esc(a.h)}</p>
@@ -2610,7 +2610,7 @@
       ${(() => { const f = faith(); return `<div class="dy-g__qs dy-g__faith"><span><b>${f.total}</b>днів вірності</span><span><b>${f.d30}/${f.n30}</b>за 30 днів</span><span><b>${f.best}</b>найдовше поспіль</span></div>`; })()}
       <div class="st-h st-h--sub">Нагороди</div><div class="dy-ach">`;
     if (window.ORDO_GOLD && window.ORDO_GOLD.wantAch) { window.ORDO_GOLD.wantAch(ACHS.map((a) => a.id)); if (window.ORDO_GOLD.want) window.ORDO_GOLD.want(RANKS.map((r, i) => "rank:" + i)); }
-    const medal = (a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" data-ach="${a.id}" role="button" tabindex="0">${achFace(a)}<b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`;
+    const medal = (a) => `<div class="dy-a${ACH[a.id] ? " is-on" : ""}${ACH[a.id] && ACH[a.id] >= add(today(), -6) ? " is-new" : ""} tier-${ACH[a.id] ? a.tier || "gold" : "ash"}" data-ach="${a.id}" role="button" tabindex="0">${achFace(a)}<b>${esc(a.n)}</b><span>${ACH[a.id] ? human(ACH[a.id]) : esc(a.h)}</span></div>`;
     h += ACH_G.map(([g, name]) => { const L = ACHS.filter((a) => achG(a) === g), n = L.filter((a) => ACH[a.id]).length;
       return `<div class="dy-ach__g"><span>${esc(name)}</span><em>${n}/${L.length}</em></div>` + L.map(medal).join(""); }).join("");
     if (vowMedals.length) h += `<div class="dy-ach__g"><span>Печатки обітниць</span><em>${vowMedals.length}</em></div>`;
@@ -2624,6 +2624,36 @@
 
   /* ============================================================ ПИСАР ====== */
   /* зведення для нічного писаря: що відбувається в житті Ордену (шифрується ключем сховища) */
+  /* ====================================================== БАНЕР МЕДАЛІ ====
+     Здобута нагорода — банер із її зображенням, за що й що дала. Показано — позначка на пристрої (ordo.k.achBan),
+     тож медаль, здобута деінде чи без дії (синк, перерахунок), теж не пройде повз. Перший запуск — лише сьогоднішні. */
+  let banBusy = false;
+  function medalCheck() {
+    if (banBusy) return;
+    let seen = LS.get("ordo.k.achBan", null);
+    if (!seen) { seen = {}; Object.keys(ACH).forEach((id) => { if (ACH[id] < today()) seen[id] = 1; }); LS.set("ordo.k.achBan", seen); }
+    const due = ACHS.filter((a) => ACH[a.id] && !seen[a.id]).sort((a, b) => (ACH[a.id] < ACH[b.id] ? -1 : 1));
+    if (!due.length) return;
+    const h = H();
+    if ((h && h.isOpen()) || document.querySelector(".sheet.open, .confirm.open, .rite.open, .kc") || document.hidden || busy) { setTimeout(medalCheck, 2500); return; }
+    banBusy = true; showBanner(due[0], due.length - 1, () => { seen[due[0].id] = 1; LS.set("ordo.k.achBan", seen); banBusy = false; setTimeout(medalCheck, 350); });
+  }
+  function showBanner(a, more, done) {
+    const gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "", gold = ACH[a.id] >= "2026-11-08" ? ECON.achGold(a.xp) : 0;
+    const el = document.createElement("div"); el.className = `ach-ban tier-${a.tier || "gold"}`; el.setAttribute("role", "dialog");
+    el.innerHTML = `<div class="ach-ban__card"><div class="ach-ban__rays"></div>
+      <div class="ach-ban__k">${TIERN[a.tier] || "золота"} нагорода · ${esc(gname.toLowerCase())}</div>
+      <div class="ach-big tier-${a.tier || "gold"} is-on">${achFace(a, true)}</div>
+      <div class="ach-ban__t">Нагороду здобуто</div><div class="ach-ban__n">${esc(a.n)}</div>
+      <p class="ach-ban__h">${esc(a.h)}</p>
+      ${a.xp || gold ? `<p class="ach-ban__r">${a.xp ? `<b>+${fmtN(a.xp)}</b> досвіду` : ""}${gold ? `${a.xp ? " · " : ""}<b>+${fmtN(gold)}</b> золота` : ""}</p>` : `<p class="ach-ban__r">почесна — лише честь</p>`}
+      <button class="btn btn--gold" type="button">${more > 0 ? `Далі · ще ${more}` : "Слава Ордену"}</button></div>`;
+    document.body.appendChild(el); void el.offsetWidth; el.classList.add("on"); fx("date"); buzz("heavy");
+    const t0 = performance.now();
+    el.addEventListener("click", (e) => { if (performance.now() - t0 < 600 || (!e.target.closest("button") && e.target.closest(".ach-ban__card"))) return;
+      el.classList.remove("on"); setTimeout(() => { el.remove(); done(); }, 260); });
+  }
+
   /* ====================================================== ЛИСТИ-ЗВІТИ =====
      Писар пише лист-звіт у неділю (тиждень) і в останній день місяця (місяць). Лист приходить раз на день сам
      («зламати печатку» або «пізніше»), відкладений — чекає карткою в «Дні». Пройдений до кінця — позначка в S.lt
@@ -2774,6 +2804,7 @@
   /* ============================================================ СТАРТ ====== */
   let started = false;
   function init() {
+    setTimeout(medalCheck, 4000);                // здобута медаль, якої ще не бачив на цьому пристрої — банером
     if (started) return; started = true;
     loadState();
     const box = $("dayBody"); if (box) { box.addEventListener("click", onBody); box.addEventListener("pointerup", onBodyTouch); }

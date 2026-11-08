@@ -124,7 +124,7 @@
       const t = S.tasks[id.split(":")[1]], r = ({ easy: "common", normal: "rare", hard: "legend" })[t && t.diff] || (t && E.task[t.diff] ? t.diff : "rare");
       const [xp, g] = E.task[r]; return e.xp > 0 ? Math.max(1, Math.round(e.xp * g / xp)) : 0;
     }
-    if (E.day[p]) return E.day[p][1];                                           // ідеальний день, зал, сповідь, кроки, підйом
+    if (E.day[p]) return Math.round(E.day[p][1] * (e.mul || 1));          // ×0,5 у день Lay on Hands, ×1,5 — Відродження                                           // ідеальний день, зал, сповідь, кроки, підйом
     if (p === "v") return E.vowDay[1];                                          // чистий день обітниці
     if (p === "a") return E.ach[1];
     if (p === "mo") return e.gold || 0;                                           // нагорода за момент від писаря

@@ -2021,3 +2021,23 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .exile__add input,.exile__add select{font:inherit;font-size:14px;color:var(--bone);background:rgba(255,255,255,.04);border:1px solid var(--edge);border-radius:10px;padding:8px 10px;min-width:0}
 .exile__add input{flex:1}
 .exile__add select{flex:none}
+
+/* ---- щит: більший; затиск — Lay on Hands ---- */
+.crest__btn{width:104px;height:104px;display:flex;align-items:center;justify-content:center;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:none;--p:0}
+.crest__btn .crest__sigil{width:78px;height:78px;transition:transform .2s var(--ease)}
+.crest__btn::after{content:"";position:absolute;inset:-14px;border-radius:50%;pointer-events:none;opacity:calc(var(--p) * 1.1);
+  background:radial-gradient(circle,rgba(240,214,138,calc(.15 + var(--p) * .55)) 0%,rgba(240,214,138,calc(var(--p) * .25)) 45%,transparent 72%);
+  transform:scale(calc(.8 + var(--p) * .7))}
+.crest__btn.is-charging .crest__sigil{transform:scale(calc(1 + var(--p) * .14));color:var(--halo);filter:drop-shadow(0 0 calc(4px + var(--p) * 22px) rgba(240,214,138,calc(.4 + var(--p) * .6)))}
+.crest__btn.is-beat::after{animation:lohBeat .5s ease-out}
+@keyframes lohBeat{0%{filter:brightness(1.6)}100%{filter:brightness(1)}}
+.crest__btn.is-loh .crest__sigil{color:var(--halo);filter:drop-shadow(0 0 10px rgba(240,214,138,.55))}
+.crest__hint{min-height:1.4em}
+.loh-flash{position:fixed;inset:0;z-index:9999;pointer-events:none;background:radial-gradient(circle at 50% 22%,rgba(255,244,214,.95) 0%,rgba(240,214,138,.6) 30%,rgba(11,15,29,0) 70%);animation:lohFlash 2.1s ease-out forwards}
+@keyframes lohFlash{0%{opacity:0}12%{opacity:1}100%{opacity:0}}
+.dy-loh{margin:10px 0 4px;padding:10px 14px;border:1px solid rgba(240,214,138,.45);border-radius:12px;background:linear-gradient(90deg,rgba(240,214,138,.13),rgba(240,214,138,.03));display:flex;flex-direction:column;gap:2px}
+.dy-loh b{font-family:var(--f-display);color:var(--halo);font-size:16px;letter-spacing:.05em}
+.dy-loh span{font-size:13px;color:var(--ash)}
+.dy-loh--re{border-color:rgba(205,163,73,.35)}
+.dy-loh-was{font-size:12px;color:var(--halo);opacity:.85;margin-left:4px;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.loh-flash{animation-duration:.8s}.crest__btn.is-beat::after{animation:none}}

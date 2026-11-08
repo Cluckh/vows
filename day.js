@@ -71,7 +71,16 @@
   /* версії справи: зміна числа, розкладу, типу чи складності діє з дня зміни — минулі дні оцінюються за тим, що діяло тоді.
      t.vers = [{ until: "РРРР-ММ-ДД", snap: { … } }] за зростанням until: snap — налаштування, що діяли по until включно */
   const VKEYS = ["type", "target", "unit", "step", "rep", "diff", "src", "app", "bank", "gym"];
-  function ver(t, k) { const V = t && t.vers; if (!V || !V.length || !k) return t; const v = V.find((x) => k <= x.until); return v ? Object.assign({}, t, v.snap) : t; }
+  function ver(t, k) { const V = t && t.vers; let o = t; if (V && V.length && k) { const v = V.find((x) => k <= x.until); if (v) o = Object.assign({}, t, v.snap); } return lohCut(o, k); }
+  /* Lay on Hands (S.loh[день]): число справи — половина (крок 500 / 5 / 1), час у програмі — половина хвилин; рахується лише повне нове число.
+     Обітниць не торкається. lohFrom — що було, для позначки ✋ */
+  const lohHalf = (x) => x >= 2000 ? Math.max(500, Math.round(x / 2 / 500) * 500) : x >= 20 ? Math.max(5, Math.round(x / 2 / 5) * 5) : Math.max(1, Math.ceil(x / 2));
+  function lohCut(t, k) {
+    if (!t || !k || !S || !S.loh || !S.loh[k] || t.lohFrom != null) return t;
+    if (t.type === "count" && t.target > 1) return Object.assign({}, t, { target: lohHalf(t.target), lohFrom: t.target });
+    if (t.type !== "count" && t.src === "app" && t.app && !t.app.lim && t.app.min > 1) return Object.assign({}, t, { app: Object.assign({}, t.app, { min: Math.ceil(t.app.min / 2) }), lohFrom: t.app.min, lohUnit: "хв" });
+    return t;
+  }
   function occurs(t, k) {
     if (t.del || k < t.start || (t.end && k > t.end)) return false;
     const r = ver(t, k).rep || { f: "none" }, n = Math.max(1, r.n || 1);
@@ -1033,11 +1042,71 @@
     });
     if (ch) saveQ();
   }
+  /* Lay on Hands: нагороди дня ×0,5, поки не виконано квест зцілення (тоді — сповна); ідеальний день одразу після — Відродження ×1,5.
+     Множник пишеться в запис (mul, xp0 — початкове), тож перерахунок не накопичує множення; золото рахується з mul */
+  const LOH_DAYCAT = /^(t|pd|gy|jr|st|er|sl|nw):/;
+  const lohHealed = (d) => Q.list.some((q) => q.pid === "loh:" + d && q.st === "done");
+  function lohMul(d, id) {
+    if (S.loh && S.loh[d]) return lohHealed(d) ? 1 : 0.5;
+    if (id.startsWith("pd:") && S.loh && S.loh[add(d, -1)]) return 1.5;
+    return 1;
+  }
+  function lohSettle() {
+    if (!S.loh) return;
+    Object.entries(X.e).forEach(([id, e]) => {
+      if (!LOH_DAYCAT.test(id)) return;
+      const m = lohMul(e.d, id);
+      if (m === 1) { if (e.mul) { e.xp = e.xp0 || e.xp; delete e.mul; delete e.xp0; } return; }
+      if (e.xp0 == null || !e.mul) e.xp0 = e.xp;
+      e.xp = Math.max(1, Math.round(e.xp0 * m)); e.mul = m;
+    });
+  }
+  const LOH_HEAL = [
+    "Двадцять хвилин сну вдень — або просто полежати з заплющеними очима. Без телефона.",
+    "Дві склянки води й десять хвилин надворі. Повільно, без мети.",
+    "Подзвони людині, якій довіряєш. Не писати — подзвонити.",
+    "Гарячий душ і рання постіль: лягти до 23:00, телефон — поза ліжком.",
+    "Нормальна гаряча їжа сьогодні — сісти й поїсти без екрана."
+  ];
+  /* затиснутий щит → протокол: день, квест зцілення, сцена Верховного. Повертає false, якщо сьогодні вже ввімкнено */
+  function layOnHands() {
+    const t0 = today(); S.loh = S.loh || {};
+    if (S.loh[t0]) { lohScene(true); return false; }
+    S.loh[t0] = { at: Date.now() }; saveS();
+    const L = (D().DAY || {}).loh || {}, heal = (L.heal && L.heal.length ? L.heal : LOH_HEAL)[hashStr(t0) % (L.heal && L.heal.length ? L.heal.length : LOH_HEAL.length)];
+    if (!Q.list.some((q) => q.pid === "loh:" + t0)) {
+      Q.list.push({ id: "loh" + t0.replace(/-/g, ""), pid: "loh:" + t0, rar: "rare", giver: "supreme", t: "Зцілення", scope: "day", days: 1, desc: heal + " Виконаєш — день заплатить сповна.",
+        type: "do", target: null, unit: "", xp: ECON.quest.rare[0], cats: null, limitPct: 0, limit: 0, vow: null, app: null, appMax: null, weight: null,
+        offer: "", accept: "", decline: "", done: "Ось так. Турбота про себе — теж служба Ордену.", st: "active", from: t0, until: t0, cur: 0, at: Date.now(), loh: 1 });
+      saveQ();
+    }
+    settle(); render();
+    const V = window.ORDO_VAULT; if (V && V.dispatch) V.dispatch("herald", { loh: t0 }).catch(() => {});     // вісті протягом дня — від глашатая
+    lohScene(false);
+    return true;
+  }
+  const hashStr = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+  async function lohScene(again) {
+    const h = H(); if (!h) return;
+    const t0 = today(), L = (D().DAY || {}).loh || {};
+    const cut = items(t0).filter(({ t }) => t.lohFrom != null).map(({ t }) => `«${t.t}» ${fmtN(t.lohFrom)} → ${fmtN(t.type === "count" ? t.target : t.app.min)}${t.lohUnit ? " " + t.lohUnit : ""}`);
+    const hq = Q.list.find((q) => q.pid === "loh:" + t0);
+    h.stage("supreme", { glow: glowOf("legend") });
+    const say = async (s) => (await h.say(s)) === "closed";
+    if (again) { if (await say(pick(L.again) || "Я тут, брате. Протокол уже діє — ноша сьогодні легша. Дихай.")) return; h.close(); return; }
+    if (await say(pick(L.open) || "Брате, я тут. Руки на щиті — і дихай. Повільно.")) return;
+    if (cut.length && await say((L.cut || "Сьогодні Орден знімає з тебе половину ноші: {list}. Повне нове число — і справа зарахована.").replace("{list}", cut.slice(0, 5).join(", ") + (cut.length > 5 ? "…" : "")))) return;
+    if (await say(L.gym || "Зал і кардіо — легко, без рекордів. Зовсім не можеш — перенеси, ланцюжок не згорить.")) return;
+    if (await say(L.vows || "Обітниці — без змін. Сьогодні вони найважливіші.")) return;
+    if (hq && await say((L.heal_say || "І одне доручення від мене — зцілення: {heal}").replace("{heal}", (hq.desc || "").replace(/ Виконаєш.*$/, "")))) return;
+    if (await say(L.close || "Нагороди сьогодні — половина. Виконаєш зцілення — сповна. А завтра повний день дасть Відродження ×1,5.")) return;
+    h.close();
+  }
   function settle() {
     rewind(); rewind2(); unease();
     restSeal();
     for (let k = add(today(), -3); k <= today(); k = add(k, 1)) settleTasks(k);
-    settleDerived(); settleQuests();
+    settleDerived(); settleQuests(); lohSettle();
     const fresh = settleAch();
     saveX();
     /* тригери: третій чистий день поспіль → рідкісний квест; віха обітниці сьогодні → легендарний */
@@ -1454,9 +1523,9 @@
       : `<button class="dy-mark" type="button" data-dmark="${t.id}" aria-label="${ro ? "Зробити наперед" : "Виконано"}"></button>`;
     return `<li class="dy-it st-${st} rar-${rarOf(t)}${t.quest ? " dy-it--q" : ""}" data-dopen="${t.id}">${mark}
       <div class="dy-body"><span class="dy-t">${esc(t.t)}</span>
-        ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em></span>` : ""}
+        ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em>${t.lohFrom != null ? ` <span class="dy-loh-was">✋ було ${fmtN(t.lohFrom)}</span>` : ""}</span>` : ""}
         ${(() => { if (srcOf(t) !== "app" || t.type === "count" || k > today()) return ""; const a = appOf(t), m = Math.floor(appMin(k, a.n));
-          return appBar(m, a.min, a.lim); })()}
+          return appBar(m, a.min, a.lim) + (t.lohFrom != null ? `<span class="dy-loh-was">✋ було ${fmtN(t.lohFrom)} хв</span>` : ""); })()}
         ${isRead(t) && k <= today() ? bookLine(k) : ""}
         ${(() => { const sp = srcOf(t) === "bank" && k <= today() ? bankSpent(t, k) : null; return sp == null ? "" : `<span class="dy-num${sp > (t.bank.limit || 0) ? " is-over" : ""}">витрачено ${T().money(sp)} <em>/ ліміт ${T().money(t.bank.limit || 0)}</em></span>`; })()}
         <span class="dy-meta">${metaOf(t, r, k)}</span></div>
@@ -1677,6 +1746,8 @@
     if (!strip.includes(k)) strip.push(k);
     h += `<div class="dy-strip">${strip.map((d) => `<button type="button" data-dday="${d}" class="${d === k ? "is-on" : ""}${d === t0d ? " is-today" : ""}"><span>${WD[wd(d)]}</span><b>${dt(d).getDate()}</b></button>`).join("")}</div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
+    if (S.loh && S.loh[k]) h += `<div class="dy-loh"><b>✋ Lay on Hands</b><span>ноша дня — наполовину · ${lohHealed(k) ? "зцілення виконано — нагорода сповна" : "нагороди ×0,5, зцілення поверне сповна"}</span></div>`;
+    else if (S.loh && S.loh[add(k, -1)] && k <= today()) h += `<div class="dy-loh dy-loh--re"><b>Відродження</b><span>повний день сьогодні — нагорода за нього ×1,5</span></div>`;
     const W = k === today() ? watch() : [], bad = W.filter((x) => x.st === "bad");
     if (bad.length) h += `<button type="button" class="dy-watch" data-dwatch="1"><svg><use href="#i-bell"/></svg><span><b>Сторож:</b> ${esc(bad[0].name.toLowerCase())} — ${esc(bad[0].what)}${bad.length > 1 ? ` · ще ${bad.length - 1}` : ""}</span><i>›</i></button>`;
     const hd = hDay(k) || {};             // на майбутній день даних ще немає — порожньо, а не null
@@ -2555,7 +2626,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, layOnHands, lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

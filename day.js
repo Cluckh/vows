@@ -74,7 +74,7 @@
   function ver(t, k) { const V = t && t.vers; let o = t; if (V && V.length && k) { const v = V.find((x) => k <= x.until); if (v) o = Object.assign({}, t, v.snap); } return lohCut(o, k); }
   /* Lay on Hands (S.loh[день]): число справи — половина (крок 500 / 5 / 1), час у програмі — половина хвилин; рахується лише повне нове число.
      Обітниць не торкається. lohFrom — що було, для позначки ✋ */
-  const lohHalf = (x) => x >= 2000 ? Math.max(500, Math.round(x / 2 / 500) * 500) : x >= 20 ? Math.max(5, Math.round(x / 2 / 5) * 5) : Math.max(1, Math.ceil(x / 2));
+  const lohHalf = (x) => x >= 2000 ? Math.max(500, Math.round(x / 2 / 500) * 500) : x >= 20 ? Math.max(5, Math.round(x / 2 / 5) * 5) : Number.isInteger(x) ? Math.max(1, Math.ceil(x / 2)) : Math.max(0.25, Math.round(x / 2 * 4) / 4);     // дробове (вода 1,5 л) — чесна половина
   function lohCut(t, k) {
     if (!t || !k || !S || !S.loh || !S.loh[k] || t.lohFrom != null) return t;
     if (t.type === "count" && t.target > 1) return Object.assign({}, t, { target: lohHalf(t.target), lohFrom: t.target });
@@ -1806,6 +1806,7 @@
     if (!strip.includes(k)) strip.push(k);
     h += `<div class="dy-strip">${strip.map((d) => `<button type="button" data-dday="${d}" class="${d === k ? "is-on" : ""}${d === t0d ? " is-today" : ""}"><span>${WD[wd(d)]}</span><b>${dt(d).getDate()}</b></button>`).join("")}</div>`;
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
+    if (k === today() && !(S.loh && S.loh[k])) h += `<button type="button" class="dy-loh-btn" data-dloh="1"><span>✋</span><b>Важкий день?</b><em>Lay on Hands</em></button>`;
     if (S.loh && S.loh[k]) h += `<div class="dy-loh"><b>✋ Lay on Hands</b><span>ноша дня — наполовину · ${lohHealed(k) ? "зцілення виконано — нагорода сповна" : "нагороди ×0,5, зцілення поверне сповна"}</span></div>`;
     else if (S.loh && S.loh[add(k, -1)] && k <= today()) h += `<div class="dy-loh dy-loh--re"><b>Відродження</b><span>повний день сьогодні — нагорода за нього ×1,5</span></div>`;
     const W = k === today() ? watch() : [], bad = W.filter((x) => x.st === "bad");
@@ -2082,6 +2083,16 @@
           <div class="dy-acts"><button class="btn btn--ghost" type="button" data-ds="gmore">Перенести / правити</button><button class="btn btn--ghost" type="button" data-ds="close">Закрити</button></div>`;
         }
       }
+    } else if (sh.mode === "loh") {
+      const t0 = today(), cut = Object.values(S.tasks).filter((t) => occurs(t, t0)).map((t) => ver(t, t0)).map((t) => {
+        if (t.type === "count" && t.target > 1) return `${esc(t.t)}: ${fmtN(t.target)} → <b>${fmtN(lohHalf(t.target))}</b>`;
+        if (t.type !== "count" && t.src === "app" && t.app && !t.app.lim && t.app.min > 1) return `${esc(t.t)}: ${t.app.min} → <b>${Math.ceil(t.app.min / 2)} хв</b>`;
+        return null; }).filter(Boolean);
+      h += `<div class="gs-kicker">Протокол на сьогодні</div><div class="sheet__title dy-sht">✋ Lay on Hands</div>
+        <p class="dy-note">Хвороба, безсонна ніч, усе навалилось — Орден зменшує ношу дня, а не скасовує його.</p>
+        <ul class="loh-list">${cut.length ? cut.slice(0, 8).map((x) => `<li>${x}</li>`).join("") : ""}<li>Зал — легкий: ваги −15%, по 2 підходи; кардіо — 10 хв</li><li>Нагороди ×0,5 — квест «Зцілення» поверне сповна; завтра повний день — ×1,5</li><li>Обітниці — без змін</li></ul>
+        <div class="loh-slide" id="lohSlide"><div class="loh-slide__fill"></div><span class="loh-slide__t">проведи — руки на щит</span><div class="loh-slide__k">✋</div></div>
+        <button class="btn btn--ghost" type="button" data-ds="close">Не зараз</button>`;
     } else if (sh.mode === "watch") {
       const W = watch(), on = W.filter((x) => x.st !== "off"), off = W.filter((x) => x.st === "off"), bad = on.filter((x) => x.st === "bad");
       h += `<div class="gs-kicker">Сторож · ${clock(Date.now())}</div><div class="sheet__title dy-sht">${bad.length ? "Щось замовкло" : "Усе на місці"}</div>
@@ -2208,6 +2219,21 @@
   }
   const gyFlush = () => { if (gyT) { clearTimeout(gyT); gyT = 0; saveG(); } };
   const el0 = () => $("dSheet");
+  /* Lay on Hands: вікно з переліком того, що зменшиться, і повзунком — провести до кінця (випадково не ввімкнеш) */
+  function lohConfirm() { if (S.loh && S.loh[today()]) { lohScene(true); return; } openSheet("loh", null, today()); renderSheet(); lohSlider(); }
+  function lohSlider() {
+    const sl = $("lohSlide"); if (!sl) return;
+    const k = sl.querySelector(".loh-slide__k"), fill = sl.querySelector(".loh-slide__fill"); let x0 = null, p = 0, done = false;
+    const set = (v) => { p = Math.max(0, Math.min(1, v)); const w = sl.clientWidth - k.offsetWidth - 8; k.style.transform = `translateX(${p * w}px)`; fill.style.width = `${k.offsetWidth + 8 + p * w}px`; sl.style.setProperty("--p", p.toFixed(3)); };
+    k.addEventListener("pointerdown", (e) => { if (done) return; x0 = e.clientX - p * (sl.clientWidth - k.offsetWidth - 8); k.setPointerCapture(e.pointerId); sl.classList.add("is-drag"); });
+    k.addEventListener("pointermove", (e) => { if (x0 == null || done) return; set((e.clientX - x0) / (sl.clientWidth - k.offsetWidth - 8)); });
+    const up = () => { if (x0 == null || done) return; x0 = null; sl.classList.remove("is-drag");
+      if (p >= 0.92) { done = true; set(1); sl.classList.add("is-done"); buzz("heavy");
+        const f = document.createElement("div"); f.className = "loh-flash"; document.body.appendChild(f); setTimeout(() => f.remove(), 2200);
+        setTimeout(() => { closeSheet(); layOnHands(); const A = API(); if (A.renderBoard) A.renderBoard(); }, 700); }
+      else { sl.classList.add("is-back"); set(0); setTimeout(() => sl.classList.remove("is-back"), 300); } };
+    k.addEventListener("pointerup", up); k.addEventListener("pointercancel", up);
+  }
   function readGym() {
     if (!sh || !sh.gym) return;
     el0().querySelectorAll(".gy-ex").forEach((box) => {
@@ -2488,6 +2514,7 @@
     if (e.target.closest("[data-dqtog]")) { LS.set("ordo.k.qOpen", !LS.get("ordo.k.qOpen", false)); buzz("light"); render(); return; }
     if (e.target.closest("[data-dnight]")) { nightOpen = !nightOpen; buzz("light"); render(); return; }
     if (e.target.closest("[data-dmore]")) { dayMore = !dayMore; buzz("light"); render(); return; }
+    if (e.target.closest("[data-dloh]")) { buzz("medium"); lohConfirm(); return; }
     const gg = e.target.closest("[data-dgymgo]"); if (gg) { buzz("light"); openSheet("gym", gg.dataset.dgymgo, view || today()); return; }
     const op = e.target.closest("[data-dopen]"); if (op) { const t = S.tasks[op.dataset.dopen]; if (srcOf(t) === "journal" && (view || today()) <= today()) { openJournal(view); return; } openSheet(isGym(t) && (view || today()) <= today() ? "gym" : "item", op.dataset.dopen, view); return; }
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
@@ -2710,7 +2737,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, layOnHands, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

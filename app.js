@@ -681,7 +681,7 @@ window.ORDO_START = function () {
      Відпустив раніше — нічого не вмикається. На iPhone вебзастосунок не може вібрувати під час затиску — тому серце видно й чути */
   (function shieldHold() {
     const b = $("crestBtn"), hint = document.querySelector(".crest__hint"); if (!b) return;
-    const HOLD = 10000, TAP = 450, HINT = hint ? hint.textContent : "";
+    const HOLD = 2500, TAP = 450, HINT = hint ? hint.textContent : "";
     let t0 = 0, raf = 0, beatT = 0, ac = null;
     const thump = (v) => { if (!FX.enabled) return; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const n = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
       o.type = "sine"; o.frequency.setValueAtTime(62, n); o.frequency.exponentialRampToValueAtTime(40, n + 0.22); g.gain.setValueAtTime(0.0001, n); g.gain.exponentialRampToValueAtTime(0.55 * v, n + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, n + 0.28);
@@ -694,15 +694,14 @@ window.ORDO_START = function () {
     }
     function frame() {
       const p = prog(); b.style.setProperty("--p", p.toFixed(3));
-      if (hint && p > 0.06) hint.textContent = `Lay on Hands · ${Math.ceil((1 - p) * 10)}`;
+      if (hint && p > 0.15) hint.textContent = "Lay on Hands…";
       if (p >= 1) { finish(); return; } raf = requestAnimationFrame(frame);
     }
     function stop() { cancelAnimationFrame(raf); clearTimeout(beatT); b.classList.remove("is-charging", "is-beat"); b.style.removeProperty("--p"); if (hint) hint.textContent = HINT; }
     function finish() {
       stop(); t0 = 0;
-      const f = document.createElement("div"); f.className = "loh-flash"; document.body.appendChild(f); setTimeout(() => f.remove(), 2200);
-      thump(1); FX.buzz("heavy"); FX.play("mark", true);
-      setTimeout(() => { if (window.ORDO_DAY && window.ORDO_DAY.layOnHands) window.ORDO_DAY.layOnHands(); renderBoard(); }, 900);
+      thump(0.8); FX.buzz("medium");
+      if (window.ORDO_DAY && window.ORDO_DAY.lohConfirm) window.ORDO_DAY.lohConfirm();     // вмикає повзунок у вікні — випадково не спрацює
     }
     b.addEventListener("pointerdown", (e) => { if (e.button > 0 || t0) return; t0 = performance.now(); b.classList.add("is-charging"); raf = requestAnimationFrame(frame); beatT = setTimeout(beat, 650); });
     b.addEventListener("pointerup", () => { if (!t0) return; const dt = performance.now() - t0; stop(); t0 = 0; if (dt < TAP && window.ORDO_HALL) window.ORDO_HALL.panic(); });

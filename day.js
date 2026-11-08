@@ -2438,6 +2438,12 @@
       const wasDone = !!(t && isWin(stOf(t, rec(k, id), k)));
       if (a === "gundo") { w.fin = null; setRec(k, id, { st: null, note: null }); saveG(); buzz("light"); after(before); renderSheet(); return; }
       w.fin = w.fin || Date.now(); saveG();
+      /* тренування в день, коли справи за розкладом нема (кардіо в середу, а справа — по понеділках): найближчий день справи переїжджає сюди, як «зробити наперед» —
+         денна справа закривається й рахується в привʼязаних цілях */
+      if (!wasDone && t && !items(k).some((x) => x.t.id === id)) {
+        let nk = null; for (let i = 1; i <= 10 && !nk; i++) { const c = add(k, i), rc = rec(c, id); if (occurs(t, c) && !(rc && (rc.st === "moved" || isFull(stOf(t, rc, c))))) nk = c; }
+        if (nk) setRec(nk, id, { st: "moved", to: k, early: 1 }); setRec(k, id, { from: nk || k });
+      }
       if (!wasDone) { setRec(k, id, { st: "done" }); fx("yes"); buzz("medium"); }
       after(before); sh.fin = true; renderSheet(); return;
     }

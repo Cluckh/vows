@@ -1,0 +1,34 @@
+# Події з iPhone (кроки, сон, програми, медитація, читання) — обробляються тут, бо в публічному сховищі хвилини GitHub Actions безкоштовні.
+# Нічого з даних не потрапляє в лог: подія читається з файлу події (не з env), вивід скриптів приглушено.
+# Обробник — tools/health.mjs із приватного сховища; результат (зашифрований ключем сховища) пушиться назад у приватне.
+# Потрібен секрет PRIVATE_TOKEN — токен із правом запису в Cluckh/vows-private (той самий, що в командах iPhone).
+name: sync
+on:
+  repository_dispatch:
+    types: [health]
+permissions: {}
+jobs:
+  s:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: обробити
+        env:
+          TOKEN: ${{ secrets.PRIVATE_TOKEN }}
+        run: |
+          set +x
+          git clone -q --depth 5 "https://x-access-token:${TOKEN}@github.com/Cluckh/vows-private.git" p >/dev/null 2>&1 || { echo "немає доступу до приватного сховища (секрет PRIVATE_TOKEN)"; exit 1; }
+          cd p
+          export PAYLOAD="$(jq -c '.client_payload // {}' "$GITHUB_EVENT_PATH")"
+          git config user.name "healer"; git config user.email "healer@users.noreply.github.com"
+          node tools/health.mjs >/dev/null 2>&1 || { echo "помилка обробки"; exit 1; }
+          for i in 1 2 3 4 5 6 7 8; do
+            git add health/ && git diff --cached --quiet && { echo "готово"; exit 0; }
+            git commit -q -m "здоровʼя $(date -u +%F)" >/dev/null 2>&1
+            git push -q origin HEAD:main >/dev/null 2>&1 && { echo "готово"; exit 0; }
+            sleep $((i * 4 + RANDOM % 5)); git fetch -q --depth 5 origin main >/dev/null 2>&1 && git reset -q --hard origin/main >/dev/null 2>&1 && node tools/health.mjs >/dev/null 2>&1
+          done
+          echo "не вдалося зберегти"; exit 1

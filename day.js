@@ -242,11 +242,23 @@
   /* «↻ оновити з телефона»: відкриває «Швидкі команди» з командою, що запускає всі вивантаження; після повернення — кілька свіжих зчитувань */
   const PHONE_SHORTCUT = "Update health";
   const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  let hSyncAt = LS.get("ordo.k.hsync", 0);
-  function phoneSync() { hSyncAt = Date.now(); LS.set("ordo.k.hsync", hSyncAt); location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(PHONE_SHORTCUT)}`; }
+  let hSyncAt = LS.get("ordo.k.hsync", 0), hFlushAt = LS.get("ordo.k.hflush", 0);
+  function phoneSync() {
+    if (Date.now() - hSyncAt < 45e3) return;
+    hSyncAt = Date.now(); LS.set("ordo.k.hsync", hSyncAt);
+    if (IOS) location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(PHONE_SHORTCUT)}`; else { flushHealth(); render(); }
+  }
+  /* події з телефона на GitHub чекають у черзі (ощадність хвилин Actions, 9.11.2026): просимо сховище розібрати її зараз — { flush: 1 } —
+     і кілька разів перечитуємо результат. На iPhone — після повернення зі «Швидких команд», з паузою, щоб команда встигла все надіслати */
+  function flushHealth() {
+    hFlushAt = Date.now(); LS.set("ordo.k.hflush", hFlushAt);
+    const V = window.ORDO_VAULT;
+    setTimeout(() => { if (V && V.dispatch) V.dispatch("health", { flush: 1 }).catch(() => {}); }, IOS ? 6000 : 0);
+    [35, 55, 80, 120].forEach((s) => setTimeout(() => { loadHealth(true); if (s === 120) render(); }, s * 1000));     // розбір на GitHub — ~25–50 с
+  }
   function afterPhoneSync() {
-    if (Date.now() - hSyncAt > 10 * 60e3) return;
-    [0, 25, 50, 90].forEach((s) => setTimeout(() => { loadHealth(true); if (s === 90) render(); }, s * 1000));     // обробка на GitHub — ~15–40 с
+    if (Date.now() - hSyncAt > 10 * 60e3 || hFlushAt >= hSyncAt) return;
+    flushHealth();
   }
   const EARLY = "08:00", DAWN = "04:00";
   const hhmm = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
@@ -1853,7 +1865,7 @@
     let more = "";                              // другорядне (кроки за місяць/рік, синхронізація) — під «більше»
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
-    if (k === today() && IOS) more += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю з телефона…" : "↻ оновити з телефона"}</button></div>`;
+    if (k === today()) h += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю… (до хвилини)" : IOS ? "↻ оновити з телефона" : "↻ оновити дані"}</button></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) more += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
     if (more) h += dayMore ? `<div class="dy-more">${more}</div><button type="button" class="dy-more-t" data-dmore>менше ‹</button>` : `<button type="button" class="dy-more-t" data-dmore>кроки за місяць ›</button>`;
@@ -2852,7 +2864,7 @@
     carryOver(); applyHealth(); applyPoker(); applyBank(); applyJournal(); settle(); lastLevel = levelOf(totalXP());
     if (window.ORDO_GOLD) window.ORDO_GOLD.tick();
     const cb2 = $("confessBtn"); if (cb2) cb2.addEventListener("click", () => openJournal(today())); confessStatus();
-    render(); loadHealth(true); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
+    render(); loadHealth(true); afterPhoneSync(); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
     setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); applyHealth(); settle(); render(); } }, 60000);
     setInterval(() => { if (!document.hidden) loadHealth(); }, 90e3);                 // поки Орден відкритий — кроки й хвилини з телефона підтягуються самі

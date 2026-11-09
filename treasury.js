@@ -47,10 +47,10 @@
     } catch (e) {}
   }
 
-  /* виписці понад 20 хв, а Орден відкрито — попросити свіжу (не частіше ніж раз на 15 хв); підтягнути, щойно банк відповість */
+  /* виписці понад 3 год, а Орден відкрито — попросити свіжу (не частіше ніж раз на 3 год: кожен запит — хвилина GitHub Actions); свіжіше — кнопкою «Оновити» */
   function ask(s) {
     const V = window.ORDO_VAULT, age = s && s.at ? Date.now() - Date.parse(s.at) : Infinity, last = LS.get("ordo.k.bankAsk", 0);
-    if (!V || !V.dispatch || age < 20 * 60e3 || Date.now() - last < 15 * 60e3) return;
+    if (!V || !V.dispatch || age < 3 * 3600e3 || Date.now() - last < 3 * 3600e3) return;
     LS.set("ordo.k.bankAsk", Date.now());
     V.dispatch("bank").then((ok) => { if (ok) [2, 4, 7].forEach((m) => setTimeout(() => load(true), m * 60e3)); });
   }

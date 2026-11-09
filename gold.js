@@ -665,11 +665,11 @@
   function watchBank(manual, later) {
     polls.forEach(clearTimeout); polls = [];
     syncing = true; refreshViews(); if (!later) askBank();
-    const asks = later ? [90, 220, 400] : [100, 220, 400], reads = [45, 65, 85, 150, 170, 270, 290, 450, 470, 600];
+    const asks = later ? [90, 300] : manual ? [] : [240], reads = [45, 65, 85, 150, 170, 270, 290, 330, 360, 450];     // ощадливо (хвилини GitHub): «Оновити» — один запит; виведення в дорозі — ще 1–2
     asks.forEach((s) => polls.push(setTimeout(() => { if (manual && s > 100 && !pending().length) return; if (pending().length || manual) askBank(); }, s * 1000)));
     reads.forEach((s, i) => polls.push(setTimeout(async () => { if (!pending().length && !manual && i > 2) return; await readBank(); if (i === reads.length - 1 || (manual && i >= 2 && !pending().length)) { syncing = false; refreshViews(); } }, s * 1000)));
   }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && pending().length) { if (Date.now() - lastAsk > 20e3) lastAsk = 0; watchBank(); } });     // повернувся з монобанку — одразу питаємо банк
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && pending().length && Date.now() - lastAsk > 5 * 60e3) watchBank(); });     // повернувся з монобанку — питаємо банк, але не частіше ніж раз на 5 хв     // повернувся з монобанку — одразу питаємо банк
   function refreshViews() { const A = API(); if (A.renderTreasury && A.tab && A.tab() === "treasury") A.renderTreasury(); if (DAY() && DAY().render) DAY().render(); }
 
   document.addEventListener("click", (e) => {

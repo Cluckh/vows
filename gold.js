@@ -425,7 +425,9 @@
   function html() {
     reconcile(); process(); setTimeout(loadArts, 50);
     const b = balance(), L = ledger(), mk = today().slice(0, 7);
-    const month = L.filter((x) => x.d.startsWith(mk)).reduce((a, x) => a + x.g, 0) + Object.entries(G.bon).filter(([k]) => { const id = k.replace(/^(rb|bl):/, ""); const x = L.find((y) => y.id === id); return x && x.d.startsWith(mk); }).reduce((a, [, v]) => a + v, 0);
+    let month = L.filter((x) => x.d.startsWith(mk)).reduce((a, x) => a + x.g, 0) + Object.entries(G.bon).filter(([k]) => { const id = k.replace(/^(rb|bl):/, ""); const x = L.find((y) => y.id === id); return x && x.d.startsWith(mk); }).reduce((a, [, v]) => a + v, 0);
+    const inMk = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` === mk; };
+    month += Object.values(G.inc).filter((v) => fresh(v) && inMk(v.at)).reduce((a, v) => a + (v.amt || 0), 0);   // рівні, скрині, недільна скриня, переплавлене — теж заробіток місяця
     const W = T() && T().white && T().white(), pd = pending();
     const full = L.map((x) => ({ d: x.d, t: x.why, g: x.g + (G.bon["rb:" + x.id] || 0) + (G.bon["bl:" + x.id] || 0), bl: !!G.bon["bl:" + x.id] }));
     const small = {}; full.filter((x) => x.g < 10 && !x.bl).forEach((x) => { const o = small[x.d] = small[x.d] || { d: x.d, t: "справи й обітниці дня", g: 0, n: 0 }; o.g += x.g; o.n++; });

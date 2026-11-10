@@ -702,8 +702,9 @@
     const when = k === today() ? "Сьогодні" : k === add(today(), 1) ? "Завтра" : `${human(k)} —`;
     const head = P.warn.length && P.k === k ? P.warn[0] : P.k === k ? `${when} день ${P.type}: ${P.label}.${P.prog ? ` Прогресія — ${P.prog.n.toLowerCase()}.` : ""}` : `За планом зал ${human(P.k)} — день ${P.type}. Сьогодні можна, але плечам і графіку краще ${human(P.k)}.`;
     return { giver: "sobriety", head, tips: P.k === k ? P.ex.slice(0, 6).map((x) => `${x.prog ? "↑ " : ""}${x.n}: ${U(x)}`) : [], arm: 1,
-      line: P.k === k ? `Зал · день ${P.type}: ${P.label}` : `Зал за планом — ${human(P.k)}, день ${P.type}`,
-      sub: P.k === k ? (P.warn.length ? P.warn[0] : `${P.ex.length} вправ${P.prog ? ` · прогресія: ${P.prog.n.toLowerCase()}` : ""}`) : "сьогодні можна, але плечам і графіку краще за планом" };
+      line: P.k === k ? `Зал · день ${P.type}: ${P.label}` : k > P.k ? `Зал — ${human(k)}` : `Зал за планом — ${human(P.k)}, день ${P.type}`,
+      sub: P.k === k ? (P.warn.length ? P.warn[0] : `${P.ex.length} вправ${P.prog ? ` · прогресія: ${P.prog.n.toLowerCase()}` : ""}`)
+        : k > P.k ? `спершу день ${P.type} (${human(P.k)}) — після нього складеться план` : k === today() ? "сьогодні можна, але плечам і графіку краще за планом" : "цього дня можна, але плечам і графіку краще за планом" };
   }
   const gymSig = (g) => JSON.stringify([g.ex.map((e) => [e.n, (e.sets || []).map((z) => [z.r, z.w])]), g.note || ""]);
   /* текст для живого тренера в чаті: останні тренування з підходами й нотатками */
@@ -1756,7 +1757,9 @@
     const art = m.art && window.ORDO_GOLD && window.ORDO_GOLD.artFor ? await window.ORDO_GOLD.artFor("moment", m.mid || m.id) : null;      // легендарне й міфічне — картина на весь фон
     const gl = rarOk(m.rar) === "common" ? null : rarOk(m.rar);
     h.stage(m.who || "supreme", Object.assign({}, gl ? { glow: gl } : {}, art ? { scene: art } : {}));
-    const res = await h.runDialog({ n: m.n });
+    const pk = replay || isTestMo(m.id) ? null : picker("m:" + m.id, m.n);
+    const res = await h.runDialog({ n: m.n }, pk && pk.on);
+    if (pk) pk.end(res);
     if (!replay && m.reward && !isTestMo(m.id) && !X.e["mo:" + m.id]) {
       const before = totalXP(), [xp, gold] = MO_REW[rarOk(m.rar)];
       X.e["mo:" + m.id] = { d: today(), xp, gold, src: "moment", why: m.title || "Слово храмовника" }; saveX();
@@ -1878,8 +1881,13 @@
     const cb = k === today() ? comeback() : null;
     if (cb) h += `<div class="dy-ret"><span class="dy-ret__t">Шлях повернення</span><span class="dy-ret__pips">${[1, 2, 3, 4, 5, 6, 7].map((i) => `<i class="${i <= cb.n ? "is-on" : ""}"></i>`).join("")}</span>
       <span class="dy-ret__s">${cb.today ? "новий стрік почнеться завтра — тримай перший день" : `день ${cb.n + 1} з 7 · новий стрік уже росте`}</span></div>`;
-    const gymT = its.find(({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel");
-    const adv = gymT && k >= today() ? armAdvice(k) || gymAdvice(k) : null;
+    /* справа «зал» на цей день; якщо відкрита лише кардіо — картка каже про кардіо, а не про план силового дня (і кнопка веде туди ж) */
+    const gymLeft = ({ t, r }) => isGym(t) && !isWin(stOf(t, r, k)) && stOf(t, r, k) !== "moved" && stOf(t, r, k) !== "cancel";
+    const gymT = its.find((x) => gymLeft(x) && !CARDIO_RE.test(x.t.t || "")) || its.find(gymLeft);
+    const cdLast = gymT && CARDIO_RE.test(gymT.t.t || "") ? Object.keys(GYM.cd || {}).filter((x) => x < k && GYM.cd[x] && (GYM.cd[x].iv || []).length).sort().pop() : null;
+    const adv = !gymT || k < today() ? null : CARDIO_RE.test(gymT.t.t || "")
+      ? { arm: 1, line: k === today() ? "Кардіо сьогодні" : `Кардіо — ${human(k)}`, sub: cdLast ? `минулого разу (${human(cdLast)}) — ${cardioTxt(GYM.cd[cdLast])}` : "інтервали й режим — у таблиці" }
+      : armAdvice(k) || gymAdvice(k);
     if (adv && adv.arm) {                         // зал — один рядок із кнопкою; деталі — в таблиці й Зброярні
       h += `<button type="button" class="dy-gym1" data-dgymgo="${gymT.t.id}"><svg><use href="#i-swords"/></svg><span><b>${esc(adv.line)}</b>${adv.sub ? `<em>${esc(adv.sub)}</em>` : ""}</span><i>${k === today() ? "Почати ›" : "›"}</i></button>`;
     } else if (adv) { const K = adv.giver === "supreme" ? (D().KEEPERS || {}).supreme : (D().KEEPERS || {})[adv.giver];
@@ -2747,6 +2755,16 @@
     const r = await H().letter(L.id, { offer: true });
     return r !== false;
   }
+  /* вибори в діалогах писаря (m: момент, e: подія, l: лист): що саме натиснуто й чи дійшов до кінця — писар бачить це у зведенні.
+     Пройдене до кінця вдруге не переписується (перечитування з архіву чи картки) */
+  function picker(k, n) {
+    if (!Array.isArray(n) || !n.some((x) => x && x.c && x.c.length)) return null;
+    S.pick = S.pick || {}; if (S.pick[k] && S.pick[k].end) return null;
+    const old = add(today(), -60); Object.keys(S.pick).forEach((x) => { if (!S.pick[x] || S.pick[x].d < old) delete S.pick[x]; });
+    S.pick[k] = { d: today(), c: [], end: 0 }; saveS();
+    const cur = () => { S.pick = S.pick || {}; return S.pick[k] || (S.pick[k] = { d: today(), c: [], end: 0 }); };
+    return { on: (t) => { cur().c.push(String(t || "").slice(0, 90)); saveS(); }, end: (ok) => { if (ok) { cur().end = 1; saveS(); } } };
+  }
   function writerState() {
     const A = API(), t0 = today(), vows = D().VOWS || [], LOG = LS.get("ordo.log", []), lv = levelOf(totalXP());
     const since = (n) => add(t0, -n), days14 = []; for (let i = 13; i >= 0; i--) days14.push(add(t0, -i));
@@ -2785,6 +2803,7 @@
       bank: T && T.ready() ? { week: T.spentIn("*", since(7), t0), prevWeek: T.spentIn("*", since(14), since(8)), courier7: T.spentIn(["courier"], since(7), t0), verdicts: LS.get("ordo.bank", {}).seen || {} } : null,
       books: { now: curBook() ? { t: curBook().t, page: bookPage(curBook().id), pages: curBook().pages } : null, done: Object.values(BK.list).filter((b) => b.end).map((b) => ({ t: b.t, end: b.end })), pages14: days14.map((k) => ({ d: k, p: pagesOn(k) })).filter((x) => x.p) },
       seenEvents: Object.keys(S.ev || {}),
+      picks: Object.entries(S.pick || {}).filter(([, p]) => p && p.d >= since(21)).sort((a, b) => (a[1].d < b[1].d ? -1 : a[1].d > b[1].d ? 1 : 0)).map(([k, p]) => ({ k, d: p.d, c: p.c || [], end: p.end ? 1 : 0 })),
       seenMoments: Object.keys(S.mom || {}), heardNews: Object.keys(S.heard || {}).map((k) => k.split(":")[0] + ":" + k.split(":")[1])
     };
   }
@@ -2827,7 +2846,9 @@
     if (!ev) return true;
     S.ev[ev.id] = today(); saveS();
     h.stage(ev.giver || "supreme", ev.glow ? { glow: ev.glow } : {});
-    const res = await h.runDialog({ n: ev.n });
+    const pk = picker("e:" + ev.id, ev.n);
+    const res = await h.runDialog({ n: ev.n }, pk && pk.on);
+    if (pk) pk.end(res);
     if (ev.gift && window.ORDO_GOLD) window.ORDO_GOLD.gift(ev.gift, ev.id);          // храмовник дарує реліквію
     return res;
   }
@@ -2885,7 +2906,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, goalLaw, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, goalLaw, picker, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

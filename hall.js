@@ -393,12 +393,13 @@
         const A = API(); if (A.FX) A.FX.buzz("light"); box.innerHTML = ""; res(+b.dataset.i); };
     });
   }
-  /* пройти діалог { n: [{ s, c? }] } */
-  async function runDialog(dlg) {
+  /* пройти діалог { n: [{ s, c? }] }; onPick(текст варіанта) — щоб День міг записати, що обрано */
+  async function runDialog(dlg, onPick) {
     for (const node of dlg.n) {
       if (!isOpen()) return false;
       if (node.c && node.c.length) {
         const i = await ask(node.s, node.c.map((c) => c.t)); if (i === "closed") return false;
+        if (onPick) try { onPick(node.c[i].t); } catch (e) {}
         const r = await say(node.c[i].r); if (r === "closed") return false;
       } else { const r = await say(node.s); if (r === "closed") return false; }
     }
@@ -617,7 +618,9 @@
       if (i === 1) { await say("Лист чекатиме в «Дні» — до кінця тижня."); if (isOpen()) close(); return "later"; }
     } else if ((await say(`✉ Лист із печаткою Ордену${fromName ? ". Від: " + fromName : ""}. Торкнись, щоб зламати печатку.`)) === "closed") return false;
     show(from);
-    const ok = await runDialog(L);
+    const pk = window.ORDO_DAY && window.ORDO_DAY.picker ? window.ORDO_DAY.picker("l:" + lid, L.n) : null;
+    const ok = await runDialog(L, pk && pk.on);
+    if (pk) pk.end(ok);
     if (isOpen()) close();
     if (ok && window.ORDO_DAY && window.ORDO_DAY.letterRead) window.ORDO_DAY.letterRead(lid);
     return ok;

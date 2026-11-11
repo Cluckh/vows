@@ -270,14 +270,14 @@
     try { const h = await V.readSealed("health/log.json"); if (h && h.at !== (HL && HL.at)) { HL = h; LS.set("ordo.k.health", h); applyHealth(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } } catch (e) {}
     autoFlush();
   }
-  /* Орден відкритий, а даним з телефона понад годину — сам просить сховище розібрати чергу (раз на 90 хв: кожен розбір — хвилина Actions).
-     Розклад GitHub ненадійний (10.11 із пʼяти запусків відбувся один), тож без цього хвилини YouTube могли чекати пів дня */
+  /* Орден відкрили — сам просить сховище розібрати чергу подій з телефона, щоб хвилини YouTube, Reddit тощо були свіжі саме тоді, коли на них дивишся
+     (не частіше ніж раз на 10 хв і лише якщо даним понад 5 хв: кожен розбір — хвилина Actions). Розклад GitHub ненадійний, тож на нього не чекаємо */
   function autoFlush() {
     const age = HL && HL.at ? Date.now() - Date.parse(HL.at) : Infinity;
-    if (document.hidden || age < 60 * 60e3 || Date.now() - hFlushAt < 90 * 60e3 || Date.now() - hSyncAt < 10 * 60e3) return;
+    if (document.hidden || age < 5 * 60e3 || Date.now() - hFlushAt < 10 * 60e3 || Date.now() - hSyncAt < 10 * 60e3) return;
     hFlushAt = Date.now(); LS.set("ordo.k.hflush", hFlushAt);
     const V = window.ORDO_VAULT; if (V && V.dispatch) V.dispatch("health", { flush: 1 }).catch(() => {});
-    [40, 90].forEach((s) => setTimeout(() => loadHealth(true), s * 1000));
+    [30, 50, 90].forEach((s) => setTimeout(() => loadHealth(true), s * 1000));
   }
   /* кроки з телефона — у лічильники з позначкою «кроки» і в квести на кроки */
   function applyHealth() {

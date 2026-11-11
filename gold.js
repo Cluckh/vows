@@ -339,10 +339,11 @@
   /* після дій «Дня»: обробити нове (бонуси, благословення, реліквії), показати приріст золота й відкриття */
   function tick() {
     process();
-    const e = earned(), seen = LS.get("ordo.k.goldSeen", null);
-    if (seen === null) LS.set("ordo.k.goldSeen", e);
-    else if (e > seen) { LS.set("ordo.k.goldSeen", e); setTimeout(() => toast(`${coin()}<b>+${fmtN(e - seen)}</b> золота`), 1900); }
-    else if (e < seen) LS.set("ordo.k.goldSeen", e);
+    /* «+N золота» показуємо раз: позначка — у спільному стані (G.seenE), тож зароблене на телефоні не «приходить» удруге на компі */
+    const e = earned(), seen = G.seenE ? G.seenE.v : LS.get("ordo.k.goldSeen", null), setSeen = () => { G.seenE = { v: e, at: Date.now() }; save(); };
+    if (seen === null) setSeen();
+    else if (e > seen) { setSeen(); if (!(window.ORDO_VAULT && window.ORDO_VAULT.hold && window.ORDO_VAULT.hold())) setTimeout(() => toast(`${coin()}<b>+${fmtN(e - seen)}</b> золота`), 1900); }
+    else if (e < seen) setSeen();
     if (reveals.length) setTimeout(nextReveal, 3200);
   }
 

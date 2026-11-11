@@ -49,11 +49,14 @@
   const START_XP = 4650;                    // посвята: рівень 7, звання «Лицар»
   /* стан читаємо й при завантаженні скрипта, і ще раз у init(): перед стартом boot.js міг підтягнути свіжіше з іншого пристрою */
   let S, Q, X, ACH;
+  /* stAt — коли востаннє змінився СТАН квесту (не поступ): за нею синхронізація вирішує, чия правда (відмова на телефоні сильніша за перерахунок на компі) */
+  const QST = {}, markQ = () => { (Q.list || []).forEach((q) => { if (QST[q.id] !== undefined && QST[q.id] !== q.st) q.stAt = Date.now(); else if (QST[q.id] === undefined && !q.stAt && QST.__ready) q.stAt = Date.now(); QST[q.id] = q.st; }); QST.__ready = 1; };
   function loadState() {
     S = LS.get("ordo.day", null); if (!S || typeof S !== "object") S = {};
     S.tasks = S.tasks || {}; S.log = S.log || {}; S.wake = S.wake || {}; S.sleep = S.sleep || {}; S.night = S.night || {}; S.journal = S.journal || {};
     Q = LS.get("ordo.quests", null); if (!Q || typeof Q !== "object") Q = {};
     Q.list = Q.list || []; Q.clock = Q.clock || {}; Q.trig = Q.trig || [];
+    Object.keys(QST).forEach((k) => delete QST[k]); Q.list.forEach((q) => { QST[q.id] = q.st; }); QST.__ready = 1;
     X = LS.get("ordo.xp", null); if (!X || typeof X !== "object") X = {};
     X.e = X.e || {};
     ACH = LS.get("ordo.ach", {}) || {};
@@ -64,7 +67,7 @@
   let GYM;                                                   // w: записи тренувань «день|ціль» → { text, at, fin }
   loadState();
   const saveG = () => LS.set("ordo.gym", GYM);
-  const saveS = () => LS.set("ordo.day", S), saveQ = () => LS.set("ordo.quests", Q), saveX = () => LS.set("ordo.xp", X), saveA = () => LS.set("ordo.ach", ACH);
+  const saveS = () => LS.set("ordo.day", S), saveQ = () => { markQ(); LS.set("ordo.quests", Q); }, saveX = () => LS.set("ordo.xp", X), saveA = () => LS.set("ordo.ach", ACH);
 
   /* ======================================================= ПОВТОРЕННЯ ===== */
   /* rep: { f: none|day|wd|we|week|month|year, n: кожні n, days: [1..7] } */
@@ -1121,7 +1124,7 @@
     Q.list.forEach((q) => { if (q.offerOn === RW_DAY || (q.from === RW_DAY && q.pid === "w-m-no-change")) { q.st = "void"; q.at = Date.now(); } });
     Q.list.forEach((q) => { if (q.st === "void") delete X.e["q:" + q.id]; });
     Q.clock = Q.clock || {}; delete Q.clock.roll; ["rare", "legend", "myth"].forEach((r) => { if (Q.clock[r] === RW_DAY) delete Q.clock[r]; }); Q.trig = []; saveQ();
-    S.sleep[RW_DAY] = { reset: 1, at: Date.now() }; saveS(); LS.set("ordo.k.slAsk", "");
+    S.sleep[RW_DAY] = { reset: 1, at: Date.now() }; S.slAsk = ""; saveS(); LS.set("ordo.k.slAsk", "");
     S.mom = S.mom || {}; Object.keys(S.mom).forEach((k) => { if (S.mom[k] === RW_DAY) delete S.mom[k]; });
   }
   /* відкат-2 27.10: на обітниці-квесті натиснули «Відстрочку» (не мала там бути) — строк назад до 14 днів, жетони/бонуси повертаються */
@@ -1340,7 +1343,7 @@
             st: "offer", offerOn: t0, cur: q.cur || 0, retry: 1, from0: q.from });
         }
       }
-      if (q.st === "offer" && q.offerOn && diff(q.offerOn, t0) > 2) q.st = "lapsed";          // пропозиція згасла
+      if (q.st === "offer" && q.offerOn && diff(q.offerOn, t0) >= 1) { q.st = "lapsed"; q.at = Date.now(); }          // пропозиція живе один день: не відповів — уранці її вже нема
       const id = `q:${q.id}`;
       if (q.st === "done") X.e[id] = { d: q.end || t0, xp: q.xp, src: "quest", why: q.t };
       else if (q.st === "part") X.e[id] = { d: q.end || t0, xp: Math.round(q.xp * qProg(q) * 0.6), src: "quest", why: q.t };
@@ -2592,7 +2595,7 @@
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }
   /* «Друге дихання» (жетон з крамниці): провалений квест — ще 2 дні; лічильник — 85% мети, зроблене зараховано */
-  const canBreath = (q) => q.st === "fail" && !q.revived && q.end && diff(q.end, today()) <= 3 && !!(window.ORDO_GOLD && window.ORDO_GOLD.can && window.ORDO_GOLD.can("breath"));
+  const canBreath = (q) => q.st === "fail" && !q.revived && q.end && diff(q.end, today()) < 1 && !!(window.ORDO_GOLD && window.ORDO_GOLD.can && window.ORDO_GOLD.can("breath"));
   function secondWind(q) {
     q.revived = 1; q.at = Date.now();
     if (q.type === "count" && q.target) {
@@ -2627,6 +2630,7 @@
       ${q.st === "active" && q.hold ? `<p class="dy-note dy-note--t">Це обітниця на строк: виконано — коли витримаєш до ${human(q.until)} включно. Орден зарахує сам${q.from ? ` · день ${Math.min(diff(q.from, today()) + 1, diff(q.from, q.until) + 1)} з ${diff(q.from, q.until) + 1}` : ""}.</p>` : ""}
       ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : q.hold ? "" : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
+      ${canBreath(q) ? `<button class="btn btn--ghost" type="button" data-dqs="letgo">Відпустити — без другого дихання</button>` : ""}
       <button class="btn btn--ghost" type="button" data-dqs="close">Закрити</button>`;
     el.onclick = (e) => {
       const b = e.target.closest("[data-dqs]"); if (!b) return; e.stopPropagation();
@@ -2636,7 +2640,8 @@
       if (a === "cur") { const c = numIn(($("dqC") || {}).value); if (c != null) { q.cur = Math.max(0, c); q.at = Date.now(); if (q.target && q.cur >= q.target) { closeSheet(); el.onclick = null; qDone(q.id); return; } saveQ(); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "ext") { const paid = q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD.use("extend", true); if (paid) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b> · ${paid}`); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "breath") { if (canBreath(q) && window.ORDO_GOLD.use("breath")) { secondWind(q); fx("yes"); buzz("medium"); toast(`Друге дихання: <b>${esc(q.t)}</b> — до ${human(add(today(), 1))}`, "is-gift"); } closeSheet(); el.onclick = null; render(); return; }
-      if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
+      if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); toast(`Квест «${esc(q.t)}» відпущено`); }
+      if (a === "letgo") { q.revived = 1; q.at = Date.now(); q.stAt = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
     };
     fx("open"); buzz("light");
     const sc = $("scrim"); if (sc) sc.classList.add("open");
@@ -2674,18 +2679,22 @@
   /* ============================================================ ПИСАР ====== */
   /* зведення для нічного писаря: що відбувається в житті Ордену (шифрується ключем сховища) */
   /* ====================================================== БАНЕР МЕДАЛІ ====
-     Здобута нагорода — банер із її зображенням, за що й що дала. Показано — позначка на пристрої (ordo.k.achBan),
-     тож медаль, здобута деінде чи без дії (синк, перерахунок), теж не пройде повз. Перший запуск — лише сьогоднішні. */
+     Здобута нагорода — банер із її зображенням, за що й що дала. Показано — позначка в спільному стані (S.ban, синхронізується):
+     банер, який уже бачив на телефоні, на компі не зʼявиться. Перший запуск — лише сьогоднішні. */
   let banBusy = false;
   function medalCheck() {
     if (banBusy) return;
-    let seen = LS.get("ordo.k.achBan", null);
-    if (!seen) { seen = {}; Object.keys(ACH).forEach((id) => { if (ACH[id] < today()) seen[id] = 1; }); LS.set("ordo.k.achBan", seen); }
+    const old = LS.get("ordo.k.achBan", null);                                  // стара позначка цього пристрою — раз доливаємо у спільну
+    if (old) { S.ban = Object.assign(S.ban || {}, old); try { localStorage.removeItem("ordo.k.achBan"); } catch (e) {} saveS(); }
+    if (!S.ban) { S.ban = {}; Object.keys(ACH).forEach((id) => { if (ACH[id] < today()) S.ban[id] = 1; }); saveS(); }
+    const seen = S.ban;
     const due = ACHS.filter((a) => ACH[a.id] && !seen[a.id]).sort((a, b) => (ACH[a.id] < ACH[b.id] ? -1 : 1));
     if (!due.length) return;
     const h = H();
     if ((h && h.isOpen()) || document.querySelector(".sheet.open, .confirm.open, .rite.open, .kc") || document.hidden || busy) { setTimeout(medalCheck, 2500); return; }
-    banBusy = true; showBanner(due[0], due.length - 1, () => { seen[due[0].id] = 1; LS.set("ordo.k.achBan", seen); banBusy = false; setTimeout(medalCheck, 350); });
+    if (held()) { setTimeout(medalCheck, 2500); return; }                      // іде синк: можливо, цей банер уже показано на іншому пристрої
+    banBusy = true; S.ban[due[0].id] = 1; saveS();                               // позначаємо, щойно показали (а не після тапу) — інший пристрій дізнається одразу
+    showBanner(due[0], due.length - 1, () => { banBusy = false; setTimeout(medalCheck, 350); });
   }
   function showBanner(a, more, done) {
     const gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "", gold = ACH[a.id] >= "2026-11-08" ? ECON.achGold(a.xp) : 0;
@@ -2755,13 +2764,13 @@
   }
   async function openLetter(id) {
     const h = H(); if (!h || !h.letter || h.isOpen()) return;
-    LS.set("ordo.k.ltOff", today());
+    S.ltOff = today(); saveS();
     await h.letter(id);
   }
   /* сам приходить раз на день: «зламати печатку» або «пізніше» (тоді — картка в «Дні») */
   async function letterScene() {
-    const L = letterFor(today()); if (!L || ltRead(L.id) || LS.get("ordo.k.ltOff", "") === today()) return true;
-    LS.set("ordo.k.ltOff", today());
+    const L = letterFor(today()); if (!L || ltRead(L.id) || (S.ltOff || LS.get("ordo.k.ltOff", "")) === today()) return true;
+    S.ltOff = today(); saveS();
     const r = await H().letter(L.id, { offer: true });
     return r !== false;
   }
@@ -2910,9 +2919,9 @@
   }
   function morning(t0) {
     const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };
-    if ((S.sleep[today()] && !S.sleep[today()].reset) || Date.now() - t0 > 15 * 60e3 || LS.get("ordo.k.slAsk", "") === today()) return;
-    if (busy()) { setTimeout(() => morning(t0), 1500); return; }
-    LS.set("ordo.k.slAsk", today()); openSheet("sleep", null, today());          // сам — раз на день; змахнув — далі через «ранковий звіт ›»
+    if ((S.sleep[today()] && !S.sleep[today()].reset) || Date.now() - t0 > 15 * 60e3 || (S.slAsk || LS.get("ordo.k.slAsk", "")) === today()) return;
+    if (busy() || held()) { setTimeout(() => morning(t0), 1500); return; }
+    S.slAsk = today(); saveS(); openSheet("sleep", null, today());          // сам — раз на день; змахнув — далі через «ранковий звіт ›»
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 

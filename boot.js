@@ -15,7 +15,8 @@
   const API = `https://api.github.com/repos/${REPO}/contents/`;
   const BRANCH = "main";                        // явно: основною в репозиторії може бути інша гілка
   const KDF_IT = 600000;
-  const SYNC_EVERY = 20 * 1000;                 // поки додаток відкритий: що 20 с забрати чуже й віддати своє (лише якщо щось змінилось)
+  const SYNC_EVERY = 8 * 1000;                  // поки додаток відкритий: що 8 с спитати, чи є чуже (умовний запит: «не змінилось» нічого не коштує)
+  const PUSH_AFTER = 1500;                      // свою зміну віддаємо за 1,5 с після неї — не чекаючи кола й не покладаючись на згортання (iOS обриває запит)
 
   const LS = {
     get(k, f) { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } },
@@ -38,7 +39,16 @@
   }
   async function open(raw, box) {
     const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(box.iv) }, await aesKey(raw), unb64(box.ct));
-    return dec.decode(pt);
+    return dec.decode(box.z === "gzip" ? await pipe(pt, new DecompressionStream("gzip")) : pt);
+  }
+  /* копія стискається перед шифруванням (≈300 КБ → ≈50): частіша синхронізація не роздуває сховище. Читаються обидва формати */
+  const pipe = async (buf, stream) => new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(stream)).arrayBuffer());
+  const canZip = typeof CompressionStream === "function" && typeof DecompressionStream === "function";
+  async function sealZ(raw, text) {
+    if (!canZip) return seal(raw, text);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await aesKey(raw), await pipe(enc.encode(text), new CompressionStream("gzip")));
+    return { iv: b64(iv), ct: b64(ct), z: "gzip" };
   }
   async function derive(pass, salt) {
     const base = await crypto.subtle.importKey("raw", enc.encode(pass.normalize("NFC")), "PBKDF2", false, ["deriveBits"]);
@@ -47,14 +57,18 @@
 
   /* ---------------------------------------------------------------- GitHub */
   const token = () => LS.get(K.token, "");
+  const etags = {}, SAME = { same: true };       // opt.cond: якщо файл не змінився від минулого читання — повертає SAME (304, без тіла)
   async function gh(path, opt) {
     opt = opt || {};
     const r = await fetch(API + path + (opt.method === "PUT" ? "" : `?ref=${BRANCH}`), {
       method: opt.method || "GET", cache: "no-store",
       headers: Object.assign({ Authorization: `Bearer ${opt.token || token()}`, "X-GitHub-Api-Version": "2022-11-28",
-        Accept: opt.raw ? "application/vnd.github.raw+json" : "application/vnd.github+json" }, opt.body ? { "Content-Type": "application/json" } : {}),
+        Accept: opt.raw ? "application/vnd.github.raw+json" : "application/vnd.github+json" }, opt.body ? { "Content-Type": "application/json" } : {},
+        opt.cond && etags[path] ? { "If-None-Match": etags[path] } : {}),
       body: opt.body ? JSON.stringify(opt.body) : undefined
     });
+    if (opt.cond && r.status === 304) return SAME;
+    if (opt.cond) { const t = r.ok && r.headers.get("ETag"); if (t) etags[path] = t; else delete etags[path]; }
     if (r.status === 404) return null;
     if (!r.ok) { const e = new Error("gh " + r.status); e.status = r.status; throw e; }
     return opt.raw ? r.text() : r.json();
@@ -109,8 +123,8 @@
   async function makeBackup() {
     const raw = LS.get(K.backup, null), salt = LS.get(K.salt, null);
     if (!raw || !salt) throw new Error("no backup key");
-    const box = await seal(unb64(raw), JSON.stringify(snapshot())), at = new Date().toISOString();
-    return { at, file: JSON.stringify({ ordo: "backup", v: 2, kdf: "PBKDF2-SHA256", it: KDF_IT, salt, iv: box.iv, ct: box.ct, at, dev: devId() }) };
+    const box = await sealZ(unb64(raw), JSON.stringify(snapshot())), at = new Date().toISOString();
+    return { at, file: JSON.stringify(Object.assign({ ordo: "backup", v: 2, kdf: "PBKDF2-SHA256", it: KDF_IT, salt, iv: box.iv, ct: box.ct, at, dev: devId() }, box.z ? { z: box.z } : {})) };
   }
   async function readBackup(fileText, pass) {
     const f = JSON.parse(fileText);
@@ -119,7 +133,11 @@
     const data = JSON.parse(await open(raw, f));
     return { data, raw, salt: f.salt, at: f.at, dev: f.dev };
   }
+  let applying = false;
   function applyData(data) {
+    applying = true; try { applyData0(data); } finally { applying = false; }
+  }
+  function applyData0(data) {
     const drop = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (DATA_KEY(k)) drop.push(k); }
     drop.forEach((k) => localStorage.removeItem(k));
     Object.keys(data).forEach((k) => { if (DATA_KEY(k)) localStorage.setItem(k, data[k]); });
@@ -168,7 +186,8 @@
       const night = Object.assign({}, b.night, a.night); Object.keys(b.night || {}).forEach((k) => { if (a.night && a.night[k] && (b.night[k].ts || 0) > (a.night[k].ts || 0)) night[k] = b.night[k]; });
       const pick = Object.assign({}, b.pick, a.pick), pw = (p) => (p && p.end ? 100 : 0) + ((p && p.c) || []).length;      // вибори в діалогах: повніший запис сильніший
       Object.keys(b.pick || {}).forEach((k) => { if (a.pick && a.pick[k] && pw(b.pick[k]) > pw(a.pick[k])) pick[k] = b.pick[k]; });
-      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep, pick, ev: Object.assign({}, b.ev, a.ev), loh: Object.assign({}, b.loh, a.loh), lt: Object.assign({}, b.lt, a.lt), mom: Object.assign({}, b.mom, a.mom), heard: Object.assign({}, b.heard, a.heard), arch: Object.assign({}, b.arch, a.arch) }));
+      const later = (x, y) => (String(x || "") > String(y || "") ? x : y) || undefined;        // позначки «сьогодні вже показано» — пізніша дата
+      out["ordo.day"] = JSON.stringify(Object.assign({}, b, a, { tasks, log, wake, night, journal, sleep, pick, ban: Object.assign({}, b.ban, a.ban), ltOff: later(a.ltOff, b.ltOff), slAsk: later(a.slAsk, b.slAsk), ev: Object.assign({}, b.ev, a.ev), loh: Object.assign({}, b.loh, a.loh), lt: Object.assign({}, b.lt, a.lt), mom: Object.assign({}, b.mom, a.mom), heard: Object.assign({}, b.heard, a.heard), arch: Object.assign({}, b.arch, a.arch) }));
     }
     if (L["ordo.exiles"] || R["ordo.exiles"]) {        // Вигнані: та сама людина — новіша правка (mt)
       const a = P(L, "ordo.exiles", {}), b = P(R, "ordo.exiles", {}), list = Object.assign({}, b.list, a.list);
@@ -177,7 +196,13 @@
     }
     if (L["ordo.quests"] || R["ordo.quests"]) {
       const a = P(L, "ordo.quests", {}), b = P(R, "ordo.quests", {}), by = {};
-      [].concat(b.list || [], a.list || []).forEach((q) => { const o = by[q.id]; if (!o || (q.at || 0) >= (o.at || 0)) by[q.id] = q; });
+      /* стан квесту (прийняв, відмовився, виконав, провалив) має свою мітку часу stAt: пізніша зміна стану перемагає, навіть якщо на іншому
+         пристрої квест тим часом лише перерахував поступ (at новіший). Без stAt з обох боків: завершений стан сильніший за «активний» */
+      const OPEN_ST = { offer: 1, active: 2 }, newer = (q, o) => {
+        if ((q.stAt || 0) !== (o.stAt || 0)) return (q.stAt || 0) > (o.stAt || 0);
+        if (!q.stAt && q.st !== o.st && (OPEN_ST[q.st] || 9) !== (OPEN_ST[o.st] || 9)) return (OPEN_ST[q.st] || 9) > (OPEN_ST[o.st] || 9);
+        return (q.at || 0) >= (o.at || 0); };
+      [].concat(b.list || [], a.list || []).forEach((q) => { const o = by[q.id]; if (!o || newer(q, o)) by[q.id] = q; });
       const clock = Object.assign({}, b.clock, a.clock); Object.keys(b.clock || {}).forEach((k) => { if (String(b.clock[k]) > String(clock[k] || "")) clock[k] = b.clock[k]; });
       const taken = new Set(Object.values(by).filter((q) => q.st !== "offer" && q.offerOn).map((q) => `${q.offerOn}|${q.rar}`));
       const offers = {}, list = Object.values(by).filter((q) => {
@@ -193,7 +218,8 @@
       const un = (k) => Object.assign({}, b[k], a[k]), own = un("own"); Object.keys(b.own || {}).forEach((k) => { if (a.own && a.own[k] && b.own[k].at < a.own[k].at) own[k] = b.own[k]; });
       const eqs = (b.eqAt || 0) > (a.eqAt || 0) ? { eq: b.eq, eqAt: b.eqAt } : { eq: a.eq || b.eq || [], eqAt: a.eqAt || b.eqAt };
       const uns = un("uns"); Object.keys(b.uns || {}).forEach((k) => { if (a.uns && a.uns[k] && a.uns[k].st === "ask" && b.uns[k].st !== "ask") uns[k] = b.uns[k]; });   // відповідь сильніша за «ще не питали»
-      const G2 = Object.assign({}, b, a, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), wk: un("wk"), uns, own, elix: Object.assign({}, b.elix, a.elix), v2: a.v2 || b.v2, starter: a.starter || b.starter,
+      const seenE = ((b.seenE || {}).at || 0) > ((a.seenE || {}).at || 0) ? b.seenE : a.seenE || b.seenE;        // «+N золота» вже показано — новіший запис
+      const G2 = Object.assign({}, b, a, seenE ? { seenE } : {}, { out: go, inc: un("inc"), bon: un("bon"), proc: un("proc"), tk: un("tk"), use: un("use"), wk: un("wk"), uns, own, elix: Object.assign({}, b.elix, a.elix), v2: a.v2 || b.v2, starter: a.starter || b.starter,
         lv: Math.max(a.lv || 0, b.lv || 0) || undefined, ri: Math.max(a.ri || 0, b.ri || 0) || undefined }, eqs);
       if (window.ORDO_GOLD && window.ORDO_GOLD.purge) window.ORDO_GOLD.purge(G2);      // тестові покупки 26.10 не воскресають з іншого пристрою
       out["ordo.gold"] = JSON.stringify(G2);
@@ -242,6 +268,12 @@
       out["ordo.gym"] = JSON.stringify(Object.assign({}, b, a, { log, w, cd }));
     }
     if (L["ordo.bank"] || R["ordo.bank"]) { const a = P(L, "ordo.bank", {}), b = P(R, "ordo.bank", {}); out["ordo.bank"] = JSON.stringify(Object.assign({}, b, a, { seen: Object.assign({}, b.seen, a.seen) })); }
+    if (L["ordo.calls"] || R["ordo.calls"]) {            // виклики зі сповіщень, які вже показано на будь-якому пристрої (2 доби)
+      const a = P(L, "ordo.calls", {}), b = P(R, "ordo.calls", {}), c = Object.assign({}, b, a);
+      Object.keys(b).forEach((k) => { if (a[k] && b[k] > a[k]) c[k] = b[k]; });
+      Object.keys(c).forEach((k) => { if (Date.now() - c[k] > 2 * 864e5) delete c[k]; });
+      out["ordo.calls"] = JSON.stringify(c);
+    }
     ["ordo.spent"].forEach((k) => { if (L[k] || R[k]) out[k] = JSON.stringify(Object.assign({}, P(R, k, {}), P(L, k, {}))); });
     ["ordo.patches", "ordo.gpatches"].forEach((k) => { if (L[k] || R[k]) out[k] = JSON.stringify([...new Set([].concat(P(R, k, []), P(L, k, [])))]); });
     { const a = P(L, "ordo.since", ""), b = P(R, "ordo.since", ""); if (a || b) out["ordo.since"] = JSON.stringify(!a ? b : !b ? a : a < b ? a : b); }
@@ -249,18 +281,19 @@
     return out;
   }
 
-  let busy = false, busyAt = 0;
+  let busy = false, busyAt = 0, again = false, putAt = 0;
   /* push: "now" — віддати, якщо є зміни; "force" — завжди; "pull" — лише підтягнути (перед стартом, щоб не чекати збереження) */
   async function syncNow(push) {
-    if (busy || !token() || !LS.get(K.backup, null)) return { pulled: false };
+    if (busy) { if (push !== "pull") again = true; return { pulled: false }; }       // зміна під час синку — ще одне коло одразу після нього
+    if (!token() || !LS.get(K.backup, null)) return { pulled: false };
     busy = true; busyAt = Date.now(); status("saving");
     let pulled = false; const pullOnly = push === "pull";
     try {
       for (let round = 0; round < 3; round++) {
         const last = LS.get("ordo.bk.last", {});
         const dirty = snapHash() !== last.h;
-        const remote = await gh("backups/latest.json", { raw: true });
-        if (remote) {
+        const remote = await gh("backups/latest.json", { raw: true, cond: true });
+        if (remote && remote !== SAME) {
           const meta = JSON.parse(remote);
           if (meta.dev && meta.dev !== devId() && meta.at && (!last.remoteAt || meta.at > last.remoteAt)) {
             const r = await readBackup(remote, null);
@@ -279,14 +312,16 @@
         catch (e) { if (e.conflict) continue; throw e; }                      // інший пристрій щойно зберіг — спершу зливаємо його копію
         const dk = LS.get("ordo.bk.day", {});                                // копія дня — не частіше, ніж раз на 30 хв (історія, а не синхронізація)
         if (dk.d !== day() || Date.now() - (dk.at || 0) > 30 * 60e3) { await putFile(`backups/${day()}.json`, b.file, "копія дня"); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
-        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at });
+        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at }); putAt = Date.now();
         break;
       }
       LS.del("ordo.bk.err"); status("ok");
     } catch (e) {
+      delete etags["backups/latest.json"];                          // не вдалось прочитати чи злити — наступного разу читаємо заново, а не «не змінилось»
       LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err");
     } finally { busy = false; }
     if (pulled && window.__ordoStarted) reloadWhenCalm();          // зокрема передстартовий pull, що не встиг до старту
+    if (again) { again = false; setTimeout(() => syncNow("now"), 300); }
     return { pulled };
   }
   const backupNow = () => syncNow("force");
@@ -295,7 +330,14 @@
   const calm = () => { const i = document.getElementById("intro"), a = document.activeElement;
     return !(i && !i.hasAttribute("hidden")) && !document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open") && !(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)); };
   /* щойно відкрив (≤15 с) і нічого не відкрито — перезапуск одразу, щоб не жити зі старим станом; інакше — коли згорнеш */
-  function reloadWhenCalm() { if (document.hidden || (calm() && (Date.now() - visAt < 15e3 || !document.hasFocus()))) location.reload(); else { reloadPending = true; guardWrites(); } }
+  let inputAt = Date.now(), idleT = 0;
+  ["pointerdown", "keydown", "touchstart", "wheel", "scroll"].forEach((ev) => window.addEventListener(ev, () => { inputAt = Date.now(); }, { passive: true, capture: true }));
+  /* чекає спокійної миті: нічого не відкрито, і 5 с жодного дотику чи прокрутки — тоді свіже з іншого пристрою зʼявляється саме, без згортання */
+  function reloadWhenCalm() {
+    if (document.hidden || (calm() && (Date.now() - visAt < 15e3 || !document.hasFocus()))) { location.reload(); return; }
+    reloadPending = true; guardWrites();
+    clearInterval(idleT); idleT = setInterval(() => { if (reloadPending && calm() && Date.now() - inputAt > 5000) location.reload(); }, 1000);
+  }
   /* вікно на компі лежало під іншими (браузер вважає його видимим) — повернувся в нього: спершу свіже */
   window.addEventListener("focus", () => { visAt = Date.now(); if (reloadPending && calm()) location.reload(); });
   /* до перезапуску модулі тримають у памʼяті старий стан: кожен їхній запис зливаємо з щойно підтягнутим, а не затираємо його */
@@ -438,12 +480,20 @@
   }
   /* скринька вістей: глашатай кладе кожну вість у push/inbox.json — Орден сам її забирає при відкритті.
      Не залежить від того, чи iOS передав виклик зі сповіщення */
-  let inboxAt = 0;
+  let inboxAt = 0, inboxWait = 0, inboxT = 0;
+  /* ключ виклику — його параметри (той самий на всіх пристроях); показані виклики лежать у синхронізованому «ordo.calls» */
+  const callKey = (url) => { try { return [...new URL(url, location.href).searchParams].map(([k, v]) => `${k}=${v}`).sort().join("&"); } catch (e) { return String(url); } };
+  const callShown = (url) => { const c = LS.get("ordo.calls", {}) || {}, t = c[callKey(url)]; return !!t && Date.now() - t < 24 * 3600e3; };
   async function checkInbox() {
-    if (!token() || Date.now() - inboxAt < 15000) return; inboxAt = Date.now();
+    if (!token()) return;
+    if (busy && inboxWait < 8) { inboxWait++; setTimeout(checkInbox, 1200); return; }       // спершу хай дійде стан з іншого пристрою
+    inboxWait = 0;
+    if (reloadPending) return;
+    if (Date.now() - inboxAt < 15000) { clearTimeout(inboxT); inboxT = setTimeout(checkInbox, 15200 - (Date.now() - inboxAt)); return; }      // щойно дивились — глянемо трохи згодом, а не ніколи
+    inboxAt = Date.now();
     try {
       const box = JSON.parse((await gh("push/inbox.json", { raw: true })) || "{}"), seen = LS.get("ordo.k.inbox", 0);
-      const it = (box.items || []).filter((x) => x.url && x.url.includes("call=") && x.at > seen && Date.now() - x.at < 12 * 3600e3).sort((a, b) => b.at - a.at)[0];
+      const it = (box.items || []).filter((x) => x.url && x.url.includes("call=") && x.at > seen && Date.now() - x.at < 12 * 3600e3 && !callShown(x.url)).sort((a, b) => b.at - a.at)[0];
       if (!it) return;
       LS.set("ordo.k.inbox", it.at);
       const url = new URL(it.url, location.href).href;
@@ -561,11 +611,19 @@
     const vb = $("vaultBtn"); if (vb) vb.addEventListener("click", openVault);
     wireVault(); status(); setTimeout(pushRefresh, 4000); setTimeout(checkInbox, 1200);
     setInterval(() => { if (!document.hidden) syncNow("now"); }, SYNC_EVERY);
+    /* будь-який запис даних Ордену — і за 1,5 с він уже їде на інші пристрої */
+    let pushT = 0; const set0 = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      const r = set0.call(this, k, v);
+      /* не частіше ніж раз на 5 с: серія дій (підходи в залі, кілька справ поспіль) їде одним записом, а GitHub не бачить зливи */
+      if (this === localStorage && !applying && DATA_KEY(k)) { clearTimeout(pushT); pushT = setTimeout(() => { if (!reloadPending) syncNow("now"); }, Math.max(PUSH_AFTER, putAt + 5000 - Date.now())); }
+      return r;
+    };
     visAt = Date.now();
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) { visAt = Date.now(); setTimeout(checkInbox, 600); }
+      if (!document.hidden) visAt = Date.now();
       if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }
-      else syncNow("now");
+      else syncNow("now").then((r) => { if (!(r && r.pulled)) checkInbox(); });      // скринька вістей — уже зі свіжим станом: показане на іншому пристрої вдруге не відкриється
     });
   }
   /* зашифровані ключем сховища файли приватного репозиторію (скарбниця, писар): прочитати / записати */
@@ -597,7 +655,7 @@
     } catch (e) { return false; }
   }
   /* сцени (події, моменти, квести) чекають, поки синхронізація не скаже, що вже бачено на іншому пристрої */
-  window.ORDO_VAULT = { hold: () => (busy && Date.now() - busyAt < 12e3 && Date.now() - visAt < 20e3) || reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
+  window.ORDO_VAULT = { callKey, callShown, hold: () => (busy && Date.now() - busyAt < 12e3 && Date.now() - visAt < 20e3) || reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
 
   async function boot() {
     let vault;

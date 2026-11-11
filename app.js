@@ -2245,15 +2245,17 @@ window.ORDO_START = function () {
   /* вість від храмовника: ./?call=<id>&t=<слово> — після ритуалу та обрядів відкрити сцену */
   /* слід для діагностики вістей: останні кроки (лягає в push/<пристрій>.json) */
   const trace = (e) => { const t = LS.get("ordo.k.trace", []); t.push(`${new Date().toISOString().slice(5, 19)} ${e}`); LS.set("ordo.k.trace", t.slice(-14)); };
-  function openCall(url, done) {
+  function openCall(url, done, skip) {
     let q; try { q = new URL(url, location.href).searchParams; } catch (e) { trace("bad-url"); return; }
     const id = q.get("call"); if (!id || !window.ORDO_HALL) { trace("no-id/hall"); return; }
     trace("open " + id);
     const t = q.get("t") || q.get("id") || "", mode = q.get("m") || "";
     let waits = 0;
     const go = () => { const intro = $("intro");
-      const why = intro && !intro.hasAttribute("hidden") ? "intro" : queueBusy ? "queue" : window.ORDO_HALL.isOpen() ? "hall" : "";
+      const VV = window.ORDO_VAULT;
+      const why = intro && !intro.hasAttribute("hidden") ? "intro" : queueBusy ? "queue" : window.ORDO_HALL.isOpen() ? "hall" : VV && VV.hold && VV.hold() && waits < 40 ? "sync" : "";
       if (why) { if (waits++ % 20 === 0) trace("wait " + why); setTimeout(go, 700); return; }
+      if (skip && skip()) { trace("seen late"); return; }                 // поки чекали, з іншого пристрою дійшло: цей виклик там уже показано
       if (done) done();
       trace("summon " + id);
       Promise.resolve(window.ORDO_HALL.summon(id, t, mode)).catch((e) => trace("err " + (e && e.message || e)));
@@ -2270,9 +2272,14 @@ window.ORDO_START = function () {
     if (Date.now() - p.at > FRESH) { LS.del(PEND); trace("pend old"); return false; }
     const last = LS.get("ordo.k.call", null);                    // той самий виклик уже показано іншим шляхом
     if (last && last.url === p.url && Date.now() - last.shown < FRESH) { LS.del(PEND); trace("pend dup"); return false; }
+    /* той самий виклик уже показано на іншому пристрої (синхронізований «ordo.calls»). Виклик з адреси — власник сам тапнув сповіщення — показуємо завжди */
+    const V = window.ORDO_VAULT;
+    if (p.via !== "url" && V && V.callShown && V.callShown(p.url)) { LS.del(PEND); trace("pend seen"); return false; }
     if (callAt === p.at) return true; callAt = p.at;
     trace("pend " + (p.via || "?"));
-    openCall(p.url, () => { LS.del(PEND); LS.set("ordo.k.call", { at: p.at, via: p.via || "", shown: Date.now(), url: p.url }); });
+    openCall(p.url, () => { LS.del(PEND); LS.set("ordo.k.call", { at: p.at, via: p.via || "", shown: Date.now(), url: p.url });
+      if (V && V.callKey) { const c = LS.get("ordo.calls", {}) || {}; c[V.callKey(p.url)] = Date.now(); Object.keys(c).forEach((k) => { if (Date.now() - c[k] > 2 * 864e5) delete c[k]; }); LS.set("ordo.calls", c); } },
+      () => { if (p.via !== "url" && V && V.callShown && V.callShown(p.url)) { LS.del(PEND); return true; } return false; });
     return true;
   }
   async function pendingCall() {

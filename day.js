@@ -1215,10 +1215,10 @@
     saveX();
     /* тригери: третій чистий день поспіль → рідкісний квест; віха обітниці сьогодні → легендарний */
     const t0 = today();
-    if (perfect(t0) && perfect(add(t0, -1)) && perfect(add(t0, -2)) && Q.clock.tPd !== t0) { Q.clock.tPd = t0; trigger("rare"); }
-    if (Object.keys(X.e).some((id) => id.startsWith("vm:") && X.e[id].d === t0) && Q.clock.tMs !== t0) { Q.clock.tMs = t0; trigger("legend"); }
+    if (perfect(t0) && perfect(add(t0, -1)) && perfect(add(t0, -2)) && Q.clock.tPd !== t0) { Q.clock.tPd = t0; trigger("rare", "", "pd" + t0); }
+    if (Object.keys(X.e).some((id) => id.startsWith("vm:") && X.e[id].d === t0) && Q.clock.tMs !== t0) { Q.clock.tMs = t0; trigger("legend", "", "ms" + t0); }
     const cb = comeback();          // зрив → доручення на шлях повернення
-    if (cb && cb.n === 0 && Q.clock.tRet !== cb.from) { Q.clock.tRet = cb.from; trigger("rare", "return"); }
+    if (cb && cb.n === 0 && Q.clock.tRet !== cb.from) { Q.clock.tRet = cb.from; trigger("rare", "return", "ret" + cb.from); }
     const lv = levelOf(totalXP());
     const up = lastLevel && lv.L > lastLevel.L ? { from: lastLevel, to: lv } : null;
     lastLevel = lv;
@@ -1371,7 +1371,8 @@
      next — ланцюжок: наступний крок сюжету, що приходить одразу після виконання */
   function qFrom(p, pid) {
     const rar = p.rar;
-    return { id: uid(), pid: pid || p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
+    let qid = "q" + hashStr((pid || p.id) + "|" + today()).toString(36); for (let n = 2; Q.list.some((x) => x.id === qid); n++) qid = "q" + hashStr((pid || p.id) + "|" + today()).toString(36) + "-" + n;
+    return { id: qid, pid: pid || p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: ECON.quest[rar] ? ECON.quest[rar][0] : p.xp || 0,
       lift: p.lift && p.lift.ex ? { ex: p.lift.ex, w: +p.lift.w || 0, r: +p.lift.r || 0 } : null, cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
@@ -1381,7 +1382,7 @@
   /* розклад: рідкісні ~2–3 на тиждень, легендарні ~раз на 10 днів, міфічні ~раз на місяць; плюс тригери */
   function dailyRoll() {
     const t0 = today(), again = Q.clock.roll === t0;
-    if (again && !Q.trig.length) return;
+    if (again && trigReady() < 0) return;
     Q.clock.roll = t0;
     if (Q.list.some((q) => q.st === "offer")) { saveQ(); return; }
     const since = (r) => Q.clock[r] ? diff(Q.clock[r], t0) : 99;
@@ -1428,7 +1429,9 @@
         saveQ(); return;
       }
     }
-    const [trig, tag] = (Q.trig.shift() || "").split(":");
+    const ti = trigReady(), tr = ti >= 0 ? Q.trig.splice(ti, 1)[0] : "";
+    if (tr) Q.tdone[trigBase(tr)] = Date.now();
+    const [trig, tag] = trigBase(tr).split("@")[0].split(":");
     /* щоранку жереб: кожна рідкість кидається окремо, тож може випасти будь-яка, а щастя — то й дві-три одразу; одночасних квестів — без обмежень.
        Одразу після попереднього того ж ґатунку шанс менший. У середньому (v1.1): рідкісний ~3 на тиждень, легендарний ~раз на 7–8 днів, міфічний ~раз на 3 тижні;5 місяця.
        Тригери (зрив, віха, три ідеальні дні) — понад жереб */
@@ -1437,7 +1440,16 @@
     (trig ? [[trig, tag]] : []).concat(rolled.map((r) => [r, null])).forEach(([r, tg]) => { const q = draw(r, tg); if (q) { Q.list.push(q); Q.clock[r] = t0; } });
     saveQ();
   }
-  function trigger(rar, tag) { const t = tag ? `${rar}:${tag}` : rar; if (!Q.trig.includes(t)) { Q.trig.push(t); saveQ(); } }
+  /* тригер — «rare:return@ret2026-11-11~пристрій~час»: ключ нагоди (до ~) один на всі пристрої. Спожитий лягає в Q.tdone і синхронізується,
+     тож другий пристрій не запропонує квест за ту саму нагоду. Чужий тригер пристрій бере лише через 10 хв (власник не встиг — напр. закрили) */
+  const MY_DEV = LS.get("ordo.k.dev", ""), trigBase = (t) => String(t).split("~")[0];
+  const trigMine = (t) => { const p = String(t).split("~"); return p.length < 3 || p[1] === MY_DEV || Date.now() - (+p[2] || 0) > 10 * 60e3; };
+  const trigReady = () => { Q.tdone = Q.tdone || {}; Q.trig = Q.trig.filter((t) => !Q.tdone[trigBase(t)]); return Q.trig.findIndex(trigMine); };
+  function trigger(rar, tag, key) {
+    const base = `${rar}${tag ? ":" + tag : ""}@${key || today()}`; Q.tdone = Q.tdone || {};
+    if (Q.tdone[base] || Q.trig.some((t) => trigBase(t) === base)) return;
+    Q.trig.push(`${base}~${MY_DEV}~${Date.now()}`); saveQ();
+  }
 
   /* ============================================================ СЦЕНИ ====== */
   const glowOf = (rar) => rar;

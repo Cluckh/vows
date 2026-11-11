@@ -210,7 +210,19 @@
         if (taken.has(`${q.offerOn}|${q.rar}`)) return false;           // того дня цієї рідкості вже є прийнятий чи відхилений квест
         const k = `${q.offerOn}|${q.rar}`; if (offers[k] && offers[k] < q.id) return false; offers[k] = q.id; return true;
       }).filter((q) => q.st !== "offer" || offers[`${q.offerOn}|${q.rar}`] === q.id);
-      out["ordo.quests"] = JSON.stringify({ list, clock, trig: [...new Set([].concat(a.trig || [], b.trig || []))] });
+      /* той самий квест, прийнятий на двох пристроях (різні id, один pid і день початку) — лишається прийнятий раніше; пропозиція квесту,
+         на який уже відповіли деінде, згасає */
+      const acts = {};
+      list.forEach((q) => { if (q.st !== "active" || !q.pid || !q.from) return; const k = `${q.pid}|${q.from}`, o = acts[k]; if (!o) { acts[k] = q; return; }
+        const keep = (o.stAt || o.at || 0) <= (q.stAt || q.at || 0) ? o : q, drop = keep === o ? q : o;
+        drop.st = "void"; drop.dup = 1; drop.stAt = Math.max(o.stAt || 0, q.stAt || 0) + 1; if ((drop.cur || 0) > (keep.cur || 0)) keep.cur = drop.cur; acts[k] = keep; });
+      list.forEach((q) => { if (q.st === "offer" && q.pid && list.some((o) => o !== q && o.pid === q.pid && !["offer", "void", "lapsed", "rerolled"].includes(o.st) && Date.now() - (o.stAt || o.at || 0) < 36 * 3600e3)) { q.st = "lapsed"; q.stAt = Date.now(); } });
+      /* тригери (зрив, віха, три ідеальні дні): спожитий на одному пристрої — спожитий усюди (tdone), а не «обʼєднання списків», що воскрешало його на іншому */
+      const tbase = (t) => String(t).split("~")[0], tdone = Object.assign({}, b.tdone, a.tdone);
+      Object.keys(b.tdone || {}).forEach((k) => { if ((b.tdone[k] || 0) > (tdone[k] || 0)) tdone[k] = b.tdone[k]; });
+      Object.keys(tdone).forEach((k) => { if (Date.now() - tdone[k] > 14 * 864e5) delete tdone[k]; });
+      const tseen = new Set(), trig = [].concat(b.trig || [], a.trig || []).filter((t) => { const k = tbase(t); if (tdone[k] || tseen.has(k)) return false; tseen.add(k); return true; });
+      out["ordo.quests"] = JSON.stringify(Object.assign({}, b, a, { list, clock, trig, tdone }));
     }
     if (L["ordo.gold"] || R["ordo.gold"]) {            // золото: виведення й покупки — обʼєднуємо; «прийшло» сильніше за «скасовано», а те — за «в дорозі»
       const a = P(L, "ordo.gold", {}), b = P(R, "ordo.gold", {}), go = Object.assign({}, b.out, a.out), rk = { done: 3, cancel: 2, pending: 1 };
@@ -295,13 +307,16 @@
         const remote = await gh("backups/latest.json", { raw: true, cond: true });
         if (remote && remote !== SAME) {
           const meta = JSON.parse(remote);
-          if (meta.dev && meta.dev !== devId() && meta.at && (!last.remoteAt || meta.at > last.remoteAt)) {
-            const r = await readBackup(remote, null);
+          /* чужа копія, якої ми ще не брали, — беремо. Раніше порівнювались час копії й час власного запису, тобто годинники РІЗНИХ пристроїв:
+             якщо один поспішає (11.11 — на 34 с), він пів хвилини після свого запису не бачив змін іншого */
+          const rid = `${meta.at}|${meta.dev}`;
+          if (meta.dev && meta.dev !== devId() && meta.at && rid !== last.remoteId) {
+            const r = await readBackup(remote, null), before = snapHash();
             /* ніколи не замінюємо цілком: свіжіше з іншого пристрою перемагає в суперечках, але те, чого там ще немає, лишається */
             applyData(dirty ? mergeData(snapshot(), r.data) : mergeData(r.data, snapshot()));
-            pulled = true;
+            if (snapHash() !== before) pulled = true;                 // перезапуск — лише якщо з того боку справді щось нове
             const merged = snapHash() !== hash(JSON.stringify(Object.fromEntries(Object.keys(r.data).filter(DATA_KEY).sort().map((k) => [k, r.data[k]]))));
-            LS.set("ordo.bk.last", { h: merged ? "" : snapHash(), at: last.at || 0, remoteAt: meta.at });
+            LS.set("ordo.bk.last", { h: merged ? "" : snapHash(), at: last.at || 0, remoteAt: meta.at, remoteId: rid });
             if (merged && !pullOnly) push = "force";             // обʼєднане одразу віддаємо іншим пристроям (у режимі pull — наступним, фоновим синком)
           }
         }
@@ -312,7 +327,7 @@
         catch (e) { if (e.conflict) continue; throw e; }                      // інший пристрій щойно зберіг — спершу зливаємо його копію
         const dk = LS.get("ordo.bk.day", {});                                // копія дня — не частіше, ніж раз на 30 хв (історія, а не синхронізація)
         if (dk.d !== day() || Date.now() - (dk.at || 0) > 30 * 60e3) { await putFile(`backups/${day()}.json`, b.file, "копія дня"); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
-        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at }); putAt = Date.now();
+        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at, remoteId: `${b.at}|${devId()}` }); putAt = Date.now();
         break;
       }
       LS.del("ordo.bk.err"); status("ok");
@@ -415,7 +430,7 @@
           const r = await readBackup(latest, p);
           LS.set(K.backup, b64(r.raw)); LS.set(K.salt, r.salt);
           applyData(hasLocalData() ? mergeData(snapshot(), r.data) : r.data);   // новий пристрій — усе з копії; є свої дані — обʼєднуємо
-          LS.set("ordo.bk.last", { h: "", at: 0, remoteAt: r.at });
+          LS.set("ordo.bk.last", { h: "", at: 0, remoteAt: r.at, remoteId: `${r.at}|${r.dev}` });
         } else {
           const salt = crypto.getRandomValues(new Uint8Array(16));
           LS.set(K.backup, b64(await derive(p, salt))); LS.set(K.salt, b64(salt));

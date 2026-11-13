@@ -2802,7 +2802,7 @@
     /* виконання за 2 тижні — з тих самих справ дня, що й у списку (перенесені рахуються там, де зроблені) */
     const rate = (t) => { let o = 0, w = 0; days14.forEach((k) => { if (k > t0) return; const x = items(k).find((y) => y.t.id === t.id); if (!x) return; const st = stOf(t, x.r, k); if (st === "moved" || st === "cancel") return; o++; if (isWin(st)) w++; }); return o ? `${w}/${o}` : null; };
     const G = LS.get("ordo.goals", { y: {}, m: {} }), mk = t0.slice(0, 7), yk = t0.slice(0, 4);
-    const goals = (P) => P ? (P.items || []).map((it) => ({ t: it.t, type: it.type || "once", done: !!it.done, cur: it.cur, target: it.target })) : [];
+    const goals = (P) => P ? (P.items || []).map((it) => Object.assign({ t: it.t, type: it.type || "once", done: !!it.done, cur: it.cur, target: it.target }, it.lost ? { lost: it.lost } : {})) : [];
     const T = window.ORDO_TREASURY;
     return {
       at: new Date().toISOString(), today: t0, weekday: WDL[wd(t0)],

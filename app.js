@@ -1163,6 +1163,7 @@ window.ORDO_START = function () {
     return n ? { type: "count", target: n } : { type: "once" };
   }
   function complete(it) {
+    if (it.lost) return false;                                   // провалена достроково — лишається невиконаною до ревю
     const t = tyOf(it);
     if (t === "once") return !!it.done;
     if (t === "count") return it.target > 0 && (it.cur || 0) >= it.target;
@@ -1179,6 +1180,7 @@ window.ORDO_START = function () {
   }
   /* автозакриття лічильників, етапів і обітниць (та відкат, якщо значення зменшили) */
   function settle(it, kind, key) {
+    if (it.lost) return false;
     const t = tyOf(it);
     if (t === "once" && !it.done && window.ORDO_ARM && window.ORDO_ARM.gameDoneFor) {          // «Пройти Elden Ring…» — гру позначено пройденою в бібліотеці
       const g = window.ORDO_ARM.gameDoneFor(it.t); if (g && /пройти|пройду|подолати|закрити|добити/i.test(it.t || "")) { it.done = g.d || todayKey(); it.auto = 1; logPush({ k: "goal", gid: it.id, kind, key, t: it.t, d: it.done }); return true; }
@@ -1428,8 +1430,12 @@ window.ORDO_START = function () {
         <span class="gl-sec__meta">${reviewed ? `${pct}%` : items.length ? `${doneN}/${items.length} · ${when}` : ""}</span></div>`;
       if (award) h += `<div class="gl-award tier-${award.tier}"><svg><use href="#medal"/></svg><div><b>${award.name}</b><span>${award.text}</span></div></div>`;
       if (items.length) {
-        h += `<ul class="gl-list">` + items.map((it) => {
+        const order = items.slice().sort((a, b) => (a.lost ? 1 : 0) - (b.lost ? 1 : 0));       // провалені достроково — у кінці
+        h += `<ul class="gl-list">` + order.map((it) => {
           const t = tyOf(it);
+          if (!reviewed && it.lost) return `<li class="gl-it gl-it--no gl-it--lost gl-ty-${t} rar-${it.rar || "rare"}" data-open="${kind}|${key}|${it.id}"><span class="gl-mark gl-mark--btn gl-mark--${t}"></span>
+            <div class="gl-body"><span class="gl-t">${esc(it.t)}</span><span class="gl-when">провалено ${fmtKey(it.lost)} · на ревю — «ні»</span></div>
+            <span class="gl-ty">${GT[t].name}</span></li>`;
           const st = reviewed ? (P.res[it.id] ? "yes" : "no") : complete(it) ? "early" : "open";
           const mark = !reviewed && t === "once"
             ? `<button class="gl-mark gl-mark--btn" type="button" data-done="${kind}|${key}|${it.id}" aria-label="${it.done ? "Зняти позначку" : "Виконано достроково"}"></button>`
@@ -1569,6 +1575,11 @@ window.ORDO_START = function () {
     }
     const hist = (it.hist || []).slice().reverse().slice(0, 8);
     if (hist.length) h += `<div class="gs-h">Записи</div><ul class="gs-hist">${hist.map((x) => `<li><span>${fmtKey(x.d)}</span><b>${fmtN(x.v)}</b></li>`).join("")}</ul>`;
+    if (!locked && it.lost) h = `<div class="gs-kicker">${lbl}</div><div class="gs-title rar-${it.rar || "rare"}">${esc(it.t)}</div>
+      <p class="cmp__hint">Провалено достроково ${fmtKey(it.lost)}. Ціль лишається в списку й на ревю рахується як невиконана — відсоток місяця чесний.</p>
+      <button class="btn btn--line" type="button" data-gs="unlose">Повернути ціль</button>`;
+    else if (!locked && !complete(it) && !it.done) h += `<button class="btn btn--line gs-lose" type="button" data-gs="lose">Провалити достроково</button>
+      <p class="cmp__hint">Ціль зникне з активних, але лишиться в підсумку як невиконана — на відміну від «Видалити», яке прибирає її і з відсотка.</p>`;
     if (!locked) h += `<button class="btn btn--reset gs-del" type="button" data-gs="delete">Видалити ціль</button>`;
     h += `<button class="btn btn--ghost" type="button" data-gs="close">Закрити</button>`;
     body.innerHTML = h;
@@ -1655,6 +1666,12 @@ window.ORDO_START = function () {
       it.parts = it.parts || []; it.parts.push({ id: uid(), t: tt, target: n > 0 ? n : null, cur: 0 });
       gsAfter(it); return;
     }
+    if (act === "lose") {
+      if (!confirm(`Провалити «${it.t}» достроково? На ревю вона буде «не виконано».`)) return;
+      it.lost = todayKey(); saveG(); FX.play("no", true); FX.buzz("medium");
+      closeGoalSheet(); renderGoals(); updateGoalsDot(); return;
+    }
+    if (act === "unlose") { delete it.lost; settle(it, gs.kind, gs.key); saveG(); FX.buzz("light"); renderGoalSheet(); renderGoals(); updateGoalsDot(); return; }
     if (act === "delete") {
       if (!confirm("Видалити ціль «" + it.t + "»?")) return;
       P.items = P.items.filter((i) => i.id !== it.id); G.gone = G.gone || {}; G.gone[it.id] = Date.now();     // надгробок: синк не поверне
@@ -1747,6 +1764,17 @@ window.ORDO_START = function () {
         [yes, no].forEach((b) => { if (b) b.classList.remove("is-suggest"); });
         if (stamp) { stamp.className = "rv__stamp"; stamp.textContent = ""; }
         if (card) { card.classList.remove("out"); void card.offsetWidth; card.classList.add("in"); }
+        if (it.lost) {
+          [yes, no].forEach((b) => { if (b) b.disabled = true; });
+          res[it.id] = false;
+          await wait(700);
+          if (stamp) { stamp.textContent = `Провалено · ${fmtKey(it.lost)}`; stamp.className = "rv__stamp is-no"; }
+          testify(it, "no"); FX.play("no", true); FX.buzz("light");
+          await wait(1800);
+          if (card) { card.classList.remove("in"); card.classList.add("out"); }
+          await wait(800);
+          continue;
+        }
         if (complete(it) && it.done) {
           [yes, no].forEach((b) => { if (b) b.disabled = true; });
           if (ex && t !== "once") ex.innerHTML = detailHTML(it, kind, key, true);

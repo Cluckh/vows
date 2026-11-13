@@ -2127,3 +2127,8 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .sl-focus svg{width:14px;height:14px;vertical-align:-2px;margin-right:6px;color:var(--gold)}
 .sl-focus b{color:var(--bone);font-weight:600}
 .sl-focus em{font-size:12px;opacity:.8}
+
+/* ціль, провалена достроково: у кінці списку, згасла */
+.gl-it--lost { opacity: .5; }
+.gl-it--lost .gl-t { text-decoration: line-through; text-decoration-thickness: 1px; }
+.gs-lose { margin-top: 14px; }

@@ -1,16 +1,30 @@
-# Події з iPhone (кроки, сон, програми, медитація, читання) — обробляються тут, бо в публічному сховищі хвилини GitHub Actions безкоштовні.
-# Нічого з даних не потрапляє в лог: подія читається з файлу події (не з env), вивід скриптів приглушено.
-# Обробник — tools/health.mjs із приватного сховища; результат (зашифрований ключем сховища) пушиться назад у приватне.
-# Потрібен секрет PRIVATE_TOKEN — токен із правом запису в Cluckh/vows-private (той самий, що в командах iPhone).
+# Події з iPhone (кроки, сон, програми, медитація, читання) — обробляються тут, бо в публічному сховищі хвилини GitHub Actions безкоштовні
+# й без ліміту: кожна подія розбирається одразу (як було до черги), а не чекає годинами.
+#
+# Два входи:
+#   repository_dispatch «health» — команда iPhone шле подію сюди (…/repos/Cluckh/vows/dispatches) — розбір за ~20 с;
+#   schedule — що 15 хв безкоштовно розбирає ЧЕРГУ приватного сховища (події, що досі йдуть туди зі старих команд; назви пропущених запусків).
+#
+# БЕЗПЕКА (сховище публічне — лог і список запусків бачать усі):
+#   • у лог не потрапляє жодне значення: подія читається з файлу події, вивід скриптів приглушено, назва запуску — завжди «health» / «sync»;
+#   • дані лежать лише в приватному сховищі, зашифровані ключем сховища; сюди нічого не записується;
+#   • секрет PRIVATE_TOKEN бачать тільки запуски цього файлу з основної гілки; pull request із форка секретів не отримує,
+#     а інших тригерів (pull_request, push) тут навмисно нема;
+#   • зовні видно лише ЧАС запусків (коли телефон щось надіслав), але не що саме.
+#
+# Секрет PRIVATE_TOKEN: fine-grained токен ЛИШЕ на Cluckh/vows-private — Contents: Read and write, Actions: Read-only.
 name: sync
 on:
   repository_dispatch:
     types: [health]
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
 permissions: {}
 jobs:
   s:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -18,17 +32,35 @@ jobs:
       - name: обробити
         env:
           TOKEN: ${{ secrets.PRIVATE_TOKEN }}
+          EVENT: ${{ github.event_name }}
         run: |
           set +x
-          git clone -q --depth 5 "https://x-access-token:${TOKEN}@github.com/Cluckh/vows-private.git" p >/dev/null 2>&1 || { echo "немає доступу до приватного сховища (секрет PRIVATE_TOKEN)"; exit 1; }
+          # секрет ще не задано — тихо виходимо (не «помилка»: інакше GitHub слав би лист що 15 хв)
+          [ -n "$TOKEN" ] || { echo "секрет PRIVATE_TOKEN не задано — пропуск"; exit 0; }
+          git clone -q --depth 1 --filter=blob:none --sparse "https://x-access-token:${TOKEN}@github.com/Cluckh/vows-private.git" p >/dev/null 2>&1 || { echo "немає доступу до приватного сховища (перевір секрет PRIVATE_TOKEN)"; exit 1; }
           cd p
-          export PAYLOAD="$(jq -c '.client_payload // {}' "$GITHUB_EVENT_PATH")"
+          # беремо лише обробник, лог здоровʼя і ключ шифру — решта приватного сховища (копії, банк, тексти) на цей сервер не потрапляє
+          git sparse-checkout set --no-cone /tools/ /health/ /vault.key >/dev/null 2>&1 || { echo "не вдалося взяти файли"; exit 1; }
+          [ -f tools/sweep.mjs ] && [ -f vault.key ] || { echo "у приватному сховищі нема обробника"; exit 1; }
+          if [ "$EVENT" = "repository_dispatch" ]; then export PAYLOAD="$(jq -c '.client_payload // {}' "$GITHUB_EVENT_PATH")"; fi
+          export GH_TOKEN="$TOKEN" QREPO="Cluckh/vows-private" GH_PROMPT_DISABLED=1
           git config user.name "healer"; git config user.email "healer@users.noreply.github.com"
-          node tools/health.mjs >/dev/null 2>&1 || { echo "помилка обробки"; exit 1; }
+          work() { node tools/sweep.mjs >/dev/null 2>&1; }
+          work || { echo "помилка обробки"; exit 1; }
+          saved=""
           for i in 1 2 3 4 5 6 7 8; do
-            git add health/ && git diff --cached --quiet && { echo "готово"; exit 0; }
+            git add health/ >/dev/null 2>&1
+            if git diff --cached --quiet; then saved="нічого нового"; break; fi
             git commit -q -m "здоровʼя $(date -u +%F)" >/dev/null 2>&1
-            git push -q origin HEAD:main >/dev/null 2>&1 && { echo "готово"; exit 0; }
-            sleep $((i * 4 + RANDOM % 5)); git fetch -q --depth 5 origin main >/dev/null 2>&1 && git reset -q --hard origin/main >/dev/null 2>&1 && node tools/health.mjs >/dev/null 2>&1
+            if git push -q origin HEAD:main >/dev/null 2>&1; then saved="збережено"; break; fi
+            # хтось записав раніше — перерахувати поверх свіжого логу, а не зливати шифр
+            sleep $((i * 3 + RANDOM % 4)); git fetch -q --depth 1 origin main >/dev/null 2>&1 && git reset -q --hard origin/main >/dev/null 2>&1 && work
           done
-          echo "не вдалося зберегти"; exit 1
+          [ -n "$saved" ] || { echo "не вдалося зберегти"; exit 1; }
+          echo "готово: $saved"
+          # глашатай: розклад GitHub у приватному сховищі буває на години з запізненням — будимо його, якщо не біг понад 2 год (9:00–22:30 за Києвом)
+          h=$(TZ=Europe/Kyiv date +%H); mi=$(TZ=Europe/Kyiv date +%M); m=$(( 10#$h * 60 + 10#$mi ))
+          if [ $m -ge 540 ] && [ $m -lt 1350 ]; then
+            last=$(gh run list -R "$QREPO" -w herald.yml -L 1 --json createdAt -q '.[0].createdAt' 2>/dev/null || true)
+            if [ -n "$last" ] && [ $(( $(date +%s) - $(date -d "$last" +%s) )) -ge 7200 ]; then gh api "repos/$QREPO/dispatches" -f event_type=herald >/dev/null 2>&1 && echo "глашатая розбуджено" || true; fi
+          fi

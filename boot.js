@@ -16,7 +16,7 @@
   const BRANCH = "main";                        // явно: основною в репозиторії може бути інша гілка
   const KDF_IT = 600000;
   const SYNC_EVERY = 8 * 1000;                  // поки додаток відкритий: що 8 с спитати, чи є чуже (умовний запит: «не змінилось» нічого не коштує)
-  const PUSH_AFTER = 1500;                      // свою зміну віддаємо за 1,5 с після неї — не чекаючи кола й не покладаючись на згортання (iOS обриває запит)
+  const PUSH_AFTER = 800;                      // свою зміну віддаємо за 1,5 с після неї — не чекаючи кола й не покладаючись на згортання (iOS обриває запит)
 
   const LS = {
     get(k, f) { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } },
@@ -293,7 +293,7 @@
     return out;
   }
 
-  let busy = false, busyAt = 0, again = false, putAt = 0;
+  let busy = false, busyAt = 0, again = false, putAt = 0, checkedAt = 0;
   /* push: "now" — віддати, якщо є зміни; "force" — завжди; "pull" — лише підтягнути (перед стартом, щоб не чекати збереження) */
   async function syncNow(push) {
     if (busy) { if (push !== "pull") again = true; return { pulled: false }; }       // зміна під час синку — ще одне коло одразу після нього
@@ -304,7 +304,7 @@
       for (let round = 0; round < 3; round++) {
         const last = LS.get("ordo.bk.last", {});
         const dirty = snapHash() !== last.h;
-        const remote = await gh("backups/latest.json", { raw: true, cond: true });
+        const remote = await gh("backups/latest.json", { raw: true, cond: true }); checkedAt = Date.now();
         if (remote && remote !== SAME) {
           const meta = JSON.parse(remote);
           /* чужа копія, якої ми ще не брали, — беремо. Раніше порівнювались час копії й час власного запису, тобто годинники РІЗНИХ пристроїв:
@@ -340,6 +340,13 @@
     return { pulled };
   }
   const backupNow = () => syncNow("force");
+  /* перед будь-якою сценою, що зʼявляється сама (квест, момент, подія, лист, банер): чи нема на сервері свіжішого з іншого пристрою.
+     true — можна показувати; false — щойно підтягнули нове (буде перезапуск) або ще триває синк. Без мережі не блокує: чекає щонайбільше 3 с */
+  async function fresh() {
+    if (!token() || !LS.get(K.backup, null) || navigator.onLine === false) return !reloadPending;
+    if (Date.now() - checkedAt > 3500) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3000))]);
+    return !reloadPending && !(busy && Date.now() - busyAt < 8000);
+  }
   /* підтягнуті дані показуємо перезапуском — але не посеред дії */
   let reloadPending = false, visAt = Date.now();
   const calm = () => { const i = document.getElementById("intro"), a = document.activeElement;
@@ -631,7 +638,7 @@
     Storage.prototype.setItem = function (k, v) {
       const r = set0.call(this, k, v);
       /* не частіше ніж раз на 5 с: серія дій (підходи в залі, кілька справ поспіль) їде одним записом, а GitHub не бачить зливи */
-      if (this === localStorage && !applying && DATA_KEY(k)) { clearTimeout(pushT); pushT = setTimeout(() => { if (!reloadPending) syncNow("now"); }, Math.max(PUSH_AFTER, putAt + 5000 - Date.now())); }
+      if (this === localStorage && !applying && DATA_KEY(k)) { clearTimeout(pushT); pushT = setTimeout(() => { if (!reloadPending) syncNow("now"); }, Math.max(PUSH_AFTER, putAt + 3000 - Date.now())); }
       return r;
     };
     visAt = Date.now();
@@ -661,16 +668,17 @@
     return true;
   }
   /* попросити сховище оновитися (repository_dispatch): напр. свіжу виписку банку, коли Орден відкрито */
-  async function dispatch(type, payload) {
+  /* repo "pub" — публічне сховище Cluckh/vows: там розбір подій здоровʼя безкоштовний (хвилини Actions без ліміту). Токен може не мати туди доступу — тоді false */
+  async function dispatch(type, payload, repo) {
     if (!token()) return false;
     try {
-      const r = await fetch(`https://api.github.com/repos/${REPO}/dispatches`, { method: "POST",
+      const r = await fetch(`https://api.github.com/repos/${repo === "pub" ? "Cluckh/vows" : REPO}/dispatches`, { method: "POST",
         headers: { Authorization: `Bearer ${token()}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify(payload ? { event_type: type, client_payload: payload } : { event_type: type }) });
       return r.status === 204;
     } catch (e) { return false; }
   }
   /* сцени (події, моменти, квести) чекають, поки синхронізація не скаже, що вже бачено на іншому пристрої */
-  window.ORDO_VAULT = { callKey, callShown, hold: () => (busy && Date.now() - busyAt < 12e3 && Date.now() - visAt < 20e3) || reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
+  window.ORDO_VAULT = { callKey, callShown, fresh, hold: () => (busy && Date.now() - busyAt < 12e3 && Date.now() - visAt < 20e3) || reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
 
   async function boot() {
     let vault;

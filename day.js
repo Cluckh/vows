@@ -253,10 +253,21 @@
   }
   /* події з телефона на GitHub чекають у черзі (ощадність хвилин Actions, 9.11.2026): просимо сховище розібрати її зараз — { flush: 1 } —
      і кілька разів перечитуємо результат. На iPhone — після повернення зі «Швидких команд», з паузою, щоб команда встигла все надіслати */
+  /* «розбери чергу зараз»: спершу публічне сховище (безкоштовно); якщо токен Ордену туди не пускає — приватне, як раніше (добу не питаємо знову) */
+  function askSweep() {
+    const V = window.ORDO_VAULT; if (!V || !V.dispatch) return;
+    const priv = () => V.dispatch("health", { flush: 1 }).catch(() => {});
+    if (Date.now() - LS.get("ordo.k.pubNo", 0) < 864e5) { priv(); return; }
+    const was = HL && HL.at;
+    V.dispatch("health", { flush: 1 }, "pub").then((ok) => {
+      if (!ok) { LS.set("ordo.k.pubNo", Date.now()); priv(); return; }
+      setTimeout(() => { if ((HL && HL.at) === was) priv(); }, 60e3);       // публічний розбір за хвилину нічого не дав (напр. там ще нема секрету) — просимо приватний
+    }).catch(priv);
+  }
   function flushHealth() {
     hFlushAt = Date.now(); LS.set("ordo.k.hflush", hFlushAt);
     const V = window.ORDO_VAULT;
-    setTimeout(() => { if (V && V.dispatch) V.dispatch("health", { flush: 1 }).catch(() => {}); }, IOS ? 6000 : 0);
+    setTimeout(askSweep, IOS ? 6000 : 0);
     [35, 55, 80, 120].forEach((s) => setTimeout(() => { loadHealth(true); if (s === 120) render(); }, s * 1000));     // розбір на GitHub — ~25–50 с
   }
   function afterPhoneSync() {
@@ -279,7 +290,7 @@
     const age = HL && HL.at ? Date.now() - Date.parse(HL.at) : Infinity;
     if (document.hidden || age < 5 * 60e3 || Date.now() - hFlushAt < 10 * 60e3 || Date.now() - hSyncAt < 10 * 60e3) return;
     hFlushAt = Date.now(); LS.set("ordo.k.hflush", hFlushAt);
-    const V = window.ORDO_VAULT; if (V && V.dispatch) V.dispatch("health", { flush: 1 }).catch(() => {});
+    askSweep();
     [30, 50, 90].forEach((s) => setTimeout(() => loadHealth(true), s * 1000));
   }
   /* кроки з телефона — у лічильники з позначкою «кроки» і в квести на кроки */
@@ -1462,6 +1473,7 @@
   async function offerScene(q) {
     const h = H(); if (!h) return false;
     if (q.flash && hmNow2() >= q.flash) { q.st = "declined"; q.missed = 1; q.at = Date.now(); saveQ(); return true; }      // блискавичний, а час уже минув
+    q.shDev = MY_DEV; q.shAt = Date.now(); q.at = Date.now(); saveQ();              // «показую я» — їде на інший пристрій за секунду
     const L = (D().DAY || {}).quest || {};
     h.stage(q.giver, { glow: glowOf(q.rar) });
     const lines = (L.offer && L.offer[q.rar]) || [];
@@ -1541,6 +1553,8 @@
     if (held()) return scenesLater();
     const intro = $("intro"); if (intro && !intro.hasAttribute("hidden")) return scenesLater();
     if (document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc")) return scenesLater();
+    { const V = window.ORDO_VAULT; if (V && V.fresh && !(await V.fresh())) return scenesLater();       // показане щойно на іншому пристрої тут не повториться
+      if (busy || !H() || H().isOpen() || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc")) return scenesLater(); }
     busy = true;
     try {
       if (isNight()) { if (X.knighted) await nightScene(); return; }           // уночі — лише варта, без доручень і подій
@@ -1561,7 +1575,8 @@
         if ((await h.say(`Брате. Ти попросив ${q.broke.replace(/^попросив\s+/i, "")}. Це нова фішка, а не лагодження — обітницю «${q.t}» порушено, квест провалено. Ми так домовлялись, чесно.`)) === "closed") return;
         if ((await h.say("Не карай себе. Фортецю, яку хочеться перебудовувати, ти любиш. Наступного разу — спершу поживи в ній.")) === "closed") return; }
       dailyRoll();
-      for (const q of Q.list.filter((x) => x.st === "offer")) { if (held()) return later(); if (!(await offerScene(q))) break; }
+      /* пропозицію, яку просто зараз показує інший пристрій (shDev, останні 10 хв), тут не відкриваємо — відповідь прийде звідти */
+      for (const q of Q.list.filter((x) => x.st === "offer" && !(x.shDev && x.shDev !== MY_DEV && Date.now() - (x.shAt || 0) < 10 * 60e3))) { if (held()) return later(); if (!(await offerScene(q))) break; }
       while (pendingDone.length) { const q = pendingDone.shift(); await doneScene(q); }
       if (held()) return later();
       if (!(await eventScene())) return;
@@ -2705,6 +2720,9 @@
     const h = H();
     if ((h && h.isOpen()) || document.querySelector(".sheet.open, .confirm.open, .rite.open, .kc") || document.hidden || busy) { setTimeout(medalCheck, 2500); return; }
     if (held()) { setTimeout(medalCheck, 2500); return; }                      // іде синк: можливо, цей банер уже показано на іншому пристрої
+    { const V = window.ORDO_VAULT;                                              // і ще раз питаємо сервер просто перед показом
+      if (V && V.fresh && !medalCheck.ok) { banBusy = true; V.fresh().then((ok) => { banBusy = false; if (ok) medalCheck.ok = 1; setTimeout(medalCheck, ok ? 0 : 2500); }).catch(() => { banBusy = false; }); return; }
+      medalCheck.ok = 0; if (S.ban[due[0].id]) { setTimeout(medalCheck, 50); return; } }
     banBusy = true; S.ban[due[0].id] = 1; saveS();                               // позначаємо, щойно показали (а не після тапу) — інший пристрій дізнається одразу
     showBanner(due[0], due.length - 1, () => { banBusy = false; setTimeout(medalCheck, 350); });
   }

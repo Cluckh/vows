@@ -2132,3 +2132,11 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .gl-it--lost { opacity: .5; }
 .gl-it--lost .gl-t { text-decoration: line-through; text-decoration-thickness: 1px; }
 .gs-lose { margin-top: 14px; }
+
+/* історія золота */
+.gd-hd{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px}
+.gd-hd b{font-weight:600;color:var(--gold,#e2c27a)}
+.gd-hist li span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gd-hist li em{font-style:normal;font-size:.78em;opacity:.6}
+.gd-list b.is-neg,.gd-hd b.is-neg{color:#d98a7a}
+.gd-histbtn{margin-top:6px}

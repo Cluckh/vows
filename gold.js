@@ -446,6 +446,7 @@
       <div class="dy-acts gd-acts"><button type="button" class="btn btn--gold" data-gd="shop">Крамниця Сенешаля</button><button type="button" class="btn btn--line" data-gd="out" ${b > 0 ? "" : "disabled"}>На білу картку</button></div>
       <button type="button" class="gd-sync" data-gd="sync" ${syncing ? "disabled" : ""}>${syncing ? "оновлюю виписку… (до хвилини)" : `↻ оновити виписку${T() && T().at ? ` · ${(() => { const B = LS.get("ordo.k.bank", {}); return B && B.at ? new Date(B.at).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" }) : ""; })()}` : ""}`}</button>
       ${feed.length ? `<div class="st-h st-h--sub">Нещодавно</div><ul class="tr-top gd-list">${feed.map((x) => `<li><span>${x.bl ? "✦ " : ""}${esc(x.t)}</span><b>+${fmtN(x.g)}</b></li>`).join("")}</ul>` : ""}
+      <button type="button" class="gd-sync gd-histbtn" data-gd="hist">уся історія золота ›</button>
       ${outs.length ? `<div class="st-h st-h--sub">Виведено й витрачено</div><ul class="tr-top gd-list">${outs.map((o) => `<li><span>${o.kind === "white" ? (o.st === "pending" ? "на білу картку · чекаю" : "на білу картку") : esc(o.item || "крамниця")}</span><b>−${fmtN(o.amt)}</b></li>`).join("")}</ul>` : ""}
       <p class="tr-at">золото — за ідеальні дні, квести, віхи обітниць, цілі, зал. 1 золото = 1 ₴ на білій картці</p></section>`;
     if (relics().length) {
@@ -478,8 +479,37 @@
   }
   function close() { if (!el) return; armId = null; clearTimeout(armT); el.classList.remove("open"); const sc = $("scrim"); if (sc && !document.querySelector(".sheet.open")) sc.classList.remove("open"); refreshViews(); if (reveals.length) setTimeout(nextReveal, 600); }
   const grip = `<div class="sheet__grip"></div>`;
+  /* повна історія золота: кожен запис книги досвіду з золотом (з бонусами спорядження й благословення), надходження (рівні, скрині, медалі,
+     переплавлене, недільна скриня) і витрати (вивід на білу, крамниця). Нічого не групується — щоб без плутанини, звідки кожна монета */
+  const KIND = { pd: "ідеальний день", pw: "ідеальний тиждень", gy: "зал", jr: "сповідь", st: "10 000 кроків", er: "ранній підйом", sl: "сон", nw: "нічна варта", rt: "повернення",
+    t: "справа дня", v: "чистий день обітниці", a: "медаль", mo: "слово храмовника", g: "ціль", gm: "ревю", vm: "віха обітниці", q: "квест" };
+  function history() {
+    const rows = [];
+    ledger().forEach((x) => {
+      const p = x.id.split(":")[0], rb = G.bon["rb:" + x.id] || 0, bl = G.bon["bl:" + x.id] || 0, e = ((DAY() && DAY()._state && DAY()._state().X.e) || {})[x.id] || {};
+      rows.push({ d: x.d, at: e.at || 0, g: x.g + (typeof rb === "number" ? rb : rb.amt || 0) + (typeof bl === "number" ? bl : bl.amt || 0), k: KIND[p] || "інше", t: x.why || KIND[p] || x.id,
+        x: [e.mul && e.mul !== 1 ? (e.mul < 1 ? `Lay on Hands ×${e.mul}` : `Відродження ×${e.mul}`) : "", rb ? "спорядження" : "", bl ? "благословення" : ""].filter(Boolean).join(" · ") });
+    });
+    Object.entries(G.inc).filter(([, v]) => fresh(v)).forEach(([k, v]) => rows.push({ d: new Date(v.at).toLocaleDateString("sv-SE"), at: v.at, g: v.amt || 0, k: k.startsWith("lv:") ? "рівень" : k.startsWith("dup:") ? "переплавлено" : k.startsWith("wk:") ? "недільна скриня" : "скриня", t: v.why || k, x: "" }));
+    Object.values(G.out).filter((o) => live(o) && fresh(o)).forEach((o) => rows.push({ d: new Date(o.at).toLocaleDateString("sv-SE"), at: o.at, g: -o.amt, k: o.kind === "white" ? "вивід" : "крамниця",
+      t: o.kind === "white" ? (o.st === "pending" ? "на білу картку · чекаю виписку" : "на білу картку") : (o.item || "покупка"), x: "" }));
+    return rows.filter((r) => r.g).sort((a, c) => (c.d > a.d ? 1 : c.d < a.d ? -1 : (c.at || 0) - (a.at || 0)));
+  }
   function render(m, arg) {
     mode = m; const b = balance();
+    if (m === "hist") {
+      const rows = history(), days = []; rows.forEach((r) => { const l = days[days.length - 1]; if (l && l.d === r.d) l.r.push(r); else days.push({ d: r.d, r: [r] }); });
+      const tot = (L) => L.reduce((a, r) => a + r.g, 0), plus = rows.filter((r) => r.g > 0), minus = rows.filter((r) => r.g < 0);
+      const by = {}; plus.forEach((r) => { by[r.k] = (by[r.k] || 0) + r.g; });
+      const dd = (d) => { const x = new Date(d + "T12:00:00"); return x.toLocaleDateString("uk-UA", { day: "numeric", month: "long", weekday: "short" }); };
+      el.innerHTML = `${grip}<div class="gs-kicker">Золото Ордену</div><div class="sheet__title dy-sht">Історія золота</div>
+        <p class="dy-note">Зараз ${coin()}<b>${fmtN(b)}</b> = зароблено <b>${fmtN(tot(plus))}</b> − виведено й витрачено <b>${fmtN(-tot(minus))}</b> (з ${dd(START)})</p>
+        <div class="st-h st-h--sub">Звідки</div><ul class="tr-top gd-list">${Object.entries(by).sort((a, c) => c[1] - a[1]).map(([k, v]) => `<li><span>${esc(k)}</span><b>+${fmtN(v)}</b></li>`).join("")}</ul>
+        ${days.map((D) => `<div class="st-h st-h--sub gd-hd"><span>${esc(dd(D.d))}</span><b class="${tot(D.r) < 0 ? "is-neg" : ""}">${tot(D.r) > 0 ? "+" : tot(D.r) < 0 ? "−" : ""}${fmtN(Math.abs(tot(D.r)))}</b></div>
+          <ul class="tr-top gd-list gd-hist">${D.r.map((r) => `<li><span>${esc(r.t)}<em>${esc(r.k)}${r.x ? " · " + esc(r.x) : ""}</em></span><b class="${r.g < 0 ? "is-neg" : ""}">${r.g > 0 ? "+" : "−"}${fmtN(Math.abs(r.g))}</b></li>`).join("")}</ul>`).join("")}
+        <button type="button" class="btn btn--ghost" data-gd="close">Закрити</button>`;
+      return;
+    }
     if (m === "sent") {
       el.innerHTML = `${grip}<div class="gs-kicker">Золото Ордену</div><div class="sheet__title dy-sht">Переведи ${fmtN(amt)} ₴ на білу картку</div>
         <p class="dy-note dy-note--t">У монобанку: з чорної картки на білу <b>…9467</b>. Золото вже відкладено; щойно поповнення зʼявиться у виписці (зазвичай 1–2 хв), Сенешаль закриє виведення. Не прийде за добу — золото повернеться.</p>
@@ -676,7 +706,7 @@
   document.addEventListener("click", (e) => {
     if (!e.target.closest || e.target.closest("#gdSheet")) return;
     const sy = e.target.closest("[data-gd='sync']"); if (sy) { lastAsk = 0; watchBank(true); return; }
-    const b = e.target.closest("[data-gd='out'], [data-gd='shop']"); if (b) { amt = 0; show(b.dataset.gd); return; }
+    const b = e.target.closest("[data-gd='out'], [data-gd='shop'], [data-gd='hist']"); if (b) { amt = 0; show(b.dataset.gd); return; }
     const r = e.target.closest("[data-rl]"); if (r) { show("relic", r.dataset.rl); return; }
     const x = e.target.closest("[data-rlx]"); if (x) show("locked", x.dataset.rlx);
   });

@@ -1196,7 +1196,7 @@
       saveQ();
     }
     settle(); render();
-    const V = window.ORDO_VAULT; if (V && V.dispatch) V.dispatch("herald", { loh: t0 }).catch(() => {});     // вісті протягом дня — від глашатая
+    const V = window.ORDO_VAULT; if (V && V.dispatch) V.dispatch("herald", { loh: t0 }, "pub").then((ok) => { if (!ok) V.dispatch("herald", { loh: t0 }).catch(() => {}); }).catch(() => {});     // вісті протягом дня — від глашатая (публічне сховище; не вийшло — приватне)
     lohScene(false);
     return true;
   }

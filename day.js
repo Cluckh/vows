@@ -174,7 +174,9 @@
   /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
   const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
-  const appMin = (k, n) => { const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
+  /* ручна правка з Екранного часу (S.appFix[день][програма] = хв) — сильніша за підрахунок подій: iOS не каже, коли екран заблоковано */
+  const appFix = (k, n) => { const f = S.appFix && S.appFix[k]; return f && f[n] != null ? f[n] : null; };
+  const appMin = (k, n) => { const fx = appFix(k, n); if (fx != null) return fx; const h = hDay(k) || {}, a = h.apps && h.apps[n]; return (a && a.min) || (n === "duolingo" && h.duo && h.duo.min) || 0; };
   /* старі цілі Duolingo («Зробити»/«Число» за назвою) — у «час у програмі», 10 хв на день */
   const appMigrate = () => Object.values(S.tasks).forEach((t) => { if (!t.del && !t.app && srcOf(t) === "app" && !(t.type === "count" && /xp/i.test(t.unit || ""))) {
     Object.assign(t, { src: "app", app: { n: "duolingo", min: DUO_MIN, lim: false }, type: "do", mt: Date.now() }); saveS(); } });
@@ -1723,7 +1725,7 @@
       <div class="dy-body"><span class="dy-t">${esc(t.t)}</span>
         ${cnt ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(cur)} <em>/ ${fmtN(t.target)} ${esc(t.unit || "")}</em>${t.lohFrom != null ? ` <span class="dy-loh-was">✋ було ${fmtN(t.lohFrom)}</span>` : ""}</span>` : ""}
         ${(() => { if (srcOf(t) !== "app" || t.type === "count" || k > today()) return ""; const a = appOf(t), m = Math.floor(appMin(k, a.n));
-          return appBar(m, a.min, a.lim) + (t.lohFrom != null ? `<span class="dy-loh-was">✋ було ${fmtN(t.lohFrom)} хв</span>` : ""); })()}
+          return `<div class="dy-appfix" data-appfix="${k}|${esc(a.n)}" role="button" title="виправити за Екранним часом">` + appBar(m, a.min, a.lim) + (appFix(k, a.n) != null ? `<span class="dy-loh-was">✎ з Екранного часу</span>` : "") + `</div>` + (t.lohFrom != null ? `<span class="dy-loh-was">✋ було ${fmtN(t.lohFrom)} хв</span>` : ""); })()}
         ${isRead(t) && k <= today() ? bookLine(k) : ""}
         ${(() => { const sp = srcOf(t) === "bank" && k <= today() ? bankSpent(t, k) : null; return sp == null ? "" : `<span class="dy-num${sp > (t.bank.limit || 0) ? " is-over" : ""}">витрачено ${T().money(sp)} <em>/ ліміт ${T().money(t.bank.limit || 0)}</em></span>`; })()}
         <span class="dy-meta">${metaOf(t, r, k)}</span></div>
@@ -2659,6 +2661,12 @@
     if (nv) { const n = +nv.dataset.dnav; view = n === 0 ? today() : add(view || today(), n); buzz("light"); render(); return; }
     const mk = e.target.closest("[data-dmark]"); if (mk) { mark(mk.dataset.dmark, view); return; }
     const pl = e.target.closest("[data-dplus]"); if (pl) { plus(pl.dataset.dplus, view); return; }
+    const af = e.target.closest("[data-appfix]");
+    if (af) { e.stopPropagation(); const [k, n] = af.dataset.appfix.split("|"), cur = Math.floor(appMin(k, n));
+      const v = prompt(`Скільки хвилин «${appName(n)}» ${k === today() ? "сьогодні" : human(k)} показує Екранний час?\n(порожньо — повернути автопідрахунок)`, appFix(k, n) != null ? String(appFix(k, n)) : "");
+      if (v === null) return; S.appFix = S.appFix || {}; S.appFix[k] = S.appFix[k] || {};
+      if (v.trim() === "") delete S.appFix[k][n]; else { const x = Math.max(0, Math.round(+v.replace(",", ".") || 0)); S.appFix[k][n] = x; }
+      saveS(); settle(); render(); toast(v.trim() === "" ? `«${esc(appName(n))}» — знову автопідрахунок (${cur} хв)` : `«${esc(appName(n))}»: записано ${S.appFix[k][n]} хв`); return; }
     const qd = e.target.closest("[data-dqdone]"); if (qd) { qDone(qd.dataset.dqdone); return; }
     const qp = e.target.closest("[data-dqplus]"); if (qp) { qPlus(qp.dataset.dqplus); return; }
     const nw = e.target.closest("[data-dnew]"); if (nw) { openSheet("edit", null, view); return; }
@@ -2891,7 +2899,7 @@
       calls30: LOG.filter((e) => e.k === "call" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, st: e.st })),
       tasks: Object.values(S.tasks).filter((t) => !t.del && (!t.end || t.end >= t0)).map((t) => ({ t: t.t, type: t.type, target: t.target, unit: t.unit, rep: repText(t) || "раз", time: t.time || "", gym: isGym(t), rate14: rate(t),
         auto: srcOf(t) ? SRC[srcOf(t)] + (srcOf(t) === "app" ? ` ${appOf(t).n} ${appOf(t).lim ? "≤" : "≥"} ${appOf(t).min} хв` : "") : null })),
-      apps: days14.map((k) => { const h = hDay(k) || {}, o = {}; Object.entries(h.apps || {}).forEach(([n, a]) => { if (a.min >= 1) o[n] = Math.floor(a.min); }); return Object.keys(o).length ? Object.assign({ d: k }, o) : null; }).filter(Boolean),
+      apps: days14.map((k) => { const h = hDay(k) || {}, o = {}; Object.keys(Object.assign({}, h.apps || {}, (S.appFix || {})[k] || {})).map((n) => [n, { min: appMin(k, n) }]).forEach(([n, a]) => { if (a.min >= 1) o[n] = Math.floor(a.min); }); return Object.keys(o).length ? Object.assign({ d: k }, o) : null; }).filter(Boolean),
       perfectDays14: days14.filter((k) => perfect(k)).length,
       quests: Q.list.slice(-25).map((q) => ({ pid: q.pid, rar: q.rar, giver: q.giver, t: q.t, st: q.st, from: q.from || q.offerOn, until: q.until, cur: q.cur, target: q.target })),
       achievements: Object.keys(ACH),

@@ -36,16 +36,21 @@
 
   /* ---------------------------------------------------------- завантаження */
   let loadedAt = 0;
+  /* з 20.11.2026 виписка — у базі: монобанк сам повідомляє про кожну транзакцію (вебхук), підсумок приходить сюди наживо. Без входу в базу — файл на GitHub */
+  const CLB = () => window.ORDO_CLOUD && window.ORDO_CLOUD.active() ? window.ORDO_CLOUD : null;
+  const take = (s) => { if (s && s.at && s.at !== (B && B.at)) { B = s; LS.set("ordo.k.bank", s); const A = API(); if (A.tab && A.tab() === "treasury" && A.renderTreasury) A.renderTreasury(); if (window.ORDO_DAY && window.ORDO_DAY.bankSync) window.ORDO_DAY.bankSync(); } };
+  let bWatch = false;
   async function load(force) {
-    const V = window.ORDO_VAULT; if (!V || !V.readSealed) return;
+    const C = CLB();
+    if (C && !bWatch) { bWatch = true; C.srvOn("bank", take); }
     if (!force && Date.now() - loadedAt < 10 * 60e3) return;
     loadedAt = Date.now();
-    try {
-      const s = await V.readSealed("bank/summary.json");
-      ask(s);
-      if (s && s.at !== (B && B.at)) { B = s; LS.set("ordo.k.bank", s); const A = API(); if (A.tab && A.tab() === "treasury" && A.renderTreasury) A.renderTreasury(); if (window.ORDO_DAY && window.ORDO_DAY.bankSync) window.ORDO_DAY.bankSync(); }
-    } catch (e) {}
+    if (C) { take(await C.srvGet("bank")); return; }
+    const V = window.ORDO_VAULT; if (!V || !V.readSealed) return;
+    try { const s = await V.readSealed("bank/summary.json"); ask(s); take(s); } catch (e) {}
   }
+  /* «Оновити» / чекаю поповнення білої: база питає банк сама (крок звірки), відповідь прийде наживо */
+  async function refresh(white) { const C = CLB(); if (!C) return false; await C.call("bank", { sync: true, white: !!white }); await load(true); return true; }
 
   /* виписці понад 3 год, а Орден відкрито — попросити свіжу (не частіше ніж раз на 3 год: кожен запит — хвилина GitHub Actions); свіжіше — кнопкою «Оновити» */
   function ask(s) {
@@ -218,5 +223,5 @@
     const h = H(); if (h && h.isOpen()) h.close();
   }
 
-  window.ORDO_TREASURY = { load, statsHTML, scenes, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {}, accs: () => (B && B.accs) || [], white: () => (B && B.white) || null };
+  window.ORDO_TREASURY = { refresh, load, statsHTML, scenes, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {}, accs: () => (B && B.accs) || [], white: () => (B && B.white) || null };
 })();

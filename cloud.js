@@ -294,8 +294,14 @@
     try { const { error } = await sb.from("push_subs").upsert(Object.assign({ user_id: user.id, dev, at: new Date().toISOString() }, row), { onConflict: "user_id,dev" }); return !error; } catch (e) { return false; }
   }
 
+  /* арти (з 20.11.2026): Storage, бакет art, <user_id>/<name>; читає лише власник. null — такої картинки ще нема */
+  async function artBlob(n) {
+    if (!active) return null;
+    try { const { data, error } = await sb.storage.from("art").download(`${user.id}/${n}`); return error || !data || !data.size ? null : data; } catch (e) { return null; }
+  }
+
   window.ORDO_CLOUD = {
-    srvGet, srvOn, call, ingestKey, pushSub,
+    artBlob, srvGet, srvOn, call, ingestKey, pushSub,
     init, signIn, signUp, signOut, claim, catchUp, onSet, flush: sendDirty,
     active: () => active, user: () => user && user.email, status: () => ({ status, err: lastErr, pend: pend.size, ts: lastTs, caughtAt }),
     _t: { flatten, unflatten }

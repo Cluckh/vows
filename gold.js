@@ -373,17 +373,23 @@
   let artBusy = false;
   const SCENES = ["chest", "chestc", "shop", "treasury", "levelup", "night", "weekchest"];
   const scene = (n) => ART["scene:" + n] || null;
+  /* звідки арти: з бази (Storage, з 20.11.2026); без входу в базу — зашифровані файли приватного сховища на GitHub, як раніше */
+  const CLA = () => window.ORDO_CLOUD && window.ORDO_CLOUD.active() && window.ORDO_CLOUD.artBlob ? window.ORDO_CLOUD : null;
+  const artSrc = () => !!(CLA() || (window.ORDO_VAULT && window.ORDO_VAULT.readSealedBlob));
+  async function fetchArt(n) { const C = CLA(); if (C) return C.artBlob(n); const V = window.ORDO_VAULT; return V && V.readSealedBlob ? V.readSealedBlob(`art/sealed/${n}.json`) : null; }
+  /* щойно намальоване (бібліотека): забути «не знайдено» й підтягнути знову */
+  function artRetry(keys) { const miss = LS.get("ordo.k.artMiss", {}); keys.forEach((k) => { const i = k.indexOf(":"); delete miss[artName(k.slice(0, i), k.slice(i + 1))]; WANT.delete(k); }); LS.set("ordo.k.artMiss", miss); want(keys); }
   /* арт за запитом (ілюстрації моментів писаря): той самий кеш «ordo-art», що й для реліквій */
   async function artFor(kind, id) {
     const k = kind + ":" + id; if (ART[k]) return ART[k];
-    const V = window.ORDO_VAULT; if (!V || !V.readSealedBlob) return null;
+    if (!artSrc()) return null;
     const n = artName(kind, id), req = new Request(`${location.origin}/__art/${n}`);
     let cache = null, blob = null; try { cache = await caches.open("ordo-art"); const r = await cache.match(req); if (r) blob = await r.blob(); } catch (e) {}
-    if (!blob) { try { blob = await V.readSealedBlob(`art/sealed/${n}.json`); } catch (e) {} if (blob && cache) { try { await cache.put(req, new Response(blob, { headers: { "Content-Type": blob.type } })); } catch (e) {} } }
+    if (!blob) { try { blob = await fetchArt(n); } catch (e) {} if (blob && cache) { try { await cache.put(req, new Response(blob, { headers: { "Content-Type": blob.type } })); } catch (e) {} } }
     return blob ? (ART[k] = URL.createObjectURL(blob)) : null;
   }
   async function loadArts() {
-    const V = window.ORDO_VAULT; if (artBusy || !V || !V.readSealedBlob) return;
+    if (artBusy || !artSrc()) return;
     const want = Object.keys(G.own).filter((id) => !ART[id] && relic(id)).map((id) => ["relic", id]).concat(SCENES.filter((x) => !ART["scene:" + x]).map((x) => ["scene", x]))
       .concat([...WANT].filter((k) => !ART[k]).map((k) => [k.slice(0, k.indexOf(":")), k.slice(k.indexOf(":") + 1)]));
     if (!want.length) return;
@@ -414,7 +420,7 @@
       const worker = async () => { for (let it = next(); it; it = next()) { let blob = null;
         if (it.late && cache) { try { const r = await cache.match(reqOf(it.n)); if (r) blob = await r.blob(); } catch (e) {} }
         if (!blob && !(it.late && miss[it.n] && Date.now() - miss[it.n] < 1800e3)) {
-          try { blob = await V.readSealedBlob(`art/sealed/${it.n}.json`); } catch (e) {}
+          try { blob = await fetchArt(it.n); } catch (e) {}
           if (blob) { delete miss[it.n]; if (cache) { try { await cache.put(reqOf(it.n), new Response(blob, { headers: { "Content-Type": blob.type } })); } catch (e) {} } } else miss[it.n] = Date.now();
         }
         if (blob) { ART[it.id] = URL.createObjectURL(blob); got = true; if (Date.now() - shown > 800) { shown = Date.now(); notify(); } }     // показуємо поступово, не чекаючи всієї черги
@@ -740,5 +746,5 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}     // попросити браузер не викидати кеш артів
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
+  window.ORDO_GOLD = { artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

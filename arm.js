@@ -197,6 +197,24 @@
     Object.keys(LIB.books).filter((id) => !seeds.some((s) => s.id === id) && LIB.books[id].t).forEach((id) => { const o = LIB.books[id]; if (o.st !== "drop") out.push(Object.assign({ id, src: "lib" }, o)); });
     return out;
   }
+  /* гра чи книжка без картинки — база малює сама (функція art: Gemini вигадує статуетку чи емблему й малює, ~15–30 с), не чекаючи ночі писаря.
+     Кожну — не частіше ніж раз на 6 год і не більше трьох за раз; уже намальоване база не малює вдруге */
+  let genBusy = false;
+  async function genLib() {
+    const C = window.ORDO_CLOUD, G = GD(); if (genBusy || !C || !C.active() || !C.call || !G || !G.artRetry) return;
+    let tried = {}; try { tried = JSON.parse(localStorage.getItem("ordo.k.artGen") || "{}") || {}; } catch (e) {}
+    const todo = libGames().filter((g) => !g.art && g.t).map((g) => ({ kind: "game", t: g.t, key: "game:" + g.t.toLowerCase() }))
+      .concat(libBooks().filter((b) => !b.art && b.t).map((b) => ({ kind: "book", t: b.t, a: b.a || "", key: "book:" + String(b.t).toLowerCase().trim() })))
+      .filter((x) => !art(x.key) && Date.now() - (tried[x.key] || 0) > 6 * 3600e3).slice(0, 3);
+    if (!todo.length) return;
+    genBusy = true;
+    try {
+      for (const x of todo) {
+        tried[x.key] = Date.now(); try { localStorage.setItem("ordo.k.artGen", JSON.stringify(tried)); } catch (e) {}
+        if (await C.call("art", { kind: x.kind, t: x.t, a: x.a })) G.artRetry([x.key]);
+      }
+    } finally { genBusy = false; }
+  }
   function libGames() {
     const seeds = (D().LIBRARY || {}).games || [], out = [];
     seeds.forEach((s) => { const o = LIB.games[s.id] || {}; const g = Object.assign({}, s, o); if (g.st !== "drop") out.push(g); });
@@ -322,6 +340,7 @@
         <button type="button" class="btn btn--gold" data-ar="spsave">Зберегти</button><button type="button" class="btn btn--ghost" data-ar="close">Закрити</button>`;
     } else if (mode === "lib") {
       want(libBooks().map((b) => "book:" + (b.art || String(b.t || "").toLowerCase().trim())).concat(libGames().map((g) => "game:" + (g.art || g.t.toLowerCase()))));
+      setTimeout(genLib, 8000);
       const B = libBooks(), G = libGames(), reading = B.filter((b) => b.st === "read"), done = B.filter((b) => b.st === "done").sort((a, b) => ((b.end || "") > (a.end || "") ? 1 : -1)), q = B.filter((b) => b.st === "queue");
       const gd = G.filter((g) => g.st === "done"), gp = G.filter((g) => g.st === "play");
       const cover = (b) => { const a = art("book:" + (b.art || String(b.t || "").toLowerCase().trim())); return `<span class="lb-cover${a ? " has-art" : ""}">${a ? `<img src="${a}" alt="">` : `<b>${esc((b.t || "?").slice(0, 1))}</b>`}</span>`; };

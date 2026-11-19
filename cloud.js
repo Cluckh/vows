@@ -223,7 +223,9 @@
     if (chan) { try { sb.removeChannel(chan); } catch (e) {} chan = null; }
     chan = sb.channel("docs-" + user.id).on("postgres_changes", { event: "*", schema: "public", table: "docs", filter: `user_id=eq.${user.id}` }, (m) => {
       const r = m.new && m.new.path ? m.new : null; if (r) applyRows([r]);
-    }).subscribe((st) => { if (st === "SUBSCRIBED") catchUp(); });
+    }).on("postgres_changes", { event: "*", schema: "public", table: "srv", filter: `user_id=eq.${user.id}` }, (m) => {
+      const r = m.new && m.new.k ? m.new : null; if (r) srvEmit(r.k, r.val, r.ts);
+    }).subscribe((st) => { if (st === "SUBSCRIBED") { catchUp(); Object.keys(srvL).forEach((k) => srvGet(k).then((v) => { if (v != null) srvEmit(k, v, null); })); } });
   }
 
   /* ----------------------------------------------------- вхід */
@@ -266,7 +268,34 @@
     } catch (e) { return true; }
   }
 
+  /* ------------------------------------- серверні дані (19.11.2026: замість файлів на GitHub)
+     srv — те, що пишуть функції бази: health (журнал здоровʼя з iPhone), inbox (скринька вістей), push_state (що надіслав глашатай).
+     Читати може лише власник; змінюються наживо (realtime) — srvOn(k, cb) кличе cb(val) щоразу. */
+  const srvL = {};
+  function srvEmit(k, val) { (srvL[k] || []).forEach((cb) => { try { cb(val); } catch (e) {} }); }
+  async function srvGet(k) {
+    if (!active) return null;
+    try { const { data, error } = await sb.from("srv").select("val").eq("user_id", user.id).eq("k", k).maybeSingle(); return error || !data ? null : data.val; } catch (e) { return null; }
+  }
+  function srvOn(k, cb) { (srvL[k] = srvL[k] || []).push(cb); }
+  /* функції бази (herald) — від імені власника */
+  async function call(fn, body) {
+    if (!active) return false;
+    try { const { error } = await sb.functions.invoke(fn, { body: body || {} }); return !error; } catch (e) { return false; }
+  }
+  /* «Швидкі команди»: адреса й токен для подій з iPhone */
+  async function ingestKey() {
+    if (!active) return null;
+    try { const { data } = await sb.from("ingest_keys").select("token").eq("user_id", user.id).maybeSingle(); return data ? { url: URL0 + "/functions/v1/ingest", token: data.token } : null; } catch (e) { return null; }
+  }
+  /* адреса пушів пристрою (глашатай бази читає звідси) */
+  async function pushSub(dev, row) {
+    if (!active) return false;
+    try { const { error } = await sb.from("push_subs").upsert(Object.assign({ user_id: user.id, dev, at: new Date().toISOString() }, row), { onConflict: "user_id,dev" }); return !error; } catch (e) { return false; }
+  }
+
   window.ORDO_CLOUD = {
+    srvGet, srvOn, call, ingestKey, pushSub,
     init, signIn, signUp, signOut, claim, catchUp, onSet, flush: sendDirty,
     active: () => active, user: () => user && user.email, status: () => ({ status, err: lastErr, pend: pend.size, ts: lastTs, caughtAt }),
     _t: { flatten, unflatten }

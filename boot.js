@@ -437,9 +437,12 @@
     const G = LS.get("ordo.goals", {}), P = G.m && G.m[ky(new Date()).slice(0, 7)];
     return { sw, app: LS.get("ordo.ver", ""), call: LS.get("ordo.k.call", null), trace: LS.get("ordo.k.trace", []), errs: LS.get("ordo.k.errs", []), next, gm: P ? { n: P.items.length, done: !!P.res } : null };
   }
+  /* адреса пушів: у базі (push_subs — звідти шле глашатай бази); без входу в базу — файл у приватному сховищі, як раніше */
+  const pushDev = () => devId().replace(/[^a-z0-9]/gi, "");
   async function pushSave(sub) {
-    const j = sub.toJSON(), dg = await diag();
-    await putFile(pushFile(), JSON.stringify({ sub: j, ua: navigator.userAgent.slice(0, 160), at: new Date().toISOString(), diag: dg }, null, 1), "вісті: адреса пристрою");
+    const j = sub.toJSON(), dg = await diag(), CL = window.ORDO_CLOUD && window.ORDO_CLOUD.active() ? window.ORDO_CLOUD : null;
+    if (CL) { if (!(await CL.pushSub(pushDev(), { sub: j, ua: navigator.userAgent.slice(0, 160), diag: dg, off: false, gone: null }))) throw new Error("база не прийняла адресу"); }
+    else await putFile(pushFile(), JSON.stringify({ sub: j, ua: navigator.userAgent.slice(0, 160), at: new Date().toISOString(), diag: dg }, null, 1), "вісті: адреса пристрою");
     LS.set("ordo.k.push", { ep: j.endpoint, at: Date.now(), dg: JSON.stringify(dg) });
   }
   async function pushEnable() {
@@ -452,14 +455,19 @@
   }
   async function pushDisable() {
     try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {}
-    try { await putFile(pushFile(), JSON.stringify({ off: true, at: new Date().toISOString() }) + "\n", "вісті: вимкнено"); } catch (e) {}
+    const CL = window.ORDO_CLOUD && window.ORDO_CLOUD.active() ? window.ORDO_CLOUD : null;
+    if (CL) await CL.pushSub(pushDev(), { off: true });
+    else try { await putFile(pushFile(), JSON.stringify({ off: true, at: new Date().toISOString() }) + "\n", "вісті: вимкнено"); } catch (e) {}
     LS.del("ordo.k.push");
   }
   /* адреса пушів інколи змінюється — тихо оновлюємо її в сховищі */
   async function pushRefresh() {
-    if (!pushOn() || !token()) return;
+    if (!pushOn()) return;
+    const cl = cloudActive() ? "db" : "gh";
+    if (cl === "gh" && !token()) return;
     try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); const was = LS.get("ordo.k.push", {});
-      if (sub && (sub.endpoint !== was.ep || JSON.stringify(await diag()) !== was.dg)) await pushSave(sub); } catch (e) {}
+      /* перший запуск після переїзду на базу — адресу кладемо в базу, навіть якщо вона та сама */
+      if (sub && (sub.endpoint !== was.ep || JSON.stringify(await diag()) !== was.dg || (was.to || "gh") !== cl)) { await pushSave(sub); LS.set("ordo.k.push", Object.assign(LS.get("ordo.k.push", {}), { to: cl })); } } catch (e) {}
   }
   /* скринька вістей: глашатай кладе кожну вість у push/inbox.json — Орден сам її забирає при відкритті.
      Не залежить від того, чи iOS передав виклик зі сповіщення */
@@ -468,14 +476,14 @@
   const callKey = (url) => { try { return [...new URL(url, location.href).searchParams].map(([k, v]) => `${k}=${v}`).sort().join("&"); } catch (e) { return String(url); } };
   const callShown = (url) => { const c = LS.get("ordo.calls", {}) || {}, t = c[callKey(url)]; return !!t && Date.now() - t < 24 * 3600e3; };
   async function checkInbox() {
-    if (!token()) return;
+    if (!token() && !cloudActive()) return;
     if (busy && inboxWait < 8) { inboxWait++; setTimeout(checkInbox, 1200); return; }       // спершу хай дійде стан з іншого пристрою
     inboxWait = 0;
     if (reloadPending) return;
     if (Date.now() - inboxAt < 15000) { clearTimeout(inboxT); inboxT = setTimeout(checkInbox, 15200 - (Date.now() - inboxAt)); return; }      // щойно дивились — глянемо трохи згодом, а не ніколи
     inboxAt = Date.now();
     try {
-      const box = JSON.parse((await gh("push/inbox.json", { raw: true })) || "{}"), seen = LS.get("ordo.k.inbox", 0);
+      const box = (cloudActive() ? await window.ORDO_CLOUD.srvGet("inbox") : JSON.parse((await gh("push/inbox.json", { raw: true })) || "{}")) || {}, seen = LS.get("ordo.k.inbox", 0);
       const it = (box.items || []).filter((x) => x.url && x.url.includes("call=") && x.at > seen && Date.now() - x.at < 12 * 3600e3 && !callShown(x.url)).sort((a, b) => b.at - a.at)[0];
       if (!it) return;
       LS.set("ordo.k.inbox", it.at);
@@ -505,7 +513,7 @@
   }
   async function loadHerald() {
     if (Date.now() - heraldAt < 10 * 60e3) return; heraldAt = Date.now();
-    try { const txt = await gh("push/state.json", { raw: true }); herald = txt ? JSON.parse(txt) : null; if (statusEl) renderVault(); } catch (e) {}
+    try { if (cloudActive()) herald = await window.ORDO_CLOUD.srvGet("push_state"); else { const txt = await gh("push/state.json", { raw: true }); herald = txt ? JSON.parse(txt) : null; } if (statusEl) renderVault(); } catch (e) {}
   }
   function renderVault() {
     const box = $("vaultBody"); if (!box) return;
@@ -540,7 +548,8 @@
       <div class="vt-push"><span class="vt-st ${pushOn() ? "is-ok" : ""}">${pushOn() ? "вісті від храмовників увімкнено" : "вісті від храмовників вимкнено"}</span>
         <button class="btn ${pushOn() ? "btn--ghost" : "btn--line"}" type="button" data-vt="${pushOn() ? "pushoff" : "push"}">${pushOn() ? "Вимкнути вісті" : "Увімкнути вісті від храмовників"}</button></div>
       <button class="btn btn--ghost" type="button" data-vt="token">Оновити токен</button>
-      ${token() ? `<button class="btn btn--ghost" type="button" data-vt="copytok">Токен для «Швидких команд»</button>` : ""}
+      ${CL && CL.active() ? `<div class="vt-push"><span class="vt-st">«Швидкі команди» шлють події в базу: адреса й токен</span>
+        <button class="btn btn--line" type="button" data-vt="ingurl">Скопіювати адресу</button><button class="btn btn--line" type="button" data-vt="ingtok">Скопіювати токен</button></div>` : token() ? `<button class="btn btn--ghost" type="button" data-vt="copytok">Токен для «Швидких команд»</button>` : ""}
       <button class="btn btn--ghost" type="button" data-vt="close">Закрити</button>`;
   }
   function openVault() {
@@ -577,6 +586,13 @@
       if (act === "now") { await syncNow("force"); return; }
       if (act === "push") { a.disabled = true; try { await pushEnable(); } catch (err) { alert("Не вдалося ввімкнути вісті: " + (err && err.message || err)); } renderVault(); return; }
       if (act === "pushoff") { a.disabled = true; await pushDisable(); renderVault(); return; }
+      if (act === "ingurl" || act === "ingtok") {
+        const k = await window.ORDO_CLOUD.ingestKey(); if (!k) { alert("Не вдалося отримати з бази. Спробуй ще раз."); return; }
+        const v = act === "ingurl" ? k.url : k.token;
+        try { await navigator.clipboard.writeText(v); a.textContent = act === "ingurl" ? "Адресу скопійовано — встав у поле URL" : "Токен скопійовано — встав після «Bearer »"; }
+        catch (err) { prompt(act === "ingurl" ? "Скопіюй адресу:" : "Скопіюй токен:", v); }
+        return;
+      }
       if (act === "copytok") {
         try { await navigator.clipboard.writeText(token()); a.textContent = "Скопійовано — встав у команду після «Bearer »"; }
         catch (err) { prompt("Скопіюй токен:", token()); }

@@ -266,8 +266,10 @@
       setTimeout(() => { if ((HL && HL.at) === was) priv(); }, 60e3);       // публічний розбір за хвилину нічого не дав (напр. там ще нема секрету) — просимо приватний
     }).catch(priv);
   }
+  const CLD = () => window.ORDO_CLOUD && window.ORDO_CLOUD.active() ? window.ORDO_CLOUD : null;
   function flushHealth() {
     hFlushAt = Date.now(); LS.set("ordo.k.hflush", hFlushAt);
+    if (CLD()) { [8, 20, 45].forEach((s) => setTimeout(() => loadHealth(true), s * 1000)); return; }   // база: розбір миттєвий і приходить сам (realtime) — лише підстраховка
     const V = window.ORDO_VAULT;
     setTimeout(askSweep, IOS ? 6000 : 0);
     [35, 55, 80, 120].forEach((s) => setTimeout(() => { loadHealth(true); if (s === 120) render(); }, s * 1000));     // розбір на GitHub — ~25–50 с
@@ -280,10 +282,17 @@
   const hhmm = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const early = (k) => !!(S.wake[k] && S.wake[k] >= DAWN && S.wake[k] < EARLY);
   let hAt = 0;
+  /* журнал здоровʼя: з 19.11.2026 — у базі (функція ingest розбирає події з iPhone миттєво й шле зміну наживо); без входу в базу — старий файл на GitHub */
+  const takeHealth = (h) => { if (h && h.days && h.at !== (HL && HL.at)) { HL = h; LS.set("ordo.k.health", h); applyHealth(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } };
+  let hWatch = false;
   async function loadHealth(force) {
-    const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - hAt < 60e3)) return;
+    const C = CLD();
+    if (C && !hWatch) { hWatch = true; C.srvOn("health", takeHealth); }
+    if (!force && Date.now() - hAt < 60e3) return;
     hAt = Date.now();
-    try { const h = await V.readSealed("health/log.json"); if (h && h.at !== (HL && HL.at)) { HL = h; LS.set("ordo.k.health", h); applyHealth(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } } catch (e) {}
+    if (C) { takeHealth(await C.srvGet("health")); return; }
+    const V = window.ORDO_VAULT; if (!V || !V.readSealed) return;
+    try { takeHealth(await V.readSealed("health/log.json")); } catch (e) {}
     autoFlush();
   }
   /* Орден відкрили — сам просить сховище розібрати чергу подій з телефона, щоб хвилини YouTube, Reddit тощо були свіжі саме тоді, коли на них дивишся
@@ -1201,7 +1210,9 @@
       saveQ();
     }
     settle(); render();
-    const V = window.ORDO_VAULT; if (V && V.dispatch) V.dispatch("herald", { loh: t0 }, "pub").then((ok) => { if (!ok) V.dispatch("herald", { loh: t0 }).catch(() => {}); }).catch(() => {});     // вісті протягом дня — від глашатая (публічне сховище; не вийшло — приватне)
+    const V = window.ORDO_VAULT, C = CLD();
+    if (C) C.call("herald", { loh: t0 });                                         // вісті протягом дня — від глашатая в базі
+    else if (V && V.dispatch) V.dispatch("herald", { loh: t0 }, "pub").then((ok) => { if (!ok) V.dispatch("herald", { loh: t0 }).catch(() => {}); }).catch(() => {});     // вісті протягом дня — від глашатая (публічне сховище; не вийшло — приватне)
     lohScene(false);
     return true;
   }

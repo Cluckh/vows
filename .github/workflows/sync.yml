@@ -1,5 +1,5 @@
-# Події з iPhone (кроки, сон, програми, медитація, читання) — обробляються тут, бо в публічному сховищі хвилини GitHub Actions безкоштовні
-# й без ліміту: кожна подія розбирається одразу (як було до черги), а не чекає годинами.
+# МІСТ на час переходу (з 19.11.2026 події з iPhone йдуть просто в базу — функція ingest, розбір за секунду).
+# Команди iPhone, що ще шлють сюди, не губляться: tools/sweep.mjs пересилає їхні події в базу. Коли всі команди переведено — файл можна видалити.
 #
 # Два входи:
 #   repository_dispatch «health» — команда iPhone шле подію сюди (…/repos/Cluckh/vows/dispatches) — розбір за ~20 с;
@@ -20,8 +20,7 @@ on:
   schedule:
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
-permissions:
-  actions: write        # лише щоб будити herald.yml цього ж сховища
+permissions: {}
 jobs:
   s:
     runs-on: ubuntu-latest
@@ -59,10 +58,3 @@ jobs:
           done
           [ -n "$saved" ] || { echo "не вдалося зберегти"; exit 1; }
           echo "готово: $saved"
-          # глашатай тепер живе тут (herald.yml, безкоштовно); розклад GitHub буває з запізненням — будимо його, якщо не біг понад 2 год (9:00–22:30 за Києвом)
-          h=$(TZ=Europe/Kyiv date +%H); mi=$(TZ=Europe/Kyiv date +%M); m=$(( 10#$h * 60 + 10#$mi ))
-          if [ $m -ge 540 ] && [ $m -lt 1350 ]; then
-            export GH_TOKEN="${{ github.token }}"
-            last=$(gh run list -R "$GITHUB_REPOSITORY" -w herald.yml -L 1 --json createdAt -q '.[0].createdAt' 2>/dev/null || true)
-            if [ -z "$last" ] || [ $(( $(date +%s) - $(date -d "$last" +%s) )) -ge 7200 ]; then gh workflow run herald.yml -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && echo "глашатая розбуджено" || true; fi
-          fi

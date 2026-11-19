@@ -293,11 +293,22 @@
     return out;
   }
 
-  let busy = false, busyAt = 0, again = false, putAt = 0, checkedAt = 0;
+  let busy = false, busyAt = 0, again = false, putAt = 0, checkedAt = 0, cloudOn = false;
+  const cloudActive = () => !!(window.ORDO_CLOUD && window.ORDO_CLOUD.active());
   /* push: "now" — віддати, якщо є зміни; "force" — завжди; "pull" — лише підтягнути (перед стартом, щоб не чекати збереження) */
   async function syncNow(push) {
     if (busy) { if (push !== "pull") again = true; return { pulled: false }; }       // зміна під час синку — ще одне коло одразу після нього
     if (!token() || !LS.get(K.backup, null)) return { pulled: false };
+    if (cloudActive()) {                                           // синк робить база; сюди — лише резервна копія, не частіше ніж раз на 30 хв
+      const last = LS.get("ordo.bk.last", {});
+      if (push === "pull" || (push !== "force" && Date.now() - (last.at || 0) < 30 * 60e3)) return { pulled: false };
+      busy = true; busyAt = Date.now();
+      try { const b = await makeBackup(); await putFile("backups/latest.json", b.file, "копія").catch(() => {});
+        const dk = LS.get("ordo.bk.day", {}); if (dk.d !== day()) { await putFile(`backups/${day()}.json`, b.file, "копія дня").catch(() => {}); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
+        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at }); LS.del("ordo.bk.err"); } catch (e) {}
+      finally { busy = false; }
+      return { pulled: false };
+    }
     busy = true; busyAt = Date.now(); status("saving");
     let pulled = false; const pullOnly = push === "pull";
     try {
@@ -343,6 +354,7 @@
   /* перед будь-якою сценою, що зʼявляється сама (квест, момент, подія, лист, банер): чи нема на сервері свіжішого з іншого пристрою.
      true — можна показувати; false — щойно підтягнули нове (буде перезапуск) або ще триває синк. Без мережі не блокує: чекає щонайбільше 3 с */
   async function fresh() {
+    if (cloudActive()) { await Promise.race([window.ORDO_CLOUD.catchUp(), new Promise((r) => setTimeout(r, 2500))]); return !reloadPending; }
     if (!token() || !LS.get(K.backup, null) || navigator.onLine === false) return !reloadPending;
     if (Date.now() - checkedAt > 3500) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3000))]);
     return !reloadPending && !(busy && Date.now() - busyAt < 8000);
@@ -552,7 +564,17 @@
     const line = busy ? `<span class="vt-st">зберігаю…</span>`
       : err ? `<span class="vt-st is-err">${err.code === 401 ? "токен не підходить — онови його" : "не вдалося зберегти — спробую пізніше"}</span>`
       : last.at ? `<span class="vt-st is-ok">синхронізовано ${when(last.at)}</span>` : `<span class="vt-st">копій ще не було</span>`;
-    box.innerHTML = `<p class="vt-lead">Твої дані автоматично синхронізуються між пристроями через приватне сховище — зашифровані твоїм ключем Ордену.</p>
+    const CL = window.ORDO_CLOUD, cs = CL ? CL.status() : null;
+    const cloud = !CL ? "" : CL.active()
+      ? `<div class="vt-cloud"><p class="vt-lead"><b>База:</b> увімкнено · ${esc(CL.user() || "")}</p><div class="vt-row"><span class="vt-st ${cs.status === "err" ? "is-err" : "is-ok"}">${cs.status === "err" ? "помилка: " + esc(cs.err || "") : cs.status === "saving" ? "записую…" : cs.pend ? `чекає відправки: ${cs.pend}` : "усе синхронізовано"}</span></div>
+          <button class="btn btn--ghost" type="button" data-vt="cloudout">Вийти з бази на цьому пристрої</button></div>`
+      : `<div class="vt-cloud"><p class="vt-lead"><b>База Ордену</b> — миттєвий синк телефона й компа без дублів. Увійди на кожному пристрої один раз.</p>
+          <input class="dy-in" id="vtMail" type="email" autocomplete="username" value="cluckh@gmail.com">
+          <input class="dy-in" id="vtPw" type="password" autocomplete="current-password" placeholder="пароль (від 10 символів)">
+          <button class="btn btn--gold" type="button" data-vt="cloudin">Увійти</button>
+          <button class="btn btn--line" type="button" data-vt="cloudup">Перший раз — створити пароль</button>
+          <p class="vt-lead" id="vtCloudMsg"></p></div>`;
+    box.innerHTML = cloud + `<p class="vt-lead">${CL && CL.active() ? "Резервна копія раз на 30 хв іде й у приватне сховище — зашифрована твоїм ключем Ордену." : "Твої дані автоматично синхронізуються між пристроями через приватне сховище — зашифровані твоїм ключем Ордену."}</p>
       <div class="vt-row">${line}</div>
       ${pulseHTML()}
       <button class="btn btn--gold" type="button" data-vt="now">Синхронізувати зараз</button>
@@ -585,6 +607,18 @@
       if (e.target === m) return closeVault();
       const a = e.target.closest("[data-vt]"), act = a && a.dataset.vt;
       if (act === "close") return closeVault();
+      if (act === "cloudin" || act === "cloudup") {
+        const CL = window.ORDO_CLOUD, msg = $("vtCloudMsg"), em = ($("vtMail").value || "").trim(), pw = $("vtPw").value || "";
+        if (pw.length < 10) { msg.textContent = "Пароль — щонайменше 10 символів."; return; }
+        a.disabled = true; msg.textContent = act === "cloudin" ? "Входжу…" : "Створюю…";
+        try {
+          if (act === "cloudin") { await CL.signIn(em, pw); msg.textContent = "Готово. Переношу дані…"; setTimeout(() => location.reload(), 600); }
+          else { const inNow = await CL.signUp(em, pw); if (inNow) { msg.textContent = "Готово. Переношу дані…"; setTimeout(() => location.reload(), 600); }
+            else msg.innerHTML = "Лист підтвердження надіслано на пошту. Відкрий посилання з нього (у будь-якому браузері), потім повернись сюди й натисни «Увійти»."; }
+        } catch (err) { const m = (err && err.message) || String(err); msg.textContent = /Invalid login/i.test(m) ? "Пароль не підходить." : /not confirmed/i.test(m) ? "Пошту ще не підтверджено — відкрий лист від Supabase." : /already registered/i.test(m) ? "Акаунт уже є — просто «Увійти»." : "Не вдалося: " + m; }
+        a.disabled = false; return;
+      }
+      if (act === "cloudout") { if (!confirm("Вийти з бази на цьому пристрої? Дані лишаться в базі й тут; синк повернеться через GitHub.")) return; await window.ORDO_CLOUD.signOut(); location.reload(); return; }
       if (act === "now") { await syncNow("force"); return; }
       if (act === "push") { a.disabled = true; try { await pushEnable(); } catch (err) { alert("Не вдалося ввімкнути вісті: " + (err && err.message || err)); } renderVault(); return; }
       if (act === "pushoff") { a.disabled = true; await pushDisable(); renderVault(); return; }
@@ -638,9 +672,11 @@
     Storage.prototype.setItem = function (k, v) {
       const r = set0.call(this, k, v);
       /* не частіше ніж раз на 5 с: серія дій (підходи в залі, кілька справ поспіль) їде одним записом, а GitHub не бачить зливи */
-      if (this === localStorage && !applying && DATA_KEY(k)) { clearTimeout(pushT); pushT = setTimeout(() => { if (!reloadPending) syncNow("now"); }, Math.max(PUSH_AFTER, putAt + 3000 - Date.now())); }
+      if (this === localStorage && !applying && DATA_KEY(k) && window.ORDO_CLOUD) window.ORDO_CLOUD.onSet(k);
+      if (this === localStorage && !applying && DATA_KEY(k) && !cloudActive()) { clearTimeout(pushT); pushT = setTimeout(() => { if (!reloadPending) syncNow("now"); }, Math.max(PUSH_AFTER, putAt + 3000 - Date.now())); }
       return r;
     };
+    window.addEventListener("ordo-cloud", (e) => { const ks = (e.detail && e.detail.keys) || []; if (ks.length && window.__ordoStarted) reloadWhenCalm(); if ($("vaultModal") && $("vaultModal").classList.contains("open")) renderVault(); });
     visAt = Date.now();
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) visAt = Date.now();
@@ -687,8 +723,12 @@
     const data = await unlockContent(vault);
     if (data) {
       /* перед стартом — лише підтягнути зміни з інших пристроїв (один запит, не довше 3,5 с): вступ, квести й цитати вже будуть спільні */
-      if (token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
+      /* з 19.11.2026 синк — через базу (cloud.js): записи замість цілих знімків, живі підписки. GitHub — лише резервна копія раз на 30 хв */
+      const CL = window.ORDO_CLOUD;
+      if (CL && navigator.onLine !== false) { const r = await Promise.race([CL.init(mergeData).catch(() => ({ active: false })), new Promise((res) => setTimeout(() => res({ active: CL.active() }), 6000))]); cloudOn = !!(r && r.active); }
+      if (!cloudOn && token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
       start(data); setTimeout(() => syncNow("now"), 2500);      // збереження — уже у фоні, коли Орден відкритий
+      if (!(CL && CL.active()) && LS.get("ordo.k.cloudAsk", "") !== day()) setTimeout(() => { LS.set("ordo.k.cloudAsk", day()); openVault(); }, 2600);   // ще не увійшов у базу — раз на день нагадати
       return;
     }
     stepToken(vault);

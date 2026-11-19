@@ -2305,9 +2305,12 @@ window.ORDO_START = function () {
     if (p.via !== "url" && V && V.callShown && V.callShown(p.url)) { LS.del(PEND); trace("pend seen"); return false; }
     if (callAt === p.at) return true; callAt = p.at;
     trace("pend " + (p.via || "?"));
-    openCall(p.url, () => { LS.del(PEND); LS.set("ordo.k.call", { at: p.at, via: p.via || "", shown: Date.now(), url: p.url });
-      if (V && V.callKey) { const c = LS.get("ordo.calls", {}) || {}; c[V.callKey(p.url)] = Date.now(); Object.keys(c).forEach((k) => { if (Date.now() - c[k] > 2 * 864e5) delete c[k]; }); LS.set("ordo.calls", c); } },
-      () => { if (p.via !== "url" && V && V.callShown && V.callShown(p.url)) { LS.del(PEND); return true; } return false; });
+    const done1 = () => { LS.del(PEND); LS.set("ordo.k.call", { at: p.at, via: p.via || "", shown: Date.now(), url: p.url });
+      if (V && V.callKey) { const c = LS.get("ordo.calls", {}) || {}; c[V.callKey(p.url)] = Date.now(); Object.keys(c).forEach((k) => { if (Date.now() - c[k] > 2 * 864e5) delete c[k]; }); LS.set("ordo.calls", c); } };
+    const skip1 = () => { if (p.via !== "url" && V && V.callShown && V.callShown(p.url)) { LS.del(PEND); return true; } return false; };
+    const CL = window.ORDO_CLOUD;                                  // сцену з вісті вже відкрили на іншому пристрої — тут не повторюємо (тап по сповіщенню — показуємо завжди)
+    if (p.via !== "url" && CL && CL.active && CL.active()) { CL.claim("call:" + (V && V.callKey ? V.callKey(p.url) : p.url)).then((ok) => { if (ok) openCall(p.url, done1, skip1); else { LS.del(PEND); trace("claim lost"); } }); return true; }
+    openCall(p.url, done1, skip1);
     return true;
   }
   async function pendingCall() {

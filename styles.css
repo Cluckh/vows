@@ -2140,3 +2140,8 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .gd-hist li em{font-style:normal;font-size:.78em;opacity:.6}
 .gd-list b.is-neg,.gd-hd b.is-neg{color:#d98a7a}
 .gd-histbtn{margin-top:6px}
+
+/* Сховище: вхід у базу */
+.vt-cloud{display:flex;flex-direction:column;gap:10px;padding:12px 0 14px;margin-bottom:6px;border-bottom:1px solid rgba(201,167,90,.18)}
+.vt-cloud .dy-in{width:100%;box-sizing:border-box}
+#vtCloudMsg:empty{display:none}

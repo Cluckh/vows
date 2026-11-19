@@ -1391,6 +1391,49 @@
       st: "offer", offerOn: today(), cur: 0 };
   }
   /* розклад: рідкісні ~2–3 на тиждень, легендарні ~раз на 10 днів, міфічні ~раз на місяць; плюс тригери */
+  /* ===== квести за даними (з 19.11.2026): кандидати рахуються з останніх 14–30 днів — де найбільший розрив між звичним і нормою,
+     планка — на 20–30 % вище твого звичного рівня (не «ідеалу»), лише одиниці, які Орден рахує сам. Беремо 3 найважливіші, різні храмовники */
+  function smartQuests(n) {
+    const t0 = today(), days = []; for (let i = 14; i >= 1; i--) days.push(add(t0, -i));
+    const med = (a) => { const b = a.filter((x) => x > 0).sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : 0; };
+    const r5 = (x, st) => Math.max(st, Math.round(x / st) * st), fmt = (x) => fmtN(Math.round(x));
+    const out = [];
+    const steps = med(days.map((k) => (hDay(k) || {}).steps || 0));
+    if (steps) { const per = r5(Math.max(5000, steps * 1.3), 500), tg = per * 3;
+      out.push({ score: Math.max(0, (10500 - steps) / 10500) + 0.1, p: { id: "smart:steps", rar: steps * 1.3 > 9000 ? "legend" : "rare", giver: "sobriety", t: "Три дні маршу", type: "count", target: tg, unit: "кроків", scope: "day", days: 3,
+        desc: `${fmt(tg)} кроків за три дні — у середньому ${fmt(per)} на день.`, offer: `Брате, за два тижні твій звичайний день — близько ${fmt(steps)} кроків. Не прошу двадцяти тисяч. Прошу на третину більше, ніж звик: ${fmt(per)} на день, три дні поспіль.`, accept: "От і добре. Плац чекає.", done: "Три дні маршу. Ноги згадали дорогу." } }); }
+    const feed = days.map((k) => appMin(k, "youtube") + appMin(k, "reddit")), fAvg = feed.reduce((a, x) => a + x, 0) / days.length;
+    if (fAvg > 15) { const lim = Math.min(30, r5(fAvg * 0.5, 5));
+      out.push({ score: Math.min(1.2, fAvg / 90), p: { id: "smart:feed", rar: fAvg > 60 ? "legend" : "rare", giver: "silence", t: "Тиха голова", type: "count", target: 4, unit: "днів", app: "youtube", appMax: lim, scope: "day", days: 5,
+        desc: `4 дні з 5, коли YouTube не більше ${lim} хв. Рахується сам — за вчорашні дні.`, offer: `Брате, за два тижні стрічка забирала в середньому ${fmt(fAvg)} хвилин на день. Я не прошу тиші зовсім. Половина — і чотири дні з пʼяти.`, accept: "Тиша любить, коли її беруть потроху.", done: "Чотири тихі дні. Чуєш, скільки місця звільнилось?" } }); }
+    const J = days.map((k) => (S.journal[k] || {}).meal).filter(Boolean), reds = J.filter((m) => m === "r").length;
+    if (reds >= 2) out.push({ score: reds / 6, p: { id: "smart:table", rar: "rare", giver: "temperance", t: "Спокійний стіл", type: "count", target: 4, unit: "днів без переборів", scope: "day", days: 5,
+      desc: "4 дні з 5 без червоної трапези у сповіді.", offer: `Брате, за два тижні — ${reds} червоних трапез, і майже завжди після важкого дня. Чотири вечори з пʼяти — без перебору. Гаряча їжа, а не розрада.`, accept: "Я наллю юшки, коли буде треба.", done: "Чотири спокійні столи. Тіло це памʼятає." } });
+    const LOGX = LS.get("ordo.log", []), br = {}; LOGX.filter((e) => e.k === "breach" && e.d >= add(t0, -30)).forEach((e) => { br[e.v] = (br[e.v] || 0) + 1; });
+    const weak = Object.entries(br).filter(([v]) => v !== "sobriety").sort((a, b) => b[1] - a[1])[0];
+    if (weak && weak[1] >= 2) { const v = (D().VOWS || []).find((x) => x.id === weak[0]);
+      if (v) out.push({ score: weak[1] / 5, p: { id: "smart:vow:" + v.id, rar: "legend", giver: v.id, vow: v.id, t: `Тиждень обітниці «${v.name}»`, type: "count", target: 6, unit: "днів вірності", scope: "day", days: 7,
+        desc: `6 чистих днів із 7 — лише «${v.name}».`, offer: `Брате, за місяць «${v.name}» падала ${weak[1]} разів — частіше за інші. Не вимагаю бездоганності: шість чистих днів із семи. Один день — запас на життя.`, accept: "Я стоятиму поруч усі сім.", done: "Шість із семи. Ось як виглядає повернення." } }); }
+    const gym = trainDays(add(t0, -14), add(t0, -1)).gym.length;
+    if (gym < 3) out.push({ score: (3 - gym) / 3 * 0.9, p: { id: "smart:gym", rar: "rare", giver: "sobriety", t: "Два виходи на плац", type: "count", target: 2, unit: "тренування", scope: "day", days: 5,
+      desc: "2 тренування за 5 днів — зал або кардіо.", offer: `Брате, за два тижні — ${gym} ${gym === 1 ? "зал" : "залів"}. Два виходи за пʼять днів. Ваги легші, мета одна — повернути звичку.`, accept: "Плац памʼятає тебе.", done: "Два виходи. Звичка повертається." } });
+    const pages = days.reduce((a, k) => a + (pagesOn(k) || 0), 0);
+    if (curBook() && pages < 60) out.push({ score: (60 - pages) / 60 * 0.7, p: { id: "smart:pages", rar: "rare", giver: "chronicler", t: "Повернення до книги", type: "count", target: 50, unit: "сторінок", scope: "day", days: 6,
+      desc: "50 сторінок за 6 днів — у будь-якій паперовій книжці.", offer: `Брате, за два тижні — ${pages} сторінок. «${curBook().t}» чекає. Пʼятдесят за шість днів — менше десяти на вечір.`, accept: "Закладку я збережу.", done: "Пʼятдесят сторінок. Книга знову твоя." } });
+    const used = new Set(), res = [];
+    out.sort((a, b) => b.score - a.score).forEach((c) => { if (res.length < (n || 3) && !used.has(c.p.giver)) { used.add(c.p.giver); res.push(c.p); } });
+    return res;
+  }
+  /* перехід на базу: усі квести, що висять, — прибрати; запропонувати кілька за даними. Раз на всі пристрої (claim) */
+  async function smartReset() {
+    if (!(window.ORDO_CLOUD && window.ORDO_CLOUD.active && window.ORDO_CLOUD.active()) || Q.clock.reset1) return;
+    if (!(await claimOk("reset:quests:1"))) return;                               // зробив інший пристрій — його Q.clock.reset1 зараз доїде
+    if (Q.clock.reset1) return;
+    Q.list.forEach((q) => { if (["active", "offer", "fail", "eased"].includes(q.st)) { q.st = "void"; q.reset = 1; q.at = Date.now(); } });
+    Q.trig = []; Q.clock.reset1 = today(); Q.clock.roll = today();
+    smartQuests(3).forEach((p) => { const q = qFrom(p); Q.list.push(q); });
+    saveQ(); render();
+  }
   function dailyRoll() {
     const t0 = today(), again = Q.clock.roll === t0;
     if (again && trigReady() < 0) return;
@@ -1473,6 +1516,7 @@
   async function offerScene(q) {
     const h = H(); if (!h) return false;
     if (q.flash && hmNow2() >= q.flash) { q.st = "declined"; q.missed = 1; q.at = Date.now(); saveQ(); return true; }      // блискавичний, а час уже минув
+    if (!(await claimOk("offer:" + q.id))) return true;                           // цю пропозицію вже показує інший пристрій — відповідь прийде звідти
     q.shDev = MY_DEV; q.shAt = Date.now(); q.at = Date.now(); saveQ();              // «показую я» — їде на інший пристрій за секунду
     const L = (D().DAY || {}).quest || {};
     h.stage(q.giver, { glow: glowOf(q.rar) });
@@ -1544,6 +1588,8 @@
   let sceneT = null;
   /* ще тягнемо копію з іншого пристрою (або вона вже тут, а памʼять стара) — побачене там не повториться тут; перевіряємо перед кожною сценою */
   const held = () => !!(window.ORDO_VAULT && window.ORDO_VAULT.hold && window.ORDO_VAULT.hold());
+  /* «один показ»: перед сценою, що зʼявляється сама, — атомарна позначка в базі; другий пристрій отримає false і сцену не відкриє */
+  const claimOk = (k) => { const C = window.ORDO_CLOUD; return C && C.active && C.active() ? C.claim(k) : Promise.resolve(true); };
   const scenesLater = () => { clearTimeout(sceneT); if (!document.hidden) sceneT = setTimeout(scenes, 2500); };
   async function scenes() {
     const A = API(); clearTimeout(sceneT);
@@ -1574,6 +1620,7 @@
       while (pendingBroke.length) { const q = pendingBroke.shift(), h = H(); h.stage(q.giver || "supreme", { glow: glowOf(q.rar) });
         if ((await h.say(`Брате. Ти попросив ${q.broke.replace(/^попросив\s+/i, "")}. Це нова фішка, а не лагодження — обітницю «${q.t}» порушено, квест провалено. Ми так домовлялись, чесно.`)) === "closed") return;
         if ((await h.say("Не карай себе. Фортецю, яку хочеться перебудовувати, ти любиш. Наступного разу — спершу поживи в ній.")) === "closed") return; }
+      await smartReset();
       dailyRoll();
       /* пропозицію, яку просто зараз показує інший пристрій (shDev, останні 10 хв), тут не відкриваємо — відповідь прийде звідти */
       for (const q of Q.list.filter((x) => x.st === "offer" && !(x.shDev && x.shDev !== MY_DEV && Date.now() - (x.shAt || 0) < 10 * 60e3))) { if (held()) return later(); if (!(await offerScene(q))) break; }
@@ -1790,6 +1837,7 @@
     const h = H(); if (!h || !m) return true;
     if (!replay) {
       if (S.mom && S.mom[m.id]) return true;                                 // вже показано — вдруге сам не відкривається (лише з архіву)
+      if (!(await claimOk("m:" + m.id))) { S.mom = S.mom || {}; S.mom[m.id] = S.mom[m.id] || today(); saveS(); refreshViews(); return true; }    // показав інший пристрій
       S.mom = S.mom || {}; S.mom[m.id] = today(); saveS();
       archive("m:" + m.id, { who: m.who || "supreme", rar: rarOk(m.rar), title: m.title || (m.n[0] && m.n[0].s || "").slice(0, 60), n: m.n, art: !!m.art, mid: m.id });
       refreshViews();                                                         // тизер і крапка зникають одразу, ще до діалогу
@@ -2724,7 +2772,8 @@
       if (V && V.fresh && !medalCheck.ok) { banBusy = true; V.fresh().then((ok) => { banBusy = false; if (ok) medalCheck.ok = 1; setTimeout(medalCheck, ok ? 0 : 2500); }).catch(() => { banBusy = false; }); return; }
       medalCheck.ok = 0; if (S.ban[due[0].id]) { setTimeout(medalCheck, 50); return; } }
     banBusy = true; S.ban[due[0].id] = 1; saveS();                               // позначаємо, щойно показали (а не після тапу) — інший пристрій дізнається одразу
-    showBanner(due[0], due.length - 1, () => { banBusy = false; setTimeout(medalCheck, 350); });
+    claimOk("ban:" + due[0].id).then((ok) => { if (!ok) { banBusy = false; setTimeout(medalCheck, 50); return; }
+      showBanner(due[0], due.length - 1, () => { banBusy = false; setTimeout(medalCheck, 350); }); });
   }
   function showBanner(a, more, done) {
     const gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "", gold = ACH[a.id] >= "2026-11-08" ? ECON.achGold(a.xp) : 0;
@@ -2800,6 +2849,7 @@
   /* сам приходить раз на день: «зламати печатку» або «пізніше» (тоді — картка в «Дні») */
   async function letterScene() {
     const L = letterFor(today()); if (!L || ltRead(L.id) || (S.ltOff || LS.get("ordo.k.ltOff", "")) === today()) return true;
+    if (!(await claimOk("lt:" + L.id + ":" + today()))) { S.ltOff = today(); saveS(); return true; }
     S.ltOff = today(); saveS();
     const r = await H().letter(L.id, { offer: true });
     return r !== false;
@@ -2893,6 +2943,7 @@
     S.ev = S.ev || {};
     const ev = DROP.events.find((e) => e.on <= today() && (!e.until || e.until >= today()) && !S.ev[e.id] && e.n && e.n.length);
     if (!ev) return true;
+    if (!(await claimOk("e:" + ev.id))) { S.ev[ev.id] = S.ev[ev.id] || today(); saveS(); return true; }
     S.ev[ev.id] = today(); saveS();
     h.stage(ev.giver || "supreme", ev.glow ? { glow: ev.glow } : {});
     const pk = picker("e:" + ev.id, ev.n);
@@ -2951,11 +3002,11 @@
     const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };
     if ((S.sleep[today()] && !S.sleep[today()].reset) || Date.now() - t0 > 15 * 60e3 || (S.slAsk || LS.get("ordo.k.slAsk", "")) === today()) return;
     if (busy() || held()) { setTimeout(() => morning(t0), 1500); return; }
-    S.slAsk = today(); saveS(); openSheet("sleep", null, today());          // сам — раз на день; змахнув — далі через «ранковий звіт ›»
+    S.slAsk = today(); saveS(); claimOk("sl:" + today()).then((ok) => { if (ok) openSheet("sleep", null, today()); });          // сам — раз на день; змахнув — далі через «ранковий звіт ›»
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, goalLaw, picker, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, goalLaw, picker, smartQuests, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

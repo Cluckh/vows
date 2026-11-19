@@ -775,6 +775,7 @@
 
   /* ===== ЕКОНОМІКА ОРДЕНУ: одна таблиця досвіду й золота за все (її ж знає писар — WRITER.md) =====
      рідкість: common — звичайна, rare — рідкісна (жовта), legend — легендарна (помаранчева), myth — міфічна (фіолетова) */
+  const ECON_CUT = "2026-11-19";                                                              // 19.11: медалі й рівні — удвічі скромніше (скрині — у gold.js)
   const ECON = window.ORDO_ECON = {
     /* економіка з 8.11 (золото = гривні білої картки): слабкий місяць ≈ 3–5 тис., середній ≈ 8–12 тис., майже ідеальний ≈ 20 тис.
        досвід — як і був; змінено лише золото */
@@ -785,7 +786,9 @@
     day: { pd: [25, 120], pw: [100, 400], gy: [20, 30], jr: [10, 15], st: [10, 15], er: [5, 10], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
     vowDay: [4, 2],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
     milestone: { 10: [60, 60], 25: [120, 150], 75: [250, 400], 180: [500, 900], 365: [1000, 2000], 500: [1300, 2500], 730: [1800, 3500], 1000: [2500, 5000] },
-    ach: [0, 100], achGold: (xp) => (xp > 0 ? Math.max(50, Math.round(xp * 2 / 10) * 10) : 0), review: { m: [2, 1], y: [6, 3] }                                           // нагорода; ревю — за кожен відсоток виконаного
+    /* нагорода: з 19.11 золото = досвід × 1 (від 50); здобуте раніше лишається × 2. Ревю — за кожен відсоток виконаного */
+    ach: [0, 100], achGold: (xp, d) => (xp > 0 ? Math.max(50, Math.round(xp * (d && d < ECON_CUT ? 2 : 1) / 10) * 10) : 0), review: { m: [2, 1], y: [6, 3] },
+    lvGold: (L) => 100 + 20 * L                                                               // рівень (з 19.11; до того було 200 + 40 × рівень — нараховане лишається)
   };
   const RARN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
   const rarOf = (t) => ({ easy: "common", normal: "rare", hard: "legend" })[t && t.diff] || (t && ECON.task[t.diff] ? t.diff : "rare");
@@ -1100,7 +1103,7 @@
     (P.shop || []).filter((x) => x.rank === ri).forEach((x) => out.push(`у крамниці — «${x.n}»`));
     return out;
   }
-  const lvGold = (L) => 50 + 10 * L;
+  const lvGold = (L) => ECON.lvGold(L);
   const chapterOf = (L) => (D().CHRONICLE || []).find((c) => c.pages && c.pages[L]) || null;
   /* групи нагород у Літописі; старі без g — за префіксом */
   const ACH_G = [["d", "Справи"], ["q", "Квести"], ["v", "Вірність"], ["b", "Сповідь, тіло, звання"], ["w", "Слова храмовників"], ["m", "Трапеза"], ["s", "Ранки й ночі"], ["r", "Читання"], ["f", "Кроки"], ["a", "Зброярня"], ["l", "Бібліотека"], ["p", "Покер"], ["e", "Екран і розум"], ["h", "Тіло й сон"], ["o", "Цілі й скарбниця"]];
@@ -2329,7 +2332,7 @@
         <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "ach") {                     // картка нагороди: за що, коли, скільки дала (або скільки лишилось)
       const a = ACHS.find((x) => x.id === sh.id) || ACHS[0], got = ACH[a.id], pr = got ? null : progOf(a, ctx()), gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "";
-      const gold = !got || got >= "2026-11-08" ? ECON.achGold(a.xp) : 0;
+      const gold = !got || got >= "2026-11-08" ? ECON.achGold(a.xp, got || null) : 0;
       h += `<div class="ach-big tier-${got ? a.tier || "gold" : "ash"}${got ? " is-on" : ""}">${achFace(a, true)}</div>
         <div class="gs-kicker ach-k rar-${{ legend: "legend", myth: "myth" }[a.tier] || "common"}">${TIERN[a.tier] || "золота"} нагорода · ${esc(gname.toLowerCase())}</div>
         <div class="sheet__title dy-sht">${esc(a.n)}</div><p class="dy-note dy-note--t">${esc(a.h)}</p>
@@ -2790,7 +2793,7 @@
       showBanner(due[0], due.length - 1, () => { banBusy = false; setTimeout(medalCheck, 350); }); });
   }
   function showBanner(a, more, done) {
-    const gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "", gold = ACH[a.id] >= "2026-11-08" ? ECON.achGold(a.xp) : 0;
+    const gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "", gold = ACH[a.id] >= "2026-11-08" ? ECON.achGold(a.xp, ACH[a.id]) : 0;
     const el = document.createElement("div"); el.className = `ach-ban tier-${a.tier || "gold"}`; el.setAttribute("role", "dialog");
     el.innerHTML = `<div class="ach-ban__card"><div class="ach-ban__rays"></div>
       <div class="ach-ban__k">${TIERN[a.tier] || "золота"} нагорода · ${esc(gname.toLowerCase())}</div>

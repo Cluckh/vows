@@ -546,7 +546,7 @@
   }
   async function keeperChest(vowId, k) {
     const GD = window.ORDO_GOLD, A = API(), day = A.todayKey ? A.todayKey() : new Date().toISOString().slice(0, 10);
-    if (!GD || !GD.freeChest || GD.chestUsed("talk:" + day)) return;
+    if (!GD || !GD.freeChest || GD.chestUsed("talk:" + day) || (GD.chestOk && !GD.chestOk())) return;
     await say(`Постривай, брате. Я дещо приберіг для тебе — ось, тримай скриню. Відкриєш, коли вийдеш із зали.`);
     if (GD.freeChest("talk:" + day, `${(k && k.name) || "Хранитель"} лишив тобі скриню`, "Скриня від хранителя")) close();
   }

@@ -15,8 +15,6 @@
   const API = `https://api.github.com/repos/${REPO}/contents/`;
   const BRANCH = "main";                        // явно: основною в репозиторії може бути інша гілка
   const KDF_IT = 600000;
-  const SYNC_EVERY = 8 * 1000;                  // поки додаток відкритий: що 8 с спитати, чи є чуже (умовний запит: «не змінилось» нічого не коштує)
-  const PUSH_AFTER = 800;                      // свою зміну віддаємо за 1,5 с після неї — не чекаючи кола й не покладаючись на згортання (iOS обриває запит)
 
   const LS = {
     get(k, f) { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } },
@@ -57,18 +55,14 @@
 
   /* ---------------------------------------------------------------- GitHub */
   const token = () => LS.get(K.token, "");
-  const etags = {}, SAME = { same: true };       // opt.cond: якщо файл не змінився від минулого читання — повертає SAME (304, без тіла)
   async function gh(path, opt) {
     opt = opt || {};
     const r = await fetch(API + path + (opt.method === "PUT" ? "" : `?ref=${BRANCH}`), {
       method: opt.method || "GET", cache: "no-store",
       headers: Object.assign({ Authorization: `Bearer ${opt.token || token()}`, "X-GitHub-Api-Version": "2022-11-28",
-        Accept: opt.raw ? "application/vnd.github.raw+json" : "application/vnd.github+json" }, opt.body ? { "Content-Type": "application/json" } : {},
-        opt.cond && etags[path] ? { "If-None-Match": etags[path] } : {}),
+        Accept: opt.raw ? "application/vnd.github.raw+json" : "application/vnd.github+json" }, opt.body ? { "Content-Type": "application/json" } : {}),
       body: opt.body ? JSON.stringify(opt.body) : undefined
     });
-    if (opt.cond && r.status === 304) return SAME;
-    if (opt.cond) { const t = r.ok && r.headers.get("ETag"); if (t) etags[path] = t; else delete etags[path]; }
     if (r.status === 404) return null;
     if (!r.ok) { const e = new Error("gh " + r.status); e.status = r.status; throw e; }
     return opt.raw ? r.text() : r.json();
@@ -100,10 +94,8 @@
   }
 
   /* ------------------------------------------- копії й синхронізація ----
-     Кожен пристрій має свій підпис. Відкрив додаток → якщо в сховищі є свіжіша
-     копія з ІНШОГО пристрою, вона підтягується (якщо тут теж були зміни —
-     обʼєднується: літопис складається, цілі зливаються, рекорди — максимум).
-     Змінив щось → копія відправляється за ~20 с (або одразу, коли згортаєш).
+     Синк між пристроями — база (cloud.js). Тут — зашифрована резервна копія всього стану в приватне сховище
+     (раз на 30 хв і копія дня — для відновлення) та злиття mergeData: ним база обʼєднує дані при першому вході.
      Налаштування пристрою (звук, музика, сьогоднішній ритуал) не синхронізуються. */
   /* лише налаштування пристрою; усе інше — спільний стан Ордену (зокрема ранковий вступ і черга цитат: відкрив на телефоні — комп уже знає) */
   const LOCAL_ONLY = ["ordo.statsMode", "ordo.ver", "ordo.sound", "ordo.music"];
@@ -293,71 +285,28 @@
     return out;
   }
 
-  let busy = false, busyAt = 0, again = false, putAt = 0, checkedAt = 0, cloudOn = false;
+  let busy = false, cloudOn = false;
   const cloudActive = () => !!(window.ORDO_CLOUD && window.ORDO_CLOUD.active());
-  /* push: "now" — віддати, якщо є зміни; "force" — завжди; "pull" — лише підтягнути (перед стартом, щоб не чекати збереження) */
+  /* з 19.11.2026 синк між пристроями — лише база (cloud.js). Старий синк знімками через GitHub прибрано: тут тільки зашифрована
+     резервна копія в приватне сховище — не частіше ніж раз на 30 хв і лише коли є зміни ("force" — одразу, з кнопки) */
   async function syncNow(push) {
-    if (busy) { if (push !== "pull") again = true; return { pulled: false }; }       // зміна під час синку — ще одне коло одразу після нього
-    if (!token() || !LS.get(K.backup, null)) return { pulled: false };
-    if (cloudActive()) {                                           // синк робить база; сюди — лише резервна копія, не частіше ніж раз на 30 хв
-      const last = LS.get("ordo.bk.last", {});
-      if (push === "pull" || (push !== "force" && Date.now() - (last.at || 0) < 30 * 60e3)) return { pulled: false };
-      busy = true; busyAt = Date.now();
-      try { const b = await makeBackup(); await putFile("backups/latest.json", b.file, "копія").catch(() => {});
-        const dk = LS.get("ordo.bk.day", {}); if (dk.d !== day()) { await putFile(`backups/${day()}.json`, b.file, "копія дня").catch(() => {}); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
-        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at }); LS.del("ordo.bk.err"); } catch (e) {}
-      finally { busy = false; }
-      return { pulled: false };
-    }
-    busy = true; busyAt = Date.now(); status("saving");
-    let pulled = false; const pullOnly = push === "pull";
+    if (busy || !token() || !LS.get(K.backup, null) || navigator.onLine === false) return { pulled: false };
+    const last = LS.get("ordo.bk.last", {});
+    if (push !== "force" && (Date.now() - (last.at || 0) < 30 * 60e3 || snapHash() === last.h)) return { pulled: false };
+    busy = true; status("saving");
     try {
-      for (let round = 0; round < 3; round++) {
-        const last = LS.get("ordo.bk.last", {});
-        const dirty = snapHash() !== last.h;
-        const remote = await gh("backups/latest.json", { raw: true, cond: true }); checkedAt = Date.now();
-        if (remote && remote !== SAME) {
-          const meta = JSON.parse(remote);
-          /* чужа копія, якої ми ще не брали, — беремо. Раніше порівнювались час копії й час власного запису, тобто годинники РІЗНИХ пристроїв:
-             якщо один поспішає (11.11 — на 34 с), він пів хвилини після свого запису не бачив змін іншого */
-          const rid = `${meta.at}|${meta.dev}`;
-          if (meta.dev && meta.dev !== devId() && meta.at && rid !== last.remoteId) {
-            const r = await readBackup(remote, null), before = snapHash();
-            /* ніколи не замінюємо цілком: свіжіше з іншого пристрою перемагає в суперечках, але те, чого там ще немає, лишається */
-            applyData(dirty ? mergeData(snapshot(), r.data) : mergeData(r.data, snapshot()));
-            if (snapHash() !== before) pulled = true;                 // перезапуск — лише якщо з того боку справді щось нове
-            const merged = snapHash() !== hash(JSON.stringify(Object.fromEntries(Object.keys(r.data).filter(DATA_KEY).sort().map((k) => [k, r.data[k]]))));
-            LS.set("ordo.bk.last", { h: merged ? "" : snapHash(), at: last.at || 0, remoteAt: meta.at, remoteId: rid });
-            if (merged && !pullOnly) push = "force";             // обʼєднане одразу віддаємо іншим пристроям (у режимі pull — наступним, фоновим синком)
-          }
-        }
-        const cur = LS.get("ordo.bk.last", {}), changed = snapHash() !== cur.h;
-        if (pullOnly || !(push === "force" || changed)) break;
-        const b = await makeBackup();
-        try { await putFile("backups/latest.json", b.file, "копія", true); }
-        catch (e) { if (e.conflict) continue; throw e; }                      // інший пристрій щойно зберіг — спершу зливаємо його копію
-        const dk = LS.get("ordo.bk.day", {});                                // копія дня — не частіше, ніж раз на 30 хв (історія, а не синхронізація)
-        if (dk.d !== day() || Date.now() - (dk.at || 0) > 30 * 60e3) { await putFile(`backups/${day()}.json`, b.file, "копія дня"); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
-        LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at, remoteId: `${b.at}|${devId()}` }); putAt = Date.now();
-        break;
-      }
-      LS.del("ordo.bk.err"); status("ok");
-    } catch (e) {
-      delete etags["backups/latest.json"];                          // не вдалось прочитати чи злити — наступного разу читаємо заново, а не «не змінилось»
-      LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err");
-    } finally { busy = false; }
-    if (pulled && window.__ordoStarted) reloadWhenCalm();          // зокрема передстартовий pull, що не встиг до старту
-    if (again) { again = false; setTimeout(() => syncNow("now"), 300); }
-    return { pulled };
+      const b = await makeBackup(); await putFile("backups/latest.json", b.file, "копія");
+      const dk = LS.get("ordo.bk.day", {}); if (dk.d !== day()) { await putFile(`backups/${day()}.json`, b.file, "копія дня"); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
+      LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at }); LS.del("ordo.bk.err"); busy = false; status("ok");
+    } catch (e) { busy = false; LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err"); }
+    return { pulled: false };
   }
   const backupNow = () => syncNow("force");
-  /* перед будь-якою сценою, що зʼявляється сама (квест, момент, подія, лист, банер): чи нема на сервері свіжішого з іншого пристрою.
-     true — можна показувати; false — щойно підтягнули нове (буде перезапуск) або ще триває синк. Без мережі не блокує: чекає щонайбільше 3 с */
+  /* перед будь-якою сценою, що зʼявляється сама (квест, момент, подія, лист, банер): чи нема в базі свіжішого з іншого пристрою.
+     true — можна показувати; false — щойно підтягнули нове (буде перезапуск). Без мережі не блокує: чекає щонайбільше 2,5 с */
   async function fresh() {
-    if (cloudActive()) { await Promise.race([window.ORDO_CLOUD.catchUp(), new Promise((r) => setTimeout(r, 2500))]); return !reloadPending; }
-    if (!token() || !LS.get(K.backup, null) || navigator.onLine === false) return !reloadPending;
-    if (Date.now() - checkedAt > 3500) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3000))]);
-    return !reloadPending && !(busy && Date.now() - busyAt < 8000);
+    if (cloudActive() && navigator.onLine !== false) await Promise.race([window.ORDO_CLOUD.catchUp(), new Promise((r) => setTimeout(r, 2500))]);
+    return !reloadPending;
   }
   /* підтягнуті дані показуємо перезапуском — але не посеред дії */
   let reloadPending = false, visAt = Date.now();
@@ -565,25 +514,25 @@
     if (typing) return;
     loadHerald();
     const last = LS.get("ordo.bk.last", {}), err = LS.get("ordo.bk.err", null);
-    const line = busy ? `<span class="vt-st">зберігаю…</span>`
-      : err ? `<span class="vt-st is-err">${err.code === 401 ? "токен не підходить — онови його" : "не вдалося зберегти — спробую пізніше"}</span>`
-      : last.at ? `<span class="vt-st is-ok">синхронізовано ${when(last.at)}</span>` : `<span class="vt-st">копій ще не було</span>`;
+    const line = busy ? `<span class="vt-st">зберігаю копію…</span>`
+      : err ? `<span class="vt-st is-err">${err.code === 401 ? "токен не підходить — онови його" : "копію не вдалося зберегти — спробую пізніше"}</span>`
+      : last.at ? `<span class="vt-st is-ok">копія ${when(last.at)}</span>` : `<span class="vt-st">копій ще не було</span>`;
     const CL = window.ORDO_CLOUD, cs = CL ? CL.status() : null;
     const cloud = !CL ? "" : CL.active()
       ? `<div class="vt-cloud"><p class="vt-lead"><b>База:</b> увімкнено · ${esc(CL.user() || "")}</p><div class="vt-row"><span class="vt-st ${cs.status === "err" ? "is-err" : "is-ok"}">${cs.status === "err" ? "помилка: " + esc(cs.err || "") : cs.status === "saving" ? "записую…" : cs.pend ? `чекає відправки: ${cs.pend}` : "усе синхронізовано"}</span></div>
           <button class="btn btn--ghost" type="button" data-vt="cloudout">Вийти з бази на цьому пристрої</button></div>`
       : `<div class="vt-cloud"><p class="vt-lead"><b>База Ордену</b> — миттєвий синк телефона й компа без дублів. Увійди на кожному пристрої один раз.</p>
           <form id="vtForm" onsubmit="return false" style="display:contents">
-          <input class="dy-in" id="vtMail" name="email" type="email" autocomplete="username" autocapitalize="off" value="cluckh@gmail.com">
+          <input class="dy-in" id="vtMail" name="email" type="email" autocomplete="username" autocapitalize="off" placeholder="пошта">
           <input class="dy-in" id="vtPw" name="password" type="password" autocomplete="current-password" placeholder="пароль (від 10 символів)">
           </form>
           <button class="btn btn--gold" type="button" data-vt="cloudin">Увійти</button>
           <button class="btn btn--line" type="button" data-vt="cloudup">Перший раз — створити пароль</button>
           <p class="vt-lead" id="vtCloudMsg"></p></div>`;
-    box.innerHTML = cloud + `<p class="vt-lead">${CL && CL.active() ? "Резервна копія раз на 30 хв іде й у приватне сховище — зашифрована твоїм ключем Ордену." : "Твої дані автоматично синхронізуються між пристроями через приватне сховище — зашифровані твоїм ключем Ордену."}</p>
+    box.innerHTML = cloud + `<p class="vt-lead">${CL && CL.active() ? "Резервна копія раз на 30 хв іде й у приватне сховище — зашифрована твоїм ключем Ордену." : "Без входу в базу дані живуть лише на цьому пристрої: синку між телефоном і компом нема. Резервна копія все одно йде в приватне сховище."}</p>
       <div class="vt-row">${line}</div>
       ${pulseHTML()}
-      <button class="btn btn--gold" type="button" data-vt="now">Синхронізувати зараз</button>
+      <button class="btn btn--gold" type="button" data-vt="now">Зберегти копію зараз</button>
       <button class="btn btn--line" type="button" data-vt="list">Відновити з копії…</button>
       <div id="vtList"></div>
       <button class="btn btn--line" type="button" data-vt="file">Зберегти копію у файл</button>
@@ -624,7 +573,7 @@
         } catch (err) { const m = (err && err.message) || String(err); msg.textContent = /Invalid login/i.test(m) ? "Пароль не підходить." : /not confirmed/i.test(m) ? "Пошту ще не підтверджено — відкрий лист від Supabase." : /already registered/i.test(m) ? "Акаунт уже є — просто «Увійти»." : "Не вдалося: " + m; }
         a.disabled = false; return;
       }
-      if (act === "cloudout") { if (!confirm("Вийти з бази на цьому пристрої? Дані лишаться в базі й тут; синк повернеться через GitHub.")) return; await window.ORDO_CLOUD.signOut(); location.reload(); return; }
+      if (act === "cloudout") { if (!confirm("Вийти з бази на цьому пристрої? Дані лишаться в базі й тут, але синку з іншими пристроями не буде, доки не ввійдеш знову.")) return; await window.ORDO_CLOUD.signOut(); location.reload(); return; }
       if (act === "now") { await syncNow("force"); return; }
       if (act === "push") { a.disabled = true; try { await pushEnable(); } catch (err) { alert("Не вдалося ввімкнути вісті: " + (err && err.message || err)); } renderVault(); return; }
       if (act === "pushoff") { a.disabled = true; await pushDisable(); renderVault(); return; }
@@ -672,14 +621,12 @@
     if (typeof window.ORDO_START === "function") window.ORDO_START();
     const vb = $("vaultBtn"); if (vb) vb.addEventListener("click", openVault);
     wireVault(); status(); setTimeout(pushRefresh, 4000); setTimeout(checkInbox, 1200);
-    setInterval(() => { if (!document.hidden) syncNow("now"); }, SYNC_EVERY);
-    /* будь-який запис даних Ордену — і за 1,5 с він уже їде на інші пристрої */
-    let pushT = 0; const set0 = Storage.prototype.setItem;
+    setInterval(() => { if (!document.hidden) syncNow("now"); }, 5 * 60e3);           // резервна копія (сама вирішує, чи вже час)
+    /* будь-який запис даних Ордену — за ~0,35 с він уже їде в базу, а звідти на інші пристрої */
+    const set0 = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, v) {
       const r = set0.call(this, k, v);
-      /* не частіше ніж раз на 5 с: серія дій (підходи в залі, кілька справ поспіль) їде одним записом, а GitHub не бачить зливи */
       if (this === localStorage && !applying && DATA_KEY(k) && window.ORDO_CLOUD) window.ORDO_CLOUD.onSet(k);
-      if (this === localStorage && !applying && DATA_KEY(k) && !cloudActive()) { clearTimeout(pushT); pushT = setTimeout(() => { if (!reloadPending) syncNow("now"); }, Math.max(PUSH_AFTER, putAt + 3000 - Date.now())); }
       return r;
     };
     window.addEventListener("ordo-cloud", (e) => { const ks = (e.detail && e.detail.keys) || []; if (ks.length && window.__ordoStarted) reloadWhenCalm(); if ($("vaultModal") && $("vaultModal").classList.contains("open")) renderVault(); });
@@ -687,7 +634,7 @@
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) visAt = Date.now();
       if (document.hidden) { if (reloadPending) location.reload(); else syncNow("now"); }
-      else syncNow("now").then((r) => { if (!(r && r.pulled)) checkInbox(); });      // скринька вістей — уже зі свіжим станом: показане на іншому пристрої вдруге не відкриється
+      else checkInbox();
     });
   }
   /* зашифровані ключем сховища файли приватного репозиторію (скарбниця, писар): прочитати / записати */
@@ -720,7 +667,7 @@
     } catch (e) { return false; }
   }
   /* сцени (події, моменти, квести) чекають, поки синхронізація не скаже, що вже бачено на іншому пристрої */
-  window.ORDO_VAULT = { callKey, callShown, fresh, hold: () => (busy && Date.now() - busyAt < 12e3 && Date.now() - visAt < 20e3) || reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
+  window.ORDO_VAULT = { callKey, callShown, fresh, hold: () => reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
 
   async function boot() {
     let vault;
@@ -728,12 +675,10 @@
     catch (e) { gate(`<p class="gate__lead">Не вдалося завантажити Орден. Перевір зʼєднання і відкрий знову.</p>`); return; }
     const data = await unlockContent(vault);
     if (data) {
-      /* перед стартом — лише підтягнути зміни з інших пристроїв (один запит, не довше 3,5 с): вступ, квести й цитати вже будуть спільні */
-      /* з 19.11.2026 синк — через базу (cloud.js): записи замість цілих знімків, живі підписки. GitHub — лише резервна копія раз на 30 хв */
+      /* синк — лише через базу (cloud.js): записи замість цілих знімків, живі підписки; перед стартом — свіже з бази (не довше 6 с). GitHub — лише резервна копія */
       const CL = window.ORDO_CLOUD;
       if (CL && navigator.onLine !== false) { const r = await Promise.race([CL.init(mergeData).catch(() => ({ active: false })), new Promise((res) => setTimeout(() => res({ active: CL.active() }), 6000))]); cloudOn = !!(r && r.active); }
-      if (!cloudOn && token() && LS.get(K.backup, null) && navigator.onLine !== false) await Promise.race([syncNow("pull"), new Promise((r) => setTimeout(r, 3500))]);
-      start(data); setTimeout(() => syncNow("now"), 2500);      // збереження — уже у фоні, коли Орден відкритий
+      start(data); setTimeout(() => syncNow("now"), 20e3);      // резервна копія — у фоні, коли Орден уже відкритий
       if (!(CL && CL.active()) && LS.get("ordo.k.cloudAsk", "") !== day()) setTimeout(() => { LS.set("ordo.k.cloudAsk", day()); openVault(); }, 2600);   // ще не увійшов у базу — раз на день нагадати
       return;
     }

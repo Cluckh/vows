@@ -559,7 +559,11 @@
     try { const txt = await gh("push/state.json", { raw: true }); herald = txt ? JSON.parse(txt) : null; if (statusEl) renderVault(); } catch (e) {}
   }
   function renderVault() {
-    const box = $("vaultBody"); if (!box) return; loadHerald();
+    const box = $("vaultBody"); if (!box) return;
+    /* поки набираєш пошту чи пароль — не чіпаємо форму: перемальовування стирало набране, а iOS сприймав це як відправку й питав «зберегти пароль?» */
+    const pwEl = $("vtPw"), mlEl = $("vtMail"), typing = pwEl && (pwEl.value || document.activeElement === pwEl || document.activeElement === mlEl);
+    if (typing) return;
+    loadHerald();
     const last = LS.get("ordo.bk.last", {}), err = LS.get("ordo.bk.err", null);
     const line = busy ? `<span class="vt-st">зберігаю…</span>`
       : err ? `<span class="vt-st is-err">${err.code === 401 ? "токен не підходить — онови його" : "не вдалося зберегти — спробую пізніше"}</span>`
@@ -569,8 +573,10 @@
       ? `<div class="vt-cloud"><p class="vt-lead"><b>База:</b> увімкнено · ${esc(CL.user() || "")}</p><div class="vt-row"><span class="vt-st ${cs.status === "err" ? "is-err" : "is-ok"}">${cs.status === "err" ? "помилка: " + esc(cs.err || "") : cs.status === "saving" ? "записую…" : cs.pend ? `чекає відправки: ${cs.pend}` : "усе синхронізовано"}</span></div>
           <button class="btn btn--ghost" type="button" data-vt="cloudout">Вийти з бази на цьому пристрої</button></div>`
       : `<div class="vt-cloud"><p class="vt-lead"><b>База Ордену</b> — миттєвий синк телефона й компа без дублів. Увійди на кожному пристрої один раз.</p>
-          <input class="dy-in" id="vtMail" type="email" autocomplete="username" value="cluckh@gmail.com">
-          <input class="dy-in" id="vtPw" type="password" autocomplete="current-password" placeholder="пароль (від 10 символів)">
+          <form id="vtForm" onsubmit="return false" style="display:contents">
+          <input class="dy-in" id="vtMail" name="email" type="email" autocomplete="username" autocapitalize="off" value="cluckh@gmail.com">
+          <input class="dy-in" id="vtPw" name="password" type="password" autocomplete="current-password" placeholder="пароль (від 10 символів)">
+          </form>
           <button class="btn btn--gold" type="button" data-vt="cloudin">Увійти</button>
           <button class="btn btn--line" type="button" data-vt="cloudup">Перший раз — створити пароль</button>
           <p class="vt-lead" id="vtCloudMsg"></p></div>`;

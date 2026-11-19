@@ -1369,7 +1369,7 @@
   const wkKey = (k) => add(k, -(wd(k) - 1));                     // понеділок тижня
   function draw(rar, tag, only) {
     if (!only && rar !== "myth" && GEAR("questUp") > 0 && Q.clock.up !== wkKey(today())) { Q.clock.up = wkKey(today()); rar = rar === "legend" ? "myth" : "legend"; }     // спорядження: раз на тиждень — квест на рідкість вищий
-    const seen = new Set(Q.list.filter((q) => q.st !== "void").map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.app || appTracked(p.app));
+    const seen = new Set(Q.list.filter((q) => q.st !== "void" || q.reset).map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.app || appTracked(p.app));
     let c = pool().filter((p) => (only || p.rar === rar) && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
     const free = (p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer"));
     if (!c.length && tag) c = pool().filter((p) => free(p) && (p.tags || []).includes(tag));      // тематичні можна повторювати
@@ -1426,11 +1426,17 @@
   }
   /* перехід на базу: усі квести, що висять, — прибрати; запропонувати кілька за даними. Раз на всі пристрої (claim) */
   async function smartReset() {
-    if (!(window.ORDO_CLOUD && window.ORDO_CLOUD.active && window.ORDO_CLOUD.active()) || Q.clock.reset1) return;
+    if (Q.clock.reset1) {                                                         // обнулення вже було: квести, що доїхали зі старого стану (інший пристрій ще не входив у базу), — теж прибрати
+      const at0 = Q.clock.reset1At || Date.parse(Q.clock.reset1 + "T00:00:00+02:00"); let ch = 0;
+      Q.list.forEach((q) => { if ((q.st === "offer" || q.st === "active") && !String(q.pid || "").startsWith("smart:") && (q.stAt || Date.parse((q.offerOn || q.from || "2000-01-01") + "T00:00:00+02:00")) < at0) { q.st = "void"; q.reset = 1; q.at = Date.now(); ch = 1; } });
+      if (ch) { saveQ(); render(); }
+      return;
+    }
+    if (!(window.ORDO_CLOUD && window.ORDO_CLOUD.active && window.ORDO_CLOUD.active())) return;
     if (!(await claimOk("reset:quests:1"))) return;                               // зробив інший пристрій — його Q.clock.reset1 зараз доїде
     if (Q.clock.reset1) return;
     Q.list.forEach((q) => { if (["active", "offer", "fail", "eased"].includes(q.st)) { q.st = "void"; q.reset = 1; q.at = Date.now(); } });
-    Q.trig = []; Q.clock.reset1 = today(); Q.clock.roll = today();
+    Q.trig = []; Q.clock.reset1 = today(); Q.clock.reset1At = Date.now(); Q.clock.roll = today();
     smartQuests(3).forEach((p) => { const q = qFrom(p); Q.list.push(q); });
     saveQ(); render();
   }

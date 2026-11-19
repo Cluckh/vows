@@ -629,6 +629,8 @@
     if (id === "letter") return letter(text);
     if (id === "moment") { const DY = window.ORDO_DAY; return DY && DY.playMomentId ? DY.playMomentId(text) : null; }
     if (id === "supreme" && mode === "legend") return morningSupreme();
+    /* Сенешаль і літописець (вісті глашатая, напр. зі Скарбниці): сказав — і зала зачиняється; раніше такий виклик мовчки губився */
+    if (id === "seneschal" || id === "chronicler") { stage(id); if (text && (await say(text)) === "closed") return; close(); return; }
     const K = D().KEEPERS || {}; if (!K[id]) return;
     const v = (D().VOWS || []).find((x) => x.id === id);
     show(v ? { id, icon: v.icon } : SUPREME);

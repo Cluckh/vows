@@ -1458,12 +1458,19 @@
   }
   function dailyRoll() {
     const t0 = today(), again = Q.clock.roll === t0;
-    if (again && trigReady() < 0) return;
+    /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу.
+       20.11: і тоді, коли видача прийшла вже після першого відкриття за день (писар пише о ~01:30, Орден відкрили о 00:30 — квест на сьогодні губився) */
+    const dueOf = () => ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !(p.flash && hmNow2() >= p.flash) && !Q.list.some((q) => q.pid === p.id && q.st !== "void"));
+    if (again && trigReady() < 0) {
+      const late = !Q.list.some((q) => q.st === "offer") && dueOf();
+      if (!late) return;
+      const q = draw(late.rar, null, late.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); }
+      return;
+    }
     Q.clock.roll = t0;
     if (Q.list.some((q) => q.st === "offer")) { saveQ(); return; }
     const since = (r) => Q.clock[r] ? diff(Q.clock[r], t0) : 99;
-    /* квест, який писар призначив саме на сьогодні (під сповідь, ціль, віху), — замість випадкового, не на додачу */
-    const due = !again && ((DROP && DROP.quests) || []).find((p) => p.offerOn && p.offerOn <= t0 && (!p.offerUntil || p.offerUntil >= t0) && !(p.flash && hmNow2() >= p.flash) && !Q.list.some((q) => q.pid === p.id && q.st !== "void"));
+    const due = dueOf();
     if (due) { const q = draw(due.rar, null, due.id); if (q) { Q.list.push(q); Q.clock[q.rar] = t0; saveQ(); return; } }
 
     /* видно, що не встигаєш: минуло 60%+ строку, а зроблено менше ніж 60% від потрібного темпу — храмовник (через раз) пропонує

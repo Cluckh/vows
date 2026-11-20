@@ -2154,3 +2154,15 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-body-line.pk-stats>span:not(.pk-sess){white-space:normal;text-align:center;max-width:100%}
 .dy-body-line .pk-sess{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 12px;white-space:normal;opacity:.85;width:100%}
 .pk-sess>em{font-style:normal;white-space:nowrap}
+
+/* 21.11: вісім обітниць — на одному екрані телефона (з вирізом і нижньою смугою); Сповідь переїхала на День */
+.crest{padding-bottom:4px}
+.crest__btn{width:48px;height:48px;margin-bottom:2px}
+.crest__btn .crest__sigil{width:42px;height:42px}
+.crest__title{font-size:clamp(18px,5vw,22px)}
+.crest__sub{font-size:14px;margin-top:0}
+.crest__rule{height:14px;margin-top:4px}
+.oath{padding:10px 6px;gap:14px}
+.oath__icon{width:30px;height:30px}
+.oath__sub{margin-top:2px}
+.confess--day{margin:2px 0 14px}

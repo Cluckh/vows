@@ -765,13 +765,14 @@
   /* ===== ЕКОНОМІКА ОРДЕНУ: одна таблиця досвіду й золота за все (її ж знає писар — WRITER.md) =====
      рідкість: common — звичайна, rare — рідкісна (жовта), legend — легендарна (помаранчева), myth — міфічна (фіолетова) */
   const ECON = window.ORDO_ECON = {
-    /* економіка з 21.11.2026 (золото = гривні білої картки; власник: «ідеальний місяць ≈ 5 тис., середній ≈ 3, слабкий ≈ 1»):
-       усе золото — чверть від економіки 8.11 (та дала ≈ 20 тис. за сильний місяць); досвід — як і був. Баланс обнулено 21.11 (gold.js START) */
-    task: { common: [8, 1], rare: [15, 2], legend: [30, 3], myth: [60, 6] },                // справа дня: [досвід, золото] за виконання
-    month: { common: [60, 75], rare: [120, 150], legend: [240, 300], myth: [480, 600] },        // ціль місяця
+    /* економіка з 21.11.2026 (золото = гривні білої картки; власник: «ідеальний місяць ≈ 5 тис., середній ≈ 3, слабкий ≈ 1»). Баланс обнулено 21.11 (gold.js START).
+       Вага — на щоденне: повний день справ ≈ 50 золота (≈ 1,5 тис. за ідеальний місяць), квести ≈ 1,5 тис., цілі місяця ≈ 0,5 тис., решта — ідеальні дні, обітниці, дрібне.
+       Медалі й рівні — без золота. Досвід — як і був */
+    task: { common: [8, 3], rare: [15, 5], legend: [30, 8], myth: [60, 15] },              // справа дня: [досвід, золото] за виконання
+    month: { common: [60, 50], rare: [120, 70], legend: [240, 150], myth: [480, 300] },         // ціль місяця
     year: { common: [200, 250], rare: [400, 500], legend: [800, 1000], myth: [1600, 2000] },  // ціль року
-    quest: { rare: [150, 75], legend: [400, 200], myth: [1200, 500] },                       // квест: завжди більше за ціль місяця тієї ж рідкості, менше за ціль року
-    day: { pd: [25, 30], pw: [100, 100], gy: [20, 8], jr: [10, 4], st: [10, 4], er: [5, 3], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
+    quest: { rare: [150, 75], legend: [400, 175], myth: [1200, 400] },                       // квест: завжди більше за ціль місяця тієї ж рідкості, менше за ціль року
+    day: { pd: [25, 20], pw: [100, 80], gy: [20, 8], jr: [10, 4], st: [10, 4], er: [5, 3], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
     vowDay: [4, 1],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
     milestone: { 10: [60, 15], 25: [120, 40], 75: [250, 100], 180: [500, 225], 365: [1000, 500], 500: [1300, 625], 730: [1800, 875], 1000: [2500, 1250] },
     /* медалі й рівні (з 21.11, власник): без золота — лише досвід, скрині, жетони, спорядження й хроніка. Золото — за справи, квести й цілі. Ревю — за кожен відсоток виконаного */
@@ -1964,7 +1965,7 @@
     const doneN = its.filter(({ t, r }) => isWin(stOf(t, r, k))).length;
     const live = Q.list.filter((q) => q.st === "active" || (q.st === "done" && q.end === k));
     const dayXP = Object.values(X.e).filter((e) => e.d === k).reduce((a, e) => a + e.xp, 0);
-    const segR = rankStrip(); let h = "";
+    const segR = ""; let h = "";                 // 21.11: рівень і звання — у Літописі, не на Дні
     h += `<div class="dy-nav"><button type="button" data-dnav="-1" aria-label="Попередній день">‹</button>
       <div class="dy-nav__c"><b>${rel(k)}</b><span>${WDL[wd(k)]}, ${human(k)}</span></div>
       <button type="button" data-dnav="1" aria-label="Наступний день">›</button></div>`;
@@ -1991,11 +1992,11 @@
     { const pm = k === today() ? periodHands(k.slice(0, 7)) : null, usd = (c) => `${c >= 0 ? "+" : "−"}$${(Math.abs(c) / 100).toFixed(2).replace(".", ",")}`;
       if (pm && pm.vpip != null) more += `<div class="dy-body-line dy-body-line--sub pk-stats"><span>покер, ${MN[+k.slice(5, 7) - 1]}: <b>${fmtN(pm.hands)}</b> роздач · <b class="${pm.net >= 0 ? "pk-up" : "pk-down"}">${usd(pm.net)}</b></span><span>VPIP ${fmtN(pm.vpip)} / PFR ${fmtN(pm.pfr)} · 3-bet ${fmtN(pm.tbet)} · вскриття ${fmtN(pm.wtsd)}%, виграно ${fmtN(pm.wsd)}%</span></div>`; }
     /* з 20.11.2026 скрипт HM3 шле й гру: VPIP/PFR, вскриття, ліміт і кожну сесію (тривалість, bb) */
-    if (pk && pk.hands && pk.vpip != null) h += `<div class="dy-body-line dy-body-line--sub pk-stats"><span>${pk.stakes ? `${esc(pk.stakes)} · ` : ""}VPIP ${fmtN(pk.vpip)} / PFR ${fmtN(pk.pfr || 0)}${pk.wtsd ? ` · вскриття ${fmtN(pk.wtsd)}%, виграно ${fmtN(pk.wsd || 0)}%` : ""}</span>${(pk.sess || []).length ? `<span class="pk-sess">${pk.sess.map((x) => `<em>${x.s} · ${x.m} хв · <i class="${x.bb >= 0 ? "pk-up" : "pk-down"}">${x.bb >= 0 ? "+" : "−"}${fmtN(Math.abs(x.bb))}</i></em>`).join("")}</span>` : ""}</div>`;
+    if (pk && pk.hands && pk.vpip != null) more = `<div class="dy-body-line dy-body-line--sub pk-stats"><span>${pk.stakes ? `${esc(pk.stakes)} · ` : ""}VPIP ${fmtN(pk.vpip)} / PFR ${fmtN(pk.pfr || 0)}${pk.wtsd ? ` · вскриття ${fmtN(pk.wtsd)}%, виграно ${fmtN(pk.wsd || 0)}%` : ""}</span>${(pk.sess || []).length ? `<span class="pk-sess">${pk.sess.map((x) => `<em>${x.s} · ${x.m} хв · <i class="${x.bb >= 0 ? "pk-up" : "pk-down"}">${x.bb >= 0 ? "+" : "−"}${fmtN(Math.abs(x.bb))}</i></em>`).join("")}</span>` : ""}</div>` + more;
     if (k === today()) h += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю… (до хвилини)" : IOS ? "↻ оновити з телефона" : "↻ оновити дані"}</button></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) more += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;
-    if (more) h += dayMore ? `<div class="dy-more">${more}</div><button type="button" class="dy-more-t" data-dmore>менше ‹</button>` : `<button type="button" class="dy-more-t" data-dmore>за місяць ›</button>`;
+    if (more) h += dayMore ? `<div class="dy-more">${more}</div><button type="button" class="dy-more-t" data-dmore>менше ‹</button>` : `<button type="button" class="dy-more-t" data-dmore>детальніше ›</button>`;
     if (k === today() && roughNight(k) && !isNight()) {                 // день після тривоги — один рядок, поради — тапом
       const N = S.night[k], gymToday = its.some(({ t }) => isGym(t)), sm = (hDay(k) || {}).sleepMin || (S.sleep[k] && S.sleep[k].min);
       const tips = ["кава — до 12:00", "денний сон — до 20 хв і до 15:00", "за годину до сну — без екранів", "лягти до 23:00"].concat(gymToday ? ["у залі — легкий день, без рекордів"] : []);

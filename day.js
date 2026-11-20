@@ -1300,7 +1300,7 @@
             else if (k < today() || last < today()) {
               if (u === "плюсових днів") n += (p.bb || 0) > 0 ? 1 : 0;
               else if (u === "днів без довгих сесій") n += (p.sess || []).every((x) => x.m <= (q.sessMax || 90)) ? 1 : 0;
-              else n += (p.sess || []).every((x) => x.bb >= -(q.stopBB || 50)) ? 1 : 0;
+              else n += (p.sess || []).every((x) => x.bb >= -(q.stopBB || 300)) ? 1 : 0;
             } }
           n = Math.max(0, Math.round(n * 10) / 10);
           if (n !== (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }

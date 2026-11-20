@@ -435,7 +435,7 @@
     if (!u && !n) return null;
     const hands = Math.max(u ? u.hands : 0, sum);
     /* з 20.11.2026 — ще й готові цифри HM3 за місяць / рік: виграш, рейк, VPIP, PFR, 3-bet, WTSD, W$SD, агресія */
-    const st = u && u.vpip != null ? { net: u.net, rake: u.rake, vpip: u.vpip, pfr: u.pfr, tbet: u.tbet, wtsd: u.wtsd, wsd: u.wsd, agg: u.agg } : {};
+    const st = u && u.vpip != null ? { net: u.net, vpip: u.vpip, pfr: u.pfr, tbet: u.tbet, wtsd: u.wtsd, wsd: u.wsd } : {};
     return Object.assign({ steps: hands, hands, avg: n ? Math.round(sum / n) : null }, st);
   }
 
@@ -1990,7 +1990,7 @@
     const pk = pDay(k);
     if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}${pk.bb != null ? ` · <b class="${pk.bb >= 0 ? "pk-up" : "pk-down"}">${pk.bb >= 0 ? "+" : "−"}${fmtN(Math.abs(pk.bb))} bb</b>` : ""}</span></div>`;
     { const pm = k === today() ? periodHands(k.slice(0, 7)) : null, usd = (c) => `${c >= 0 ? "+" : "−"}$${(Math.abs(c) / 100).toFixed(2).replace(".", ",")}`;
-      if (pm && pm.vpip != null) more += `<div class="dy-body-line dy-body-line--sub pk-stats"><span>покер, ${MN[+k.slice(5, 7) - 1]}: <b>${fmtN(pm.hands)}</b> роздач · <b class="${pm.net >= 0 ? "pk-up" : "pk-down"}">${usd(pm.net)}</b> · рейк $${fmtN(Math.round((pm.rake || 0) / 100))}</span><span>VPIP ${fmtN(pm.vpip)} / PFR ${fmtN(pm.pfr)} · 3-bet ${fmtN(pm.tbet)} · вскриття ${fmtN(pm.wtsd)}%, виграно ${fmtN(pm.wsd)}% · агресія ${fmtN(pm.agg)}%</span></div>`; }
+      if (pm && pm.vpip != null) more += `<div class="dy-body-line dy-body-line--sub pk-stats"><span>покер, ${MN[+k.slice(5, 7) - 1]}: <b>${fmtN(pm.hands)}</b> роздач · <b class="${pm.net >= 0 ? "pk-up" : "pk-down"}">${usd(pm.net)}</b></span><span>VPIP ${fmtN(pm.vpip)} / PFR ${fmtN(pm.pfr)} · 3-bet ${fmtN(pm.tbet)} · вскриття ${fmtN(pm.wtsd)}%, виграно ${fmtN(pm.wsd)}%</span></div>`; }
     /* з 20.11.2026 скрипт HM3 шле й гру: VPIP/PFR, вскриття, ліміт і кожну сесію (тривалість, bb) */
     if (pk && pk.hands && pk.vpip != null) h += `<div class="dy-body-line dy-body-line--sub pk-stats"><span>${pk.stakes ? `${esc(pk.stakes)} · ` : ""}VPIP ${fmtN(pk.vpip)} / PFR ${fmtN(pk.pfr || 0)}${pk.wtsd ? ` · вскриття ${fmtN(pk.wtsd)}%, виграно ${fmtN(pk.wsd || 0)}%` : ""}</span>${(pk.sess || []).length ? `<span class="pk-sess">${pk.sess.map((x) => `<em>${x.s} · ${x.m} хв · <i class="${x.bb >= 0 ? "pk-up" : "pk-down"}">${x.bb >= 0 ? "+" : "−"}${fmtN(Math.abs(x.bb))}</i></em>`).join("")}</span>` : ""}</div>`;
     if (k === today()) h += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю… (до хвилини)" : IOS ? "↻ оновити з телефона" : "↻ оновити дані"}</button></div>`;

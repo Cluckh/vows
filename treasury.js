@@ -151,18 +151,33 @@
   /* --------------------------------------------------------------- сцени */
   /* хто отримав переказ: монобанк дає імʼя в описі («Анна Х.»), а не в counterName; «Переказ на картку» без імені — не запамʼятовуємо */
   const whoKey = (t) => { const k = (t.cn || t.d || "").trim(); return /^переказ на картку$/i.test(k) ? "" : k; };
+  /* Скарбниця: того ж дня — вікно чи зрив Помірності або червона/жовта трапеза? */
+  const mealDay = (k) => { const log = LS.get("ordo.log", []); if (log.some((e) => e.v === "temperance" && e.d === k && (e.k === "mark" || e.k === "breach"))) return true;
+    const Dy = window.ORDO_DAY, S = Dy && Dy._state ? Dy._state().S : null, j = S && S.journal && S.journal[k]; return !!(j && (j.meal === "r" || j.meal === "y")); };
+  /* «переклав суму з білої на чорну того ж дня»: перекази з білої на свої рахунки від покупки до кінця дня покривають суму (з запасом на курс) */
+  const repaid = (t) => { const W0 = B && B.white, k = keyOf(new Date(t.t * 1000)); if (!W0 || !W0.out) return false;
+    const got = W0.out.filter((o) => o.t >= t.t - 1800 && keyOf(new Date(o.t * 1000)) === k).reduce((a, o) => a - o.a, 0); return got >= -t.a * 0.95; };
   async function watchScene(t) {
     const h = H(), A = API(); if (!h) return false;
     const L = (((D().DAY || {}).bank || {}).watch || {})[t.w] || {};
-    const d = new Date(t.t * 1000);
-    const o = { sum: money(t.a), what: t.d || "покупка", who: (whoKey(t) || "на картку без імені").replace(/[.\s]+$/, ""), when: `${d.getDate()} ${MG[d.getMonth()]}` };
+    const d = new Date(t.t * 1000), day = keyOf(d);
+    const o = { sum: money(t.a), what: t.d || "покупка", who: (whoKey(t) || "на картку без імені").replace(/[.\s]+$/, ""), when: `${d.getDate()} ${MG[d.getMonth()]}`, white: t.wb != null ? money(t.wb) : "—" };
     h.stage(t.w);
-    if ((await h.say(fill(L.ask || "Брате, бачу в книзі скарбниці: {when} — {what}, {sum}. Розкажеш?", o))) === "closed") return false;
-    const opts = L.c || [{ t: "Усе гідно", v: "ok", r: "Добре. Вірю." }, { t: "Це був зрив", v: "breach", r: "Дякую за чесність. Відміть його — і починаємо знову." }, { t: "Не зараз", v: "later", r: "Гаразд. Повернемось до цього." }];
-    const i = await h.choose(fill(L.q || "Що це було?", o), opts.map((x) => fill(x.t, o)), "hall__acts--list");
+    if ((await h.say(fill((L.byK && L.byK[t.k]) || L.ask || "Брате, бачу в книзі скарбниці: {when} — {what}, {sum}. Розкажеш?", o))) === "closed") return false;
+    /* Скарбниця: контекст, що робить відповідь чесною — вікно Помірності того ж дня, порожня біла */
+    if (t.w === "treasury") {
+      const poor = t.wb != null && t.wb < -t.a;
+      const extra = ["food", "cafe", "sweet"].includes(t.k) && mealDay(day) ? L.meal : poor ? L.poor : "";
+      if (extra && (await h.say(fill(extra, o))) === "closed") return false;
+    }
+    let opts = L.c || [{ t: "Усе гідно", v: "ok", r: "Добре. Вірю." }, { t: "Це був зрив", v: "breach", r: "Дякую за чесність. Відміть його — і починаємо знову." }, { t: "Не зараз", v: "later", r: "Гаразд. Повернемось до цього." }];
+    if (!whoKey(t) || (t.w === "treasury" && t.k !== "digital")) opts = opts.filter((x) => x.v !== "family");   // запамʼятати можна людину чи підписку — не бургерну й не Steam
+    if (t.w === "treasury" && !["food", "cafe", "sweet"].includes(t.k)) opts = opts.filter((x) => !/спільне замовлення/i.test(x.t));
+    const i = await h.choose(fill((L.qK && L.qK[t.k]) || L.q || "Що це було?", o), opts.map((x) => fill(x.t, o)), "hall__acts--list");
     if (i === "closed") return false;
     const ch = opts[i], wk = whoKey(t);
-    W.seen[t.id] = ch.v === "family" ? "ok" : ch.v; if (ch.v === "family" && wk && !W.ok.includes(wk)) W.ok.push(wk);
+    if (ch.v === "repay" && !repaid(t)) { await h.say(fill(L.repayNo || "Не бачу переказу з білої. Переклади — і відповіси ще раз.", o)); return true; }   // не позначаємо — спитаю знову
+    W.seen[t.id] = ch.v === "family" || ch.v === "repay" ? "ok" : ch.v; if (ch.v === "family" && wk && !W.ok.includes(wk)) W.ok.push(wk);
     saveW();
     await h.say(ch.v === "family" && !wk ? "Добре. Імені отримувача банк не показав, тож запамʼятати не можу — наступного разу спитаю знову." : fill(ch.r, o));
     if (ch.v === "breach" && A.openVow) { h.close(); setTimeout(() => A.openVow(t.w), 450); return false; }
@@ -191,17 +206,33 @@
     const h = H(), A = API(), G = window.ORDO_GOLD; if (!h || !G) return false;
     const L = ((D().DAY || {}).bank || {}).vault || {}, d = new Date(u.at);
     const o = { sum: money(u.amt * 100), when: `${d.getDate()} ${MG[d.getMonth()]}` };
-    h.stage(L.giver || "seneschal");
+    h.stage(L.giver || "treasury");
     if ((await h.say(fill(L.ask || "Брате, на білу картку прийшло {sum} — {when}. Це не виведене золото Ордену. Звідки воно?", o))) === "closed") return false;
     const opts = L.c || [{ t: "Кешаут з покеру", v: "poker", r: "Добре. Кешаут — чесна здобич. Записав у книгу." },
       { t: "Повернення, кешбек, випадкове", v: "ok", r: "Добре, записав. Випадкове — не гріх." },
-      { t: "Поповнив сам — це зрив", v: "breach", r: "Дякую за правду. Відміть зрив Гідності — і з завтра знову лише заслужене." },
+      { t: "Поповнив сам — це зрив", v: "breach", r: "Дякую за правду. Відміть зрив Скарбниці — і з завтра знову лише заслужене." },
       { t: "Не зараз", v: "later", r: "Гаразд. Спитаю пізніше." }];
     const i = await h.choose(fill(L.q || "Що це було?", o), opts.map((x) => fill(x.t, o)), "hall__acts--list");
     if (i === "closed") return false;
     const ch = opts[i]; G.setUnsealed(u.id, ch.v);
     await h.say(fill(ch.r, o));
-    if (ch.v === "breach" && A.openVow) { h.close(); setTimeout(() => A.openVow("dignity"), 450); return false; }
+    if (ch.v === "breach" && A.openVow) { h.close(); setTimeout(() => A.openVow("treasury"), 450); return false; }
+    return true;
+  }
+  /* Скарбниця: раз на тиждень (пн–ср) — чесне питання про те, чого банк не бачить: снеки в звичайному магазині, готівка, чужа картка */
+  const ISO = (k) => { const d = new Date(k + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return keyOf(d); };
+  async function honestScene() {
+    const h = H(), A = API(), L = ((D().DAY || {}).bank || {}).honest; if (!h || !L || !(D().VOWS || []).some((v) => v.id === "treasury")) return true;
+    const t0 = today(), wd = (new Date().getDay() + 6) % 7, prev = add(ISO(t0), -7);
+    if (wd > 2 || prev < "2026-11-23" || (W.honest || {})[prev]) return true;     // перший тиждень обітниці — з 23.11 (питання — 30.11–2.12)
+    h.stage("treasury");
+    if ((await h.say(L.ask)) === "closed") return false;
+    const i = await h.choose(L.q, L.c.map((x) => x.t), "hall__acts--list");
+    if (i === "closed") return false;
+    const ch = L.c[i];
+    if (ch.v !== "later") { W.honest = Object.assign({}, W.honest || {}, { [prev]: ch.v }); saveW(); }
+    await h.say(ch.r);
+    if (ch.v === "breach" && A.openVow) { h.close(); setTimeout(() => A.openVow("treasury"), 450); return false; }
     return true;
   }
   /* миттєва вість про переказ (./?call=xfer&id=<tx>): одразу питання «що це?» — не чекаючи, поки дійде черга сцен */
@@ -222,6 +253,7 @@
     const todo = B.watch.filter((t) => ask.includes(t.w) && !W.seen[t.id] && t.t >= cutoff && !(named.includes(t.w) && W.ok.includes(whoKey(t)))).slice(0, 2);
     for (const t of todo) { if (!(await watchScene(t))) return; }
     await weekScene();
+    if (!(await honestScene())) return;
     const h = H(); if (h && h.isOpen()) h.close();
   }
 

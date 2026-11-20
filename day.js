@@ -389,10 +389,15 @@
 
   /* ============================================================== ПОКЕР ===== */
   let pAt = 0;
+  /* покер: з 20.11.2026 — з бази, наживо (скрипт на компі шле зведення HM3 у функцію бази); без входу в базу — нічого */
+  const takePoker = (p) => { if (p && p.days && p.at !== (PK && PK.at)) { PK = p; LS.set("ordo.k.poker", p); applyPoker(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } };
+  let pWatch = false;
   async function loadPoker(force) {
-    const V = window.ORDO_VAULT; if (!V || !V.readSealed || (!force && Date.now() - pAt < 5 * 60e3)) return;
+    const C = CLD(); if (!C) return;
+    if (!pWatch) { pWatch = true; C.srvOn("poker", takePoker); }
+    if (!force && Date.now() - pAt < 5 * 60e3) return;
     pAt = Date.now();
-    try { const p = await V.readSealed("poker/log.json"); if (p && p.at !== (PK && PK.at)) { PK = p; LS.set("ordo.k.poker", p); applyPoker(); render(); const A = API(); if (A.goalsSync) A.goalsSync(); } } catch (e) {}
+    takePoker(await C.srvGet("poker"));
   }
   const pDay = (k) => (PK && PK.days && PK.days[k]) || null;
   /* роздачі з HM3 — у лічильники з одиницею «роздач» (квести на роздачі рахуються з них самі) */

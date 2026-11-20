@@ -287,13 +287,18 @@
   /* --------------------------------------------------- біла картка: звірка з банком */
   const dayOf = (ms) => { const d = new Date(ms), p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
   /* поповнення білої, про які ще не спитали (не частіше ніж раз на 6 год, якщо відклав) */
-  const unsealed = () => Object.entries(G.uns).filter(([, u]) => u.st === "ask" && Date.now() - (u.later || 0) > 6 * 3600e3).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => a.at - b.at);
+  /* «звідки?» — лише про поповнення, не звʼязане з жодним виведенням (запізніле звʼязування від бази прибирає питання) */
+  const unsealed = () => { const linked = new Set(Object.values(G.out).map((o) => o.tx).filter(Boolean));
+    return Object.entries(G.uns).filter(([id, u]) => u.st === "ask" && !linked.has(id) && Date.now() - (u.later || 0) > 6 * 3600e3).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => a.at - b.at); };
   function setUnsealed(id, st) { const u = G.uns[id]; if (!u) return; if (st === "later") u.later = Date.now(); else { u.st = st; u.ans = Date.now(); } save(); }
   function reconcile() {
     const W = T() && T().white && T().white(); if (!W) return false;
     let ch = false;
     const linked = new Set(Object.values(G.out).map((o) => o.tx).filter(Boolean));
-    (W.in || []).filter((t) => t.t >= START_T && !linked.has(t.id) && !G.uns[t.id]).sort((a, b) => a.t - b.t).forEach((t) => {
+    /* з 20.11.2026, коли увійшов у базу, «виведення ↔ поповнення» звіряє сама база (функція bank) — один раз і однаково для всіх пристроїв;
+       тут — лише повернення золота за виведення, що за добу так і не прийшло */
+    const CL = window.ORDO_CLOUD && window.ORDO_CLOUD.active();
+    if (!CL) (W.in || []).filter((t) => t.t >= START_T && !linked.has(t.id) && !G.uns[t.id]).sort((a, b) => a.t - b.t).forEach((t) => {
       const amt = Math.round(t.a / 100);
       const p = pending().sort((a, b) => (a.amt === amt ? -1 : 0) - (b.amt === amt ? -1 : 0) || a.at - b.at)[0];
       if (p) Object.assign(p, { st: "done", amt, tx: t.id, done: t.t * 1000 });                       // очікуване виведення прийшло (можна й іншою сумою)

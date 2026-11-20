@@ -317,8 +317,9 @@
   ["pointerdown", "keydown", "touchstart", "wheel", "scroll"].forEach((ev) => window.addEventListener(ev, () => { inputAt = Date.now(); }, { passive: true, capture: true }));
   /* чекає спокійної миті: нічого не відкрито, і 5 с жодного дотику чи прокрутки — тоді свіже з іншого пристрою зʼявляється саме, без згортання */
   function reloadWhenCalm() {
-    if (document.hidden || (calm() && (Date.now() - visAt < 15e3 || !document.hasFocus()))) { location.reload(); return; }
+    /* 20.11.2026: і перед миттєвим перезапуском — модулі ще можуть встигнути записати старий стан (так стерлось виведення золота) — тож зливаємо */
     reloadPending = true; guardWrites();
+    if (document.hidden || (calm() && (Date.now() - visAt < 15e3 || !document.hasFocus()))) { location.reload(); return; }
     clearInterval(idleT); idleT = setInterval(() => { if (reloadPending && calm() && Date.now() - inputAt > 5000) location.reload(); }, 1000);
   }
   /* вікно на компі лежало під іншими (браузер вважає його видимим) — повернувся в нього: спершу свіже */

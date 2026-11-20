@@ -172,7 +172,7 @@
   const APPN = { reading: "читання", youtube: "YouTube", reddit: "Reddit", duolingo: "Duolingo" }, appName = (n) => APPN[n] || n;
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
   /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
-  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
+  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /^bb$|^плюсових днів$|^днів без довгих сесій$|^днів зі стоп-лосом$/i.test((q.unit || "").trim()) || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   /* ручна правка з Екранного часу (S.appFix[день][програма] = хв) — сильніша за підрахунок подій: iOS не каже, коли екран заблоковано */
   const appFix = (k, n) => { const f = S.appFix && S.appFix[k]; return f && f[n] != null ? f[n] : null; };
@@ -1288,6 +1288,22 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      /* покер з HM3 (з 20.11.2026): «bb» — сума виграних bb за квест; «плюсових днів» — дні в плюсі; «днів без довгих сесій» (sessMax, хв) —
+         ігрові дні, де жодна сесія не довша; «днів зі стоп-лосом» (stopBB) — ігрові дні, де жодна сесія не глибше −stopBB. Минулі дні — повністю, сьогодні — лише bb */
+      { const u = (q.unit || "").trim().toLowerCase();
+        if (q.st === "active" && q.type === "count" && /^bb$|^плюсових днів$|^днів без довгих сесій$|^днів зі стоп-лосом$/.test(u)) {
+          let n = 0; const last = q.until < today() ? q.until : today();
+          for (let k = q.from; k <= last; k = add(k, 1)) { const p = pDay(k); if (!p || !p.hands) continue;
+            if (u === "bb") n += p.bb || 0;
+            else if (k < today() || last < today()) {
+              if (u === "плюсових днів") n += (p.bb || 0) > 0 ? 1 : 0;
+              else if (u === "днів без довгих сесій") n += (p.sess || []).every((x) => x.m <= (q.sessMax || 90)) ? 1 : 0;
+              else n += (p.sess || []).every((x) => x.bb >= -(q.stopBB || 50)) ? 1 : 0;
+            } }
+          n = Math.max(0, Math.round(n * 10) / 10);
+          if (n !== (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+          return;
+        } }
       if (q.st === "active" && q.type === "count" && /^роздач$/i.test((q.unit || "").trim())) {       // зіграні роздачі — прямо з HM3
         let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) n += (pDay(k) || {}).hands || 0;
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
@@ -1341,7 +1357,7 @@
           const rar = q.rar === "myth" ? "legend" : "rare", tg = Math.ceil(q.target * 0.85);
           Q.list.push({ id: q.id + "r", pid: q.pid + "~2", rar, giver: q.giver, t: `Друга спроба: ${q.t}`, scope: "day", days: 2,
             desc: `Ще два дні — і планка нижча: ${fmtN(tg)} ${q.unit || ""} замість ${fmtN(q.target)}. Зроблене зараховано.`,
-            type: "count", target: tg, unit: q.unit || "", xp: ECON.quest[rar][0], cats: null, limitPct: 0, limit: 0, vow: q.vow || null, app: q.app || null, appMax: q.appMax != null ? q.appMax : null, weight: null,
+            type: "count", target: tg, unit: q.unit || "", xp: ECON.quest[rar][0], cats: null, limitPct: 0, limit: 0, vow: q.vow || null, app: q.app || null, appMax: q.appMax != null ? q.appMax : null, sessMax: q.sessMax || null, stopBB: q.stopBB || null, weight: null,
             offer: roll("ro" + q.id) < 0.5 ? "Не встиг — буває навіть із найкращими. Даю ще два дні й трохи нижчу планку. Зроблене не пропало." : "Брате, ти пройшов більше половини шляху. Не кидай на узбіччі: два дні — і доведи.",
             accept: "Добре. Цього разу — до кінця.", decline: "Як знаєш. Не кожну битву треба добивати.", done: "Доведено. Друга спроба — теж перемога.",
             st: "offer", offerOn: t0, cur: q.cur || 0, retry: 1, from0: q.from });
@@ -1378,7 +1394,7 @@
     let qid = "q" + hashStr((pid || p.id) + "|" + today()).toString(36); for (let n = 2; Q.list.some((x) => x.id === qid); n++) qid = "q" + hashStr((pid || p.id) + "|" + today()).toString(36) + "-" + n;
     return { id: qid, pid: pid || p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: ECON.quest[rar] ? ECON.quest[rar][0] : p.xp || 0,
-      lift: p.lift && p.lift.ex ? { ex: p.lift.ex, w: +p.lift.w || 0, r: +p.lift.r || 0 } : null, cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, weight: p.weight || null,
+      lift: p.lift && p.lift.ex ? { ex: p.lift.ex, w: +p.lift.w || 0, r: +p.lift.r || 0 } : null, cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, sessMax: +p.sessMax || null, stopBB: +p.stopBB || null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
       chest: !!p.chest, hold: !!p.hold, flash: /^\d\d:\d\d$/.test(p.flash || "") ? p.flash : null, next: p.next && p.next.t ? p.next : null, step: p.step || 1,
       st: "offer", offerOn: today(), cur: 0 };
@@ -1463,7 +1479,7 @@
       const rar = q.rar === "myth" ? "legend" : "rare";
       Q.list.push({ id: q.id + "e", pid: q.pid + "~e", rar, giver: q.giver, t: `Полегшене: ${q.t}`, scope: "day", days: 1,
         desc: `Менша мета: ${fmtN(tg)} ${q.unit || ""} замість ${fmtN(q.target)}. Строк той самий — по ${human(q.until)} включно (${left === 1 ? "лише сьогодні" : `ще ${left} дн. разом із сьогоднішнім`}). Уже є ${fmtN(q.cur || 0)} — вони зараховані. Нагорода скромніша.`,
-        type: "count", target: tg, unit: q.unit || "", xp: ECON.quest[rar][0], cats: null, limitPct: 0, limit: 0, vow: q.vow || null, app: q.app || null, appMax: q.appMax != null ? q.appMax : null, weight: null,
+        type: "count", target: tg, unit: q.unit || "", xp: ECON.quest[rar][0], cats: null, limitPct: 0, limit: 0, vow: q.vow || null, app: q.app || null, appMax: q.appMax != null ? q.appMax : null, sessMax: q.sessMax || null, stopBB: q.stopBB || null, weight: null,
         offer: "Бачу, брате, цей шлях зараз задовгий. Не кидай — візьми коротший: менша мета, той самий строк. Зроблене не пропаде.",
         accept: "Мудро. Краще дійти до ближчої вершини, ніж зірватися з далекої.", decline: "Добре. Тоді йди до повної мети — я вірю.", done: "Дійшов. Не так далеко, як планував, — але дійшов.",
         st: "offer", offerOn: t0, cur: q.cur || 0, replaces: q.id, from0: q.from, until0: q.until });
@@ -1970,7 +1986,9 @@
     if (hd.steps != null || hd.sleepMin || hd.up || hd.mind || hd.duo || apm.length || wl || slLine) h += `<div class="dy-body-line">${hd.up ? `<span><svg><use href="#i-sun"/></svg>підйом <b>${hd.up}</b></span>` : ""}${hd.sleepMin ? `<span${k === today() ? ' data-dsleep="1"' : ""}><svg><use href="#i-moon"/></svg>сон <b>${hm(hd.sleepMin)}</b></span>` : ""}${slLine}${hd.steps != null ? `<span><svg><use href="#i-steps"/></svg><b>${fmtN(hd.steps)}</b> кроків</span>` : ""}${hd.mind ? `<span>медитація${hd.mind > 1 ? ` <b>×${hd.mind}</b>` : ""}</span>` : ""}${hd.duo && (hd.duo.streak || hd.duo.today) && !(hd.apps && hd.apps.duolingo && hd.apps.duolingo.min >= 1) ? `<span>duolingo${hd.duo.streak ? ` <b>${hd.duo.streak}</b>🔥` : ""}${hd.duo.today ? ` · +${hd.duo.today} XP` : ""}</span>` : ""}${apm.map(([n, a]) => `<span>${n === "reading" ? `<svg><use href="#i-book"/></svg>` : ""}${esc(appName(n))} <b>${Math.floor(a.min)}</b> хв${n === "duolingo" && hd.duo && hd.duo.streak ? ` · <b>${hd.duo.streak}</b>🔥` : ""}</span>`).join("")}${wl ? `<span>вага <b>${fmtN(wl)}</b>${wa && wa !== wl ? ` · ~${fmtN(wa)}` : ""}</span>` : ""}</div>`;
     let more = "";                              // другорядне (кроки за місяць/рік, синхронізація) — під «більше»
     const pk = pDay(k);
-    if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}</span></div>`;
+    if (pk && pk.hands) h += `<div class="dy-body-line dy-body-line--sub"><span>покер <b>${fmtN(pk.hands)}</b> роздач${pk.sessions ? ` · ${pk.sessions} ${pk.sessions === 1 ? "сесія" : pk.sessions < 5 ? "сесії" : "сесій"}, ${(pk.min || 0) < 60 ? `${pk.min || 0} хв` : hm(pk.min).replace(" 00 хв", "")}` : ""}${pk.bb != null ? ` · <b class="${pk.bb >= 0 ? "pk-up" : "pk-down"}">${pk.bb >= 0 ? "+" : "−"}${fmtN(Math.abs(pk.bb))} bb</b>` : ""}</span></div>`;
+    /* з 20.11.2026 скрипт HM3 шле й гру: VPIP/PFR, вскриття, ліміт і кожну сесію (тривалість, bb) */
+    if (pk && pk.hands && pk.vpip != null) h += `<div class="dy-body-line dy-body-line--sub pk-stats"><span>${pk.stakes ? `${esc(pk.stakes)} · ` : ""}VPIP ${fmtN(pk.vpip)} / PFR ${fmtN(pk.pfr || 0)}${pk.wtsd ? ` · вскриття ${fmtN(pk.wtsd)}%, виграно ${fmtN(pk.wsd || 0)}%` : ""}</span>${(pk.sess || []).length ? `<span class="pk-sess">${pk.sess.map((x) => `<em>${x.s} · ${x.m} хв · <i class="${x.bb >= 0 ? "pk-up" : "pk-down"}">${x.bb >= 0 ? "+" : "−"}${fmtN(Math.abs(x.bb))}</i></em>`).join("")}</span>` : ""}</div>`;
     if (k === today()) h += `<div class="dy-hsync"><button type="button" data-hsync>${Date.now() - hSyncAt < 2 * 60e3 ? "оновлюю… (до хвилини)" : IOS ? "↻ оновити з телефона" : "↻ оновити дані"}</button></div>`;
     const pm = periodSteps(k.slice(0, 7)), py = periodSteps(k.slice(0, 4));
     if (pm || py) more += `<div class="dy-body-line dy-body-line--sub">${pm ? `<span>${MN[+k.slice(5, 7) - 1]} <b>${fmtN(pm.steps)}</b> · ~${fmtN(pm.avg)}/день</span>` : ""}${py ? `<span>${k.slice(0, 4)} <b>${fmtN(py.steps)}</b> · ~${fmtN(py.avg)}/день</span>` : ""}</div>`;

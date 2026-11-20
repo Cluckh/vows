@@ -2147,3 +2147,9 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .vt-cloud .dy-in{width:100%;box-sizing:border-box}
 #vtCloudMsg:empty{display:none}
 .dy-appfix{cursor:pointer}
+/* покер: результат дня й сесії (з HM3, з 20.11.2026) */
+.dy-body-line .pk-up,.pk-up{color:#7fb77e;font-style:normal}
+.dy-body-line .pk-down,.pk-down{color:#d0806a;font-style:normal}
+.dy-body-line.pk-stats{flex-wrap:wrap;row-gap:4px}
+.dy-body-line .pk-sess{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 12px;white-space:normal;opacity:.85;width:100%}
+.pk-sess>em{font-style:normal;white-space:nowrap}

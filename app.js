@@ -806,7 +806,11 @@ window.ORDO_START = function () {
   /* ================================================================ ВКЛАДКИ = */
   let TAB = "board";
   function showTab(name) {
-    if (name === TAB) return;
+    /* тап (чи подвійний тап) по іконці вкладки, на якій уже є, — плавно нагору до самого початку (День довгий: закрив унизу — відкрив унизу) */
+    if (name === TAB) {
+      if (window.scrollY > 0) { const rm = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches; window.scrollTo({ top: 0, behavior: rm ? "auto" : "smooth" }); FX.buzz("light"); }
+      return;
+    }
     TAB = name;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("is-on", t.dataset.tab === name));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("is-on", v.dataset.view === name));

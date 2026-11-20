@@ -253,26 +253,10 @@
     hSyncAt = Date.now(); LS.set("ordo.k.hsync", hSyncAt);
     if (IOS) location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(PHONE_SHORTCUT)}`; else { flushHealth(); render(); }
   }
-  /* події з телефона на GitHub чекають у черзі (ощадність хвилин Actions, 9.11.2026): просимо сховище розібрати її зараз — { flush: 1 } —
-     і кілька разів перечитуємо результат. На iPhone — після повернення зі «Швидких команд», з паузою, щоб команда встигла все надіслати */
-  /* «розбери чергу зараз»: спершу публічне сховище (безкоштовно); якщо токен Ордену туди не пускає — приватне, як раніше (добу не питаємо знову) */
-  function askSweep() {
-    const V = window.ORDO_VAULT; if (!V || !V.dispatch) return;
-    const priv = () => V.dispatch("health", { flush: 1 }).catch(() => {});
-    if (Date.now() - LS.get("ordo.k.pubNo", 0) < 864e5) { priv(); return; }
-    const was = HL && HL.at;
-    V.dispatch("health", { flush: 1 }, "pub").then((ok) => {
-      if (!ok) { LS.set("ordo.k.pubNo", Date.now()); priv(); return; }
-      setTimeout(() => { if ((HL && HL.at) === was) priv(); }, 60e3);       // публічний розбір за хвилину нічого не дав (напр. там ще нема секрету) — просимо приватний
-    }).catch(priv);
-  }
   const CLD = () => window.ORDO_CLOUD && window.ORDO_CLOUD.active() ? window.ORDO_CLOUD : null;
   function flushHealth() {
     hFlushAt = Date.now(); LS.set("ordo.k.hflush", hFlushAt);
-    if (CLD()) { [8, 20, 45].forEach((s) => setTimeout(() => loadHealth(true), s * 1000)); return; }   // база: розбір миттєвий і приходить сам (realtime) — лише підстраховка
-    const V = window.ORDO_VAULT;
-    setTimeout(askSweep, IOS ? 6000 : 0);
-    [35, 55, 80, 120].forEach((s) => setTimeout(() => { loadHealth(true); if (s === 120) render(); }, s * 1000));     // розбір на GitHub — ~25–50 с
+    [8, 20, 45].forEach((s) => setTimeout(() => loadHealth(true), s * 1000));     // база розбирає миттєво й шле наживо (realtime) — це лише підстраховка
   }
   function afterPhoneSync() {
     if (Date.now() - hSyncAt > 10 * 60e3 || hFlushAt >= hSyncAt) return;
@@ -290,20 +274,9 @@
     if (C && !hWatch) { hWatch = true; C.srvOn("health", takeHealth); }
     if (!force && Date.now() - hAt < 60e3) return;
     hAt = Date.now();
-    if (C) { takeHealth(await C.srvGet("health")); return; }
-    const V = window.ORDO_VAULT; if (!V || !V.readSealed) return;
-    try { takeHealth(await V.readSealed("health/log.json")); } catch (e) {}
-    autoFlush();
+    if (C) takeHealth(await C.srvGet("health"));
   }
-  /* Орден відкрили — сам просить сховище розібрати чергу подій з телефона, щоб хвилини YouTube, Reddit тощо були свіжі саме тоді, коли на них дивишся
-     (не частіше ніж раз на 10 хв і лише якщо даним понад 5 хв: кожен розбір — хвилина Actions). Розклад GitHub ненадійний, тож на нього не чекаємо */
-  function autoFlush() {
-    const age = HL && HL.at ? Date.now() - Date.parse(HL.at) : Infinity;
-    if (document.hidden || age < 5 * 60e3 || Date.now() - hFlushAt < 10 * 60e3 || Date.now() - hSyncAt < 10 * 60e3) return;
-    hFlushAt = Date.now(); LS.set("ordo.k.hflush", hFlushAt);
-    askSweep();
-    [30, 50, 90].forEach((s) => setTimeout(() => loadHealth(true), s * 1000));
-  }
+
   /* кроки з телефона — у лічильники з позначкою «кроки» і в квести на кроки */
   function applyHealth() {
     if (!HL || !HL.days) return;
@@ -1211,8 +1184,7 @@
     }
     settle(); render();
     const V = window.ORDO_VAULT, C = CLD();
-    if (C) C.call("herald", { loh: t0 });                                         // вісті протягом дня — від глашатая в базі
-    else if (V && V.dispatch) V.dispatch("herald", { loh: t0 }, "pub").then((ok) => { if (!ok) V.dispatch("herald", { loh: t0 }).catch(() => {}); }).catch(() => {});     // вісті протягом дня — від глашатая (публічне сховище; не вийшло — приватне)
+    if (C) C.call("herald", { loh: t0 });                                         // вісті протягом дня — від глашатая в базі     // вісті протягом дня — від глашатая (публічне сховище; не вийшло — приватне)
     lohScene(false);
     return true;
   }
@@ -2951,9 +2923,10 @@
     };
   }
   let wAt = LS.get("ordo.k.writerAt", 0);
+  /* зведення для писаря: з 20.11.2026 — у базу (srv writer_state, зашифроване ключем вмісту), не на GitHub */
   async function writerSync(force) {
-    const V = window.ORDO_VAULT; if (!V || !V.writeSealed || (!force && Date.now() - wAt < 45 * 60e3)) return;      // писар уночі бачить останнє зведення — не старше ~45 хв від останнього відкриття
-    try { if (await V.writeSealed("writer/state.json", writerState(), "писар: стан Ордену")) { wAt = Date.now(); LS.set("ordo.k.writerAt", wAt); } } catch (e) {}
+    const V = window.ORDO_VAULT, C = CLD(); if (!V || !V.seal || !C || (!force && Date.now() - wAt < 45 * 60e3)) return;      // писар уночі бачить останнє зведення — не старше ~45 хв від останнього відкриття
+    try { const box = await V.seal(writerState()); if (box && (await C.srvSet("writer_state", box))) { wAt = Date.now(); LS.set("ordo.k.writerAt", wAt); } } catch (e) {}
   }
   /* те, що написав писар: нові квести (у пул), репліки храмовників, листи, події-сцени */
   let DROP = LS.get("ordo.k.drop", null), dAt = 0;
@@ -2964,11 +2937,16 @@
     /* репліки писаря — лише «Слово дня» на екрані Дня; у вічні фрази храмовників не домішуємо, бо вони про конкретний день */
     if (Array.isArray(DROP.letters) && D().LETTERS) DROP.letters.forEach((l) => { if (!D().LETTERS.some((x) => x.id === l.id)) D().LETTERS.push(l); });
   }
+  /* видача писаря й зриви квестів-обітниць: з 20.11.2026 — з бази, наживо (писар публікує їх одразу після запису; раніше — файли з GitHub раз на 30 хв) */
+  const takeDrop = async (box) => { const V = window.ORDO_VAULT; if (!box || !V || !V.unseal) return; try { const d = await V.unseal(box); if (d && d.at !== (DROP && DROP.at)) { DROP = d; LS.set("ordo.k.drop", d); applyDrop(); render(); const A = API(); if (A.renderBoard) A.renderBoard(); } } catch (e) {} };
+  const takeBreaks = async (box) => { const V = window.ORDO_VAULT; if (!box || !V || !V.unseal) return; try { const b = await V.unseal(box); if (b && b.at !== (BREAKS && BREAKS.at)) { BREAKS = b; LS.set("ordo.k.breaks", b); settle(); render(); } } catch (e) {} };
+  let dWatch = false;
   async function loadDrop() {
-    const V = window.ORDO_VAULT; if (!V || !V.readSealed || Date.now() - dAt < 30 * 60e3) return;
+    const C = CLD(); if (!C) return;
+    if (!dWatch) { dWatch = true; C.srvOn("drop", takeDrop); C.srvOn("breaks", takeBreaks); }
+    if (Date.now() - dAt < 5 * 60e3) return;
     dAt = Date.now();
-    try { const d = await V.readSealed("writer/drop.json"); if (d && d.at !== (DROP && DROP.at)) { DROP = d; LS.set("ordo.k.drop", d); applyDrop(); render(); const A = API(); if (A.renderBoard) A.renderBoard(); } } catch (e) {}
-    try { const b = await V.readSealed("writer/breaks.json"); if (b && b.at !== (BREAKS && BREAKS.at)) { BREAKS = b; LS.set("ordo.k.breaks", b); settle(); render(); } } catch (e) {}
+    await takeDrop(await C.srvGet("drop")); await takeBreaks(await C.srvGet("breaks"));
   }
   /* порушені обітниці-квести: «Не міняти Орден» — коли власник попросив нову фішку (не фікс), Claude записує це в writer/breaks.json, і квест провалюється сам */
   let BREAKS = LS.get("ordo.k.breaks", null);

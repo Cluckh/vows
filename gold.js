@@ -375,8 +375,8 @@
   const scene = (n) => ART["scene:" + n] || null;
   /* звідки арти: з бази (Storage, з 20.11.2026); без входу в базу — зашифровані файли приватного сховища на GitHub, як раніше */
   const CLA = () => window.ORDO_CLOUD && window.ORDO_CLOUD.active() && window.ORDO_CLOUD.artBlob ? window.ORDO_CLOUD : null;
-  const artSrc = () => !!(CLA() || (window.ORDO_VAULT && window.ORDO_VAULT.readSealedBlob));
-  async function fetchArt(n) { const C = CLA(); if (C) return C.artBlob(n); const V = window.ORDO_VAULT; return V && V.readSealedBlob ? V.readSealedBlob(`art/sealed/${n}.json`) : null; }
+  const artSrc = () => !!CLA();
+  async function fetchArt(n) { const C = CLA(); return C ? C.artBlob(n) : null; }
   /* щойно намальоване (бібліотека): забути «не знайдено» й підтягнути знову */
   function artRetry(keys) { const miss = LS.get("ordo.k.artMiss", {}); keys.forEach((k) => { const i = k.indexOf(":"); delete miss[artName(k.slice(0, i), k.slice(i + 1))]; WANT.delete(k); }); LS.set("ordo.k.artMiss", miss); want(keys); }
   /* арт за запитом (ілюстрації моментів писаря): той самий кеш «ordo-art», що й для реліквій */
@@ -709,9 +709,9 @@
      тож поки є виведення в дорозі — просимо виписку кілька разів (не частіше ніж раз на ~90 с: ліміт API банку) і перечитуємо її між запитами.
      Також — одразу, щойно повертаєшся в Орден після монобанку, і кнопкою «Оновити». */
   let lastAsk = 0, syncing = false;
-  function askBank() { const V = window.ORDO_VAULT; if (Date.now() - lastAsk < 85e3) return;
-    if (T() && T().refresh && window.ORDO_CLOUD && window.ORDO_CLOUD.active()) { lastAsk = Date.now(); T().refresh(pending().length > 0).then(readBank); return; }     // база: вебхук і так миттєвий — це підстраховка
-    if (!V || !V.dispatch) return; lastAsk = Date.now(); LS.set("ordo.k.bankAsk", Date.now()); V.dispatch("bank", pending().length ? { white: 1 } : null); }      // чекаємо поповнення — банк тягне лише білу картку
+  function askBank() { if (Date.now() - lastAsk < 85e3) return;
+    if (T() && T().refresh && window.ORDO_CLOUD && window.ORDO_CLOUD.active()) { lastAsk = Date.now(); T().refresh(pending().length > 0).then(readBank); }     // база: вебхук і так миттєвий — це підстраховка
+  }
   async function readBank() {
     if (T() && T().load) await T().load(true);
     if (reconcile()) { refreshViews(); const d = Object.values(G.out).filter((o) => o.done && Date.now() - o.done < 60 * 60e3).sort((a, b) => b.done - a.done); if (d.length) toast(`${coin()}<b>${fmtN(d[0].amt)} ₴</b> на білій картці`); }

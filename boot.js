@@ -425,7 +425,6 @@
   const unb64u = (s) => unb64(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
   const pushCan = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   const standalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
-  const pushFile = () => `push/${devId().replace(/[^a-z0-9]/gi, "")}.json`;
   const pushOn = () => pushCan() && Notification.permission === "granted" && !!LS.get("ordo.k.push", null);
   /* діагностика для відправника: версія service worker, додатка й останній виклик */
   async function diag() {
@@ -441,8 +440,8 @@
   const pushDev = () => devId().replace(/[^a-z0-9]/gi, "");
   async function pushSave(sub) {
     const j = sub.toJSON(), dg = await diag(), CL = window.ORDO_CLOUD && window.ORDO_CLOUD.active() ? window.ORDO_CLOUD : null;
-    if (CL) { if (!(await CL.pushSub(pushDev(), { sub: j, ua: navigator.userAgent.slice(0, 160), diag: dg, off: false, gone: null }))) throw new Error("база не прийняла адресу"); }
-    else await putFile(pushFile(), JSON.stringify({ sub: j, ua: navigator.userAgent.slice(0, 160), at: new Date().toISOString(), diag: dg }, null, 1), "вісті: адреса пристрою");
+    if (!CL) throw new Error("спершу увійди в базу (Сховище)");
+    if (!(await CL.pushSub(pushDev(), { sub: j, ua: navigator.userAgent.slice(0, 160), diag: dg, off: false, gone: null }))) throw new Error("база не прийняла адресу");
     LS.set("ordo.k.push", { ep: j.endpoint, at: Date.now(), dg: JSON.stringify(dg) });
   }
   async function pushEnable() {
@@ -457,14 +456,13 @@
     try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {}
     const CL = window.ORDO_CLOUD && window.ORDO_CLOUD.active() ? window.ORDO_CLOUD : null;
     if (CL) await CL.pushSub(pushDev(), { off: true });
-    else try { await putFile(pushFile(), JSON.stringify({ off: true, at: new Date().toISOString() }) + "\n", "вісті: вимкнено"); } catch (e) {}
     LS.del("ordo.k.push");
   }
   /* адреса пушів інколи змінюється — тихо оновлюємо її в сховищі */
   async function pushRefresh() {
     if (!pushOn()) return;
-    const cl = cloudActive() ? "db" : "gh";
-    if (cl === "gh" && !token()) return;
+    if (!cloudActive()) return;
+    const cl = "db";
     try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); const was = LS.get("ordo.k.push", {});
       /* перший запуск після переїзду на базу — адресу кладемо в базу, навіть якщо вона та сама */
       if (sub && (sub.endpoint !== was.ep || JSON.stringify(await diag()) !== was.dg || (was.to || "gh") !== cl)) { await pushSave(sub); LS.set("ordo.k.push", Object.assign(LS.get("ordo.k.push", {}), { to: cl })); } } catch (e) {}
@@ -476,14 +474,14 @@
   const callKey = (url) => { try { return [...new URL(url, location.href).searchParams].map(([k, v]) => `${k}=${v}`).sort().join("&"); } catch (e) { return String(url); } };
   const callShown = (url) => { const c = LS.get("ordo.calls", {}) || {}, t = c[callKey(url)]; return !!t && Date.now() - t < 24 * 3600e3; };
   async function checkInbox() {
-    if (!token() && !cloudActive()) return;
+    if (!cloudActive()) return;
     if (busy && inboxWait < 8) { inboxWait++; setTimeout(checkInbox, 1200); return; }       // спершу хай дійде стан з іншого пристрою
     inboxWait = 0;
     if (reloadPending) return;
     if (Date.now() - inboxAt < 15000) { clearTimeout(inboxT); inboxT = setTimeout(checkInbox, 15200 - (Date.now() - inboxAt)); return; }      // щойно дивились — глянемо трохи згодом, а не ніколи
     inboxAt = Date.now();
     try {
-      const box = (cloudActive() ? await window.ORDO_CLOUD.srvGet("inbox") : JSON.parse((await gh("push/inbox.json", { raw: true })) || "{}")) || {}, seen = LS.get("ordo.k.inbox", 0);
+      const box = (await window.ORDO_CLOUD.srvGet("inbox")) || {}, seen = LS.get("ordo.k.inbox", 0);
       const it = (box.items || []).filter((x) => x.url && x.url.includes("call=") && x.at > seen && Date.now() - x.at < 12 * 3600e3 && !callShown(x.url)).sort((a, b) => b.at - a.at)[0];
       if (!it) return;
       LS.set("ordo.k.inbox", it.at);
@@ -513,7 +511,7 @@
   }
   async function loadHerald() {
     if (Date.now() - heraldAt < 10 * 60e3) return; heraldAt = Date.now();
-    try { if (cloudActive()) herald = await window.ORDO_CLOUD.srvGet("push_state"); else { const txt = await gh("push/state.json", { raw: true }); herald = txt ? JSON.parse(txt) : null; } if (statusEl) renderVault(); } catch (e) {}
+    try { if (cloudActive()) { herald = await window.ORDO_CLOUD.srvGet("push_state"); if (statusEl) renderVault(); } } catch (e) {}
   }
   function renderVault() {
     const box = $("vaultBody"); if (!box) return;
@@ -659,31 +657,11 @@
     const txt = await gh(path, { raw: true }); if (!txt) return null;
     return JSON.parse(await open(unb64(raw), JSON.parse(txt)));
   }
-  /* зашифрована картинка (арти реліквій, сцен): { mime, iv, ct } → Blob; null, якщо файлу нема */
-  async function readSealedBlob(path) {
-    const raw = LS.get(K.content, null); if (!raw || !token()) return null;
-    const txt = await gh(path, { raw: true }); if (!txt) return null;
-    const f = JSON.parse(txt), pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(f.iv) }, await aesKey(unb64(raw)), unb64(f.ct));
-    return new Blob([pt], { type: f.mime || "image/jpeg" });
-  }
-  async function writeSealed(path, obj, message) {
-    const raw = LS.get(K.content, null); if (!raw || !token()) return false;
-    const box = await seal(unb64(raw), JSON.stringify(obj));
-    await putFile(path, JSON.stringify({ v: 1, alg: "AES-256-GCM", iv: box.iv, ct: box.ct }) + "\n", message || "дані");
-    return true;
-  }
-  /* попросити сховище оновитися (repository_dispatch): напр. свіжу виписку банку, коли Орден відкрито */
-  /* repo "pub" — публічне сховище Cluckh/vows: там розбір подій здоровʼя безкоштовний (хвилини Actions без ліміту). Токен може не мати туди доступу — тоді false */
-  async function dispatch(type, payload, repo) {
-    if (!token()) return false;
-    try {
-      const r = await fetch(`https://api.github.com/repos/${repo === "pub" ? "Cluckh/vows" : REPO}/dispatches`, { method: "POST",
-        headers: { Authorization: `Bearer ${token()}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify(payload ? { event_type: type, client_payload: payload } : { event_type: type }) });
-      return r.status === 204;
-    } catch (e) { return false; }
-  }
+  /* зашифровані ключем вмісту обʼєкти в базі (видача писаря, зведення для нього): { iv, ct } ⇄ обʼєкт */
+  async function sealObj(obj) { const raw = LS.get(K.content, null); if (!raw) return null; const box = await seal(unb64(raw), JSON.stringify(obj)); return { v: 1, alg: "AES-256-GCM", iv: box.iv, ct: box.ct }; }
+  async function unsealObj(box) { const raw = LS.get(K.content, null); if (!raw || !box || !box.ct) return null; return JSON.parse(await open(unb64(raw), box)); }
   /* сцени (події, моменти, квести) чекають, поки синхронізація не скаже, що вже бачено на іншому пристрої */
-  window.ORDO_VAULT = { callKey, callShown, fresh, hold: () => reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, readSealedBlob, writeSealed, dispatch };
+  window.ORDO_VAULT = { callKey, callShown, fresh, hold: () => reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, seal: sealObj, unseal: unsealObj };
 
   async function boot() {
     let vault;

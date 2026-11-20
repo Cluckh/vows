@@ -288,6 +288,11 @@
     if (!active) return null;
     try { const { data } = await sb.from("ingest_keys").select("token").eq("user_id", user.id).maybeSingle(); return data ? { url: URL0 + "/functions/v1/ingest", token: data.token } : null; } catch (e) { return null; }
   }
+  /* власний запис у srv — лише зведення для писаря (writer_state; так дозволяє політика бази) */
+  async function srvSet(k, val) {
+    if (!active) return false;
+    try { const { error } = await sb.from("srv").upsert({ user_id: user.id, k, val, ts: new Date().toISOString() }, { onConflict: "user_id,k" }); return !error; } catch (e) { return false; }
+  }
   /* адреса пушів пристрою (глашатай бази читає звідси) */
   async function pushSub(dev, row) {
     if (!active) return false;
@@ -301,7 +306,7 @@
   }
 
   window.ORDO_CLOUD = {
-    artBlob, srvGet, srvOn, call, ingestKey, pushSub,
+    artBlob, srvGet, srvSet, srvOn, call, ingestKey, pushSub,
     init, signIn, signUp, signOut, claim, catchUp, onSet, flush: sendDirty,
     active: () => active, user: () => user && user.email, status: () => ({ status, err: lastErr, pend: pend.size, ts: lastTs, caughtAt }),
     _t: { flatten, unflatten }

@@ -1,7 +1,7 @@
 /* ============================================================================
    ORDO — Скарбниця: витрати з банку в паладинських термінах.
-   Виписку тягне GitHub Action у приватному репозиторії (bank/summary.json,
-   зашифровано ключем сховища). Тут — лише показ, коментарі храмовників,
+   Виписка — у базі (з 20.11.2026): монобанк сам повідомляє про кожну транзакцію, підсумок приходить сюди наживо.
+   Тут — лише показ, коментарі храмовників,
    сторожа обітниць (розмова, не вирок) і дані для бюджетних квестів.
    Тексти — у зашифрованому вмісті (D.DAY.bank).
    ========================================================================== */
@@ -45,20 +45,11 @@
     if (C && !bWatch) { bWatch = true; C.srvOn("bank", take); }
     if (!force && Date.now() - loadedAt < 10 * 60e3) return;
     loadedAt = Date.now();
-    if (C) { take(await C.srvGet("bank")); return; }
-    const V = window.ORDO_VAULT; if (!V || !V.readSealed) return;
-    try { const s = await V.readSealed("bank/summary.json"); ask(s); take(s); } catch (e) {}
+    if (C) take(await C.srvGet("bank"));
   }
   /* «Оновити» / чекаю поповнення білої: база питає банк сама (крок звірки), відповідь прийде наживо */
   async function refresh(white) { const C = CLB(); if (!C) return false; await C.call("bank", { sync: true, white: !!white }); await load(true); return true; }
 
-  /* виписці понад 3 год, а Орден відкрито — попросити свіжу (не частіше ніж раз на 3 год: кожен запит — хвилина GitHub Actions); свіжіше — кнопкою «Оновити» */
-  function ask(s) {
-    const V = window.ORDO_VAULT, age = s && s.at ? Date.now() - Date.parse(s.at) : Infinity, last = LS.get("ordo.k.bankAsk", 0);
-    if (!V || !V.dispatch || age < 3 * 3600e3 || Date.now() - last < 3 * 3600e3) return;
-    LS.set("ordo.k.bankAsk", Date.now());
-    V.dispatch("bank").then((ok) => { if (ok) [2, 4, 7].forEach((m) => setTimeout(() => load(true), m * 60e3)); });
-  }
   /* ------------------------------------------------------------ обчислення */
   const EXCL = ["home", "healer", "tithe"];                   // обовʼязкове — не рахуємо в «ощадливість»
   function spentIn(cats, from, to) {

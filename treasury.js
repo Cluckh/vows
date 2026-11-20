@@ -149,20 +149,22 @@
   });
 
   /* --------------------------------------------------------------- сцени */
+  /* хто отримав переказ: монобанк дає імʼя в описі («Анна Х.»), а не в counterName; «Переказ на картку» без імені — не запамʼятовуємо */
+  const whoKey = (t) => { const k = (t.cn || t.d || "").trim(); return /^переказ на картку$/i.test(k) ? "" : k; };
   async function watchScene(t) {
     const h = H(), A = API(); if (!h) return false;
     const L = (((D().DAY || {}).bank || {}).watch || {})[t.w] || {};
     const d = new Date(t.t * 1000);
-    const o = { sum: money(t.a), what: t.d || "покупка", who: (t.cn || "невідомому").replace(/[.\s]+$/, ""), when: `${d.getDate()} ${MG[d.getMonth()]}` };
+    const o = { sum: money(t.a), what: t.d || "покупка", who: (whoKey(t) || "на картку без імені").replace(/[.\s]+$/, ""), when: `${d.getDate()} ${MG[d.getMonth()]}` };
     h.stage(t.w);
     if ((await h.say(fill(L.ask || "Брате, бачу в книзі скарбниці: {when} — {what}, {sum}. Розкажеш?", o))) === "closed") return false;
     const opts = L.c || [{ t: "Усе гідно", v: "ok", r: "Добре. Вірю." }, { t: "Це був зрив", v: "breach", r: "Дякую за чесність. Відміть його — і починаємо знову." }, { t: "Не зараз", v: "later", r: "Гаразд. Повернемось до цього." }];
     const i = await h.choose(fill(L.q || "Що це було?", o), opts.map((x) => fill(x.t, o)), "hall__acts--list");
     if (i === "closed") return false;
-    const ch = opts[i];
-    W.seen[t.id] = ch.v === "family" ? "ok" : ch.v; if (ch.v === "family" && t.cn && !W.ok.includes(t.cn)) W.ok.push(t.cn);
+    const ch = opts[i], wk = whoKey(t);
+    W.seen[t.id] = ch.v === "family" ? "ok" : ch.v; if (ch.v === "family" && wk && !W.ok.includes(wk)) W.ok.push(wk);
     saveW();
-    await h.say(fill(ch.r, o));
+    await h.say(ch.v === "family" && !wk ? "Добре. Імені отримувача банк не показав, тож запамʼятати не можу — наступного разу спитаю знову." : fill(ch.r, o));
     if (ch.v === "breach" && A.openVow) { h.close(); setTimeout(() => A.openVow(t.w), 450); return false; }
     return true;
   }
@@ -217,7 +219,7 @@
     if (!B || !B.watch) { const h = H(); if (U.length && h && h.isOpen()) h.close(); return; }
     const cutoff = Date.now() / 1000 - 3 * 86400;                  // питаємо лише про свіже; старше — у списку сторожі
     const ask = BK().ask || [], named = BK().named || [];
-    const todo = B.watch.filter((t) => ask.includes(t.w) && !W.seen[t.id] && t.t >= cutoff && !(named.includes(t.w) && W.ok.includes(t.cn))).slice(0, 2);
+    const todo = B.watch.filter((t) => ask.includes(t.w) && !W.seen[t.id] && t.t >= cutoff && !(named.includes(t.w) && W.ok.includes(whoKey(t)))).slice(0, 2);
     for (const t of todo) { if (!(await watchScene(t))) return; }
     await weekScene();
     const h = H(); if (h && h.isOpen()) h.close();

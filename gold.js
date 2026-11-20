@@ -22,14 +22,14 @@
     return `${t.getFullYear()}-W${p2(1 + Math.round(((t - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7))}`; };
   const fx = (s) => { const A = API(); if (A.FX) { if (A.FX.play) A.FX.play(s); if (A.FX.buzz) A.FX.buzz(s === "yes" ? "medium" : "light"); } };
 
-  const START = "2026-11-08";                                  // нова економіка: золото, жетони й виведення до 8.11 обнулено (власник, 8.11)
+  const START = "2026-11-21";                                  // економіка 21.11 (чверть від 8.11): золото, жетони й виведення до 21.11 обнулено (власник, 20.11; перше обнулення — 8.11)
   const START_T = Date.parse(START + "T00:00:00+02:00") / 1000;
   const RN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
   const DROP = { rare: 0.15, legend: 0.4, myth: 1 };          // шанс спорядження за виконаний квест
   const TOKEN_Q = { rare: 0.2, legend: 0.35, myth: 0.6 };      // шанс жетона (перекидання, відстрочка, друге дихання, печатка) чи еліксиру за виконаний квест
   const BLESS = 0.05;
-  /* скрині (19.11): не частіше ніж 2 на тиждень (пн–нд) з усіх джерел, і золота з однієї — не більше 150 */
-  const CHEST_WEEK = 2, CHEST_GOLD = 150;
+  /* скрині (19.11): не частіше ніж 2 на тиждень (пн–нд) з усіх джерел, і золота з однієї — не більше 40 (з 21.11; було 150) */
+  const CHEST_WEEK = 2, CHEST_GOLD = 40;
   const CHEST_Q = 0.12;                                        // шанс несподіваної скрині за виконаний квест (писар може дати й напевно: chest: true)                                          // базовий шанс благословення
   /* місця для реліквій: 3, далі — за званням (D.PERKS.slots: Лицар Хреста — 4-те, Маршал — 5-те) */
   const rankIdx = () => { const Dy = DAY(), lv = Dy && Dy.levelOf ? Dy.levelOf() : null; return lv ? lv.ri : 0; };
@@ -40,9 +40,9 @@
   const SHOP = [
     /* золото = гривні білої картки: у крамниці — лише дешеві корисні дрібниці, ціна — частка того, що вони рятують. Скринь за гроші нема:
        скрині — тільки нагорода (рівень, недільна, від храмовників, зрідка за квест) */
-    { id: "reroll", n: "Жетон перекидання", p: 60, d: "Не твоє доручення? Попроси в храмовника інше." },
-    { id: "extend", n: "Жетон відстрочки", p: 120, d: "+1 день до активного квесту — щоб не втратити 300–2000 золота за день." },
-    { id: "scroll", n: "Пергамент доручення", p: 200, d: "Верховний одразу пропонує легендарний квест (800 золота, якщо виконаєш). Раз на тиждень." }
+    { id: "reroll", n: "Жетон перекидання", p: 15, d: "Не твоє доручення? Попроси в храмовника інше." },
+    { id: "extend", n: "Жетон відстрочки", p: 30, d: "+1 день до активного квесту — щоб не втратити 75–500 золота за день." },
+    { id: "scroll", n: "Пергамент доручення", p: 50, d: "Верховний одразу пропонує легендарний квест (200 золота, якщо виконаєш). Раз на тиждень." }
   ];
 
   /* G синхронізується між пристроями (boot.js обʼєднує кожен розділ):
@@ -135,8 +135,8 @@
     if (p === "v") return E.vowDay[1];                                          // чистий день обітниці
     if (p === "a") return E.achGold ? E.achGold(e.xp0 || e.xp, e.d) : E.ach[1];         // нагорода: золото за складністю (досвід × 1, від 50; до 19.11 — × 2)
     if (p === "mo") return e.gold || 0;                                           // нагорода за момент від писаря
-    if (p === "g") return e.xp >= 400 ? 300 : 80;                               // старі записи цілей без ціни
-    if (p === "gm") return Math.round(e.xp / 2);                                // ревю: відсоток виконаного
+    if (p === "g") return e.xp >= 400 ? 75 : 20;                                 // старі записи цілей без ціни
+    if (p === "gm") return Math.round(e.xp / 8);                                // ревю: відсоток виконаного
     if (p === "vm") { const m = +id.split(":")[2], v = E.milestone[m]; return v ? v[1] : Math.round(m * 1.5); }
     if (p === "q") { const q = Q.list.find((x) => "q:" + x.id === id), b = (E.quest[q && q.rar] || E.quest.rare)[1]; return q && q.st === "part" ? Math.round(b * Math.min(1, (q.cur || 0) / (q.target || 1)) * 0.6) : b; }     // частково — як і досвід: частка прогресу × 0.6
     return 0;
@@ -171,7 +171,7 @@
   function grant(id, src, cap) {
     if (!relic(id)) return null;
     if (G.own[id]) {                                           // дублікат — переплавка в золото (зі скрині — не більше CHEST_GOLD)
-      const g = Math.min(cap || Infinity, { common: 100, rare: 250, legend: 600, myth: 1500 }[relic(id).rar]);
+      const g = Math.min(cap || Infinity, { common: 25, rare: 60, legend: 150, myth: 375 }[relic(id).rar]);
       G.inc["dup:" + id + ":" + Date.now()] = { at: Date.now(), amt: g, why: `переплавлено: ${relic(id).n}` };
       return { dup: true, id, g };
     }
@@ -273,7 +273,7 @@
       const n = pds.filter((d) => d >= mk && d <= sk).length; if (n < 5) continue;
       if (chestsWeek() >= CHEST_WEEK) continue;                 // цього тижня скринь уже досить — недільна почекає наступного
       G.wk[sk] = Date.now(); ch = true;
-      const x = roll("wk" + sk), g = Math.min(CHEST_GOLD, 100 + Math.round(roll("wkg" + sk) * 30) + (n - 5) * 10);
+      const x = roll("wk" + sk), g = Math.min(CHEST_GOLD, 25 + Math.round(roll("wkg" + sk) * 8) + (n - 5) * 3);
       G.inc["wk:" + sk] = { at: Date.now(), amt: g, why: `недільна скриня · ${n} ідеальних днів` };
       const loot = { weekChest: true, n, g };
       if (x < 0.4) { const rr = roll("wkr" + sk), id = randomRelic(rr < 0.03 ? "myth" : rr < 0.2 ? "legend" : rr < 0.55 ? "rare" : "common", "wkp" + sk); if (id) { const r = grant(id, "недільна скриня"); if (r && !r.dup) loot.relic = id; } }
@@ -304,7 +304,7 @@
       const p = pending().sort((a, b) => (a.amt === amt ? -1 : 0) - (b.amt === amt ? -1 : 0) || a.at - b.at)[0];
       if (p) Object.assign(p, { st: "done", amt, tx: t.id, done: t.t * 1000 });                       // очікуване виведення прийшло (можна й іншою сумою)
       /* поповнення без виводу золота: 8.11 — стартові 10 000 (останні власні); далі — Скарбник спитає (кешаут покеру, повернення чи зрив Скарбниці) */
-      else G.uns[t.id] = { at: t.t * 1000, amt, st: dayOf(t.t * 1000) === START ? "seed" : "ask" };
+      else G.uns[t.id] = { at: t.t * 1000, amt, st: dayOf(t.t * 1000) === "2026-11-08" ? "seed" : "ask" };
       ch = true;
     });
     pending().forEach((p) => { if (Date.now() - p.at > 24 * 3600e3) { p.st = "cancel"; ch = true; } });   // доба без поповнення — золото повертається
@@ -612,7 +612,7 @@
     let r = rnd("r") * W.reduce((a, v) => a + v, 0), R = "common"; for (let j = 0; j < 4; j++) { r -= W[j]; if (r <= 0) { R = RO[j]; break; } }
     let L = null;
     if (x < (kind === "cmd" ? 1 : kind === "paid" ? 0.85 : 0.6)) { const rid = pickItem(R, rnd, "p"); if (rid) L = { kind: "relic", id: rid }; }
-    if (!L) { const y = rnd("y"); L = kind === "gift" && y < 0.35 ? { kind: "gold", g: 60 + Math.floor(rnd("g") * (CHEST_GOLD - 59)) } : { kind: "token", t: y < 0.55 ? "reroll" : y < 0.85 ? "extend" : "breath" }; }
+    if (!L) { const y = rnd("y"); L = kind === "gift" && y < 0.35 ? { kind: "gold", g: 15 + Math.floor(rnd("g") * (CHEST_GOLD - 14)) } : { kind: "token", t: y < 0.55 ? "reroll" : y < 0.85 ? "extend" : "breath" }; }
     if (L.kind === "gold") G.inc[id] = { at: Date.now(), amt: L.g, why: L.jack ? "скарб зі скрині" : seed ? "дарована скриня" : "зі скрині Сенешаля" };
     if (L.kind === "token") G.tk[id] = { kind: L.t, d: 1, at: Date.now() };
     if (L.kind === "relic") { const r = grant(L.id, seed ? "дарована скриня" : "скриня Сенешаля", CHEST_GOLD); if (r && r.dup) L = { kind: "gold", g: r.g }; }
@@ -754,5 +754,5 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}     // попросити браузер не викидати кеш артів
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
+  window.ORDO_GOLD = { _hist: history, artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

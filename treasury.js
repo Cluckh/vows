@@ -193,7 +193,7 @@
     if ((await h.say(fill(L.ask || "Брате, на білу картку прийшло {sum} — {when}. Це не виведене золото Ордену. Звідки воно?", o))) === "closed") return false;
     const opts = L.c || [{ t: "Кешаут з покеру", v: "poker", r: "Добре. Кешаут — чесна здобич. Записав у книгу." },
       { t: "Повернення, кешбек, випадкове", v: "ok", r: "Добре, записав. Випадкове — не гріх." },
-      { t: "Поповнив сам — це зрив", v: "breach", r: "Дякую за правду. Відміть зрив Скарбниці — і з завтра знову лише заслужене." },
+      { t: "Поповнив сам — це зрив", v: "breach", r: "Дякую за правду. Відміть зрив Гідності — і з завтра знову лише заслужене." },
       { t: "Не зараз", v: "later", r: "Гаразд. Спитаю пізніше." }];
     const i = await h.choose(fill(L.q || "Що це було?", o), opts.map((x) => fill(x.t, o)), "hall__acts--list");
     if (i === "closed") return false;
@@ -201,6 +201,15 @@
     await h.say(fill(ch.r, o));
     if (ch.v === "breach" && A.openVow) { h.close(); setTimeout(() => A.openVow("dignity"), 450); return false; }
     return true;
+  }
+  /* миттєва вість про переказ (./?call=xfer&id=<tx>): одразу питання «що це?» — не чекаючи, поки дійде черга сцен */
+  async function xfer(id) {
+    const h = H(); if (!h) return;
+    let t = null;
+    for (let i = 0; i < 4 && !t; i++) { if (i) await new Promise((r) => setTimeout(r, 1500)); await load(true); t = B && B.watch ? B.watch.find((x) => x.id === id) : null; }
+    if (!t) return;
+    if (W.seen[t.id]) { h.stage(t.w); await h.say("Про цей переказ ти вже відповів. Дякую."); if (h.isOpen()) h.close(); return; }
+    if (await watchScene(t)) { const h2 = H(); if (h2 && h2.isOpen()) h2.close(); }
   }
   async function scenes() {
     const U = window.ORDO_GOLD && window.ORDO_GOLD.unsealed ? window.ORDO_GOLD.unsealed() : [];
@@ -214,5 +223,5 @@
     const h = H(); if (h && h.isOpen()) h.close();
   }
 
-  window.ORDO_TREASURY = { refresh, load, statsHTML, scenes, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {}, accs: () => (B && B.accs) || [], white: () => (B && B.white) || null };
+  window.ORDO_TREASURY = { refresh, load, statsHTML, scenes, xfer, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {}, accs: () => (B && B.accs) || [], white: () => (B && B.white) || null };
 })();

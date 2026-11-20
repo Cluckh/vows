@@ -629,6 +629,7 @@
     if (id === "letter") return letter(text);
     if (id === "moment") { const DY = window.ORDO_DAY; return DY && DY.playMomentId ? DY.playMomentId(text) : null; }
     if (id === "supreme" && mode === "legend") return morningSupreme();
+    if (id === "xfer") { const T = window.ORDO_TREASURY; return T && T.xfer ? T.xfer(text) : null; }     // миттєва вість про переказ
     /* Сенешаль і літописець (вісті глашатая, напр. зі Скарбниці): сказав — і зала зачиняється; раніше такий виклик мовчки губився */
     if (id === "seneschal" || id === "chronicler") { stage(id); if (text && (await say(text)) === "closed") return; close(); return; }
     const K = D().KEEPERS || {}; if (!K[id]) return;

@@ -713,9 +713,13 @@ window.ORDO_START = function () {
 
   /* ======================================================= ВІДМІТКА ВІКНА === */
   let markVow = null, markN = 1;
+  /* window.gap — не частіше ніж раз на стільки днів (Чистота: раз на тиждень); скільки днів від попередньої відмітки */
+  const sinceMark = (v) => { const t = todayKey(), last = LOG.filter((e) => e.k === "mark" && e.v === v.id && e.d < t).map((e) => e.d).sort().pop();
+    return last ? dayDiff(parseLocal(t), parseLocal(last)) : Infinity; };
   function markPlan(v, n) {
     const W = v.window, used = windowsUsed(v), ex = todayMark(v);
     if (W.perDay && n > W.perDay) return "breach-count";
+    if (W.gap && sinceMark(v) < W.gap) return "breach-gap";
     if (ex && W.perDay) return "update";
     return used >= W.limit ? "breach-limit" : "mark";
   }
@@ -726,6 +730,7 @@ window.ORDO_START = function () {
     let txt;
     if (plan === "breach-count") txt = `Понад ${W.perDay} за день — це зрив. Стрік почнеться з нуля.`;
     else if (plan === "update") txt = `Сьогодні вже відмічено: <b>${ex.n}</b>. Онови кількість за день — вікно не витрачається вдруге.`;
+    else if (plan === "breach-gap") { const k = sinceMark(v); txt = `Попередня відмітка — ${k} ${daysWord(k)} тому. Не частіше разу на ${W.gap === 7 ? "тиждень" : W.gap + " днів"}: ця відмітка — зрив, стрік з нуля.`; }
     else if (plan === "breach-limit") txt = `Вікна ${MONTHS_LOC[new Date().getMonth()]} вичерпано (${W.limit} з ${W.limit}). Ця відмітка — зрив, стрік з нуля.`;
     else txt = `Використати вікно? Лишиться <b>${W.limit - used - 1} з ${W.limit}</b>. День заморожується — стрік не згорає.`;
     if (t) t.innerHTML = txt;
@@ -763,7 +768,7 @@ window.ORDO_START = function () {
     const plan = markPlan(v, markN), t = todayKey();
     if (plan === "update") { const ex = todayMark(v); ex.n = markN; ex.ts = Date.now(); saveLog(); }
     else if (plan === "mark") logPush({ k: "mark", v: v.id, d: t, n: v.window.perDay ? markN : undefined, w: windowsUsed(v) + 1 });
-    else breach(v, plan === "breach-count" ? "count" : "limit", v.window.perDay ? markN : undefined);
+    else breach(v, plan === "breach-count" ? "count" : plan === "breach-gap" ? "gap" : "limit", v.window.perDay ? markN : undefined);
     closeMark(); renderBoard();
     const bad = plan.startsWith("breach");
     FX.play(bad ? "over" : "mark", true); FX.buzz(bad ? "heavy" : "medium");
@@ -1197,7 +1202,7 @@ window.ORDO_START = function () {
   }
   /* звідки місячна чи річна ціль бере число: вручну, з привʼязаних денних цілей, зі «Здоровʼя» (кроки, медитації, вага) чи з HM3.
      Старі цілі без поля src — за назвою */
-  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації", faith: "дні вірності", journal: "сповіді", pages: "сторінки", gym: "зали", cardio: "кардіо", books: "дочитані книжки", games: "пройдені ігри" },
+  const SRCG = { count: { "": "вручну", link: "денні цілі", steps: "кроки", poker: "роздачі", mind: "медитації", faith: "дні вірності", allvows: "дні всіх обітниць", journal: "сповіді", pages: "сторінки", gym: "зали", cardio: "кардіо", books: "дочитані книжки", games: "пройдені ігри" },
                  measure: { "": "вручну", steps: "кроки (середнє)", poker: "роздачі (середнє)", weight: "вага", jar: "скарбничка" } };
   function goalSrc(it) {
     if (it.src != null) return it.src;
@@ -1216,6 +1221,8 @@ window.ORDO_START = function () {
     const [a, b] = periodOf(key);
     if (src === "link") return t === "count" ? (it.linkBase || 0) + DY.linkCount(it.link || [], a, b) : null;
     if (src === "faith") return t === "count" && DY.faithCount ? DY.faithCount(a, b) : null;
+    /* allvows (з 21.11.2026): дні без жодного зриву в усіх обітницях, від it.from (відмітки вікон — не зрив). Окреме джерело, бо старі версії застосунку не знають from */
+    if (src === "allvows") return t === "count" && DY.faithCount ? DY.faithCount(it.from && it.from > a ? it.from : a, b) : null;
     if (src === "journal") return t === "count" && DY.journalCount ? DY.journalCount(a, b) : null;
     if (src === "pages") return t === "count" && DY.periodPages ? DY.periodPages(a, b) : null;
     if (src === "gym" || src === "cardio" || src === "books" || src === "games") { const R = window.ORDO_ARM; return t === "count" && R && R.count ? R.count(src, a, b) : null; }
@@ -1559,7 +1566,7 @@ window.ORDO_START = function () {
       if (src === "jar") { const T = window.ORDO_TREASURY, accs = T && T.accs ? T.accs() : [];
         h += `<div class="cmp__ops gs-src">${accs.map((x) => `<button type="button" data-gjar="${esc(x.label)}" class="${it.jar === x.label ? "is-on" : ""}">${esc(x.label)} · ${T.money(x.bal, x.cur)}</button>`).join("") || `<span class="cmp__hint">чекаю виписку банку</span>`}</div>`; }
       if (src === "weight") h += `<div class="cmp__ops gs-src">${[["avg7", "середня за 7 днів"], ["last", "останнє зважування"]].map(([v, n]) => `<button type="button" data-gwm="${v}" class="${(it.wmode || "avg7") === v ? "is-on" : ""}">${n}</button>`).join("")}</div>`;
-      if (src && src !== "link") h += `<p class="cmp__hint">${src === "jar" ? "Баланс рахунку чи банки з виписки підставляється сам (4 рази на день)." : src === "faith" ? "Дні без жодного зриву за період — рахуються самі, коли день минув." : src === "journal" ? "Дні, коли віддано сповідь, — рахуються самі." : src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : src === "mind" ? "Медитації: з листопада — дні, коли у фокусі «Усвідомленість» сумарно набралось 10+ хв; до того — сесії, як було." : src === "pages" ? "Сторінки, прочитані за цей період, — сума приростів зі справи читання (сторінка, до якої дійшов). Не номер сторінки в книжці." : src === "gym" || src === "cardio" ? "Тренування зі Зброярні рахуються самі." : src === "books" ? "Дочитані за період книжки з полиці рахуються самі." : src === "games" ? "Пройдені за період ігри з бібліотеки рахуються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
+      if (src && src !== "link") h += `<p class="cmp__hint">${src === "jar" ? "Баланс рахунку чи банки з виписки підставляється сам (4 рази на день)." : src === "faith" ? "Дні без жодного зриву за період — рахуються самі, коли день минув." : src === "allvows" ? `Дні без жодного зриву в усіх обітницях${it.from ? " з " + fmtKey(it.from) : ""} — рахуються самі, коли день минув. Відмітки вікон — не зрив.` : src === "journal" ? "Дні, коли віддано сповідь, — рахуються самі." : src === "weight" ? "Вага зі «Здоровʼя» підставляється щодня; середня згладжує коливання води." : src === "poker" ? "Роздачі з HM3 підставляються самі." : src === "mind" ? "Медитації: з листопада — дні, коли у фокусі «Усвідомленість» сумарно набралось 10+ хв; до того — сесії, як було." : src === "pages" ? "Сторінки, прочитані за цей період, — сума приростів зі справи читання (сторінка, до якої дійшов). Не номер сторінки в книжці." : src === "gym" || src === "cardio" ? "Тренування зі Зброярні рахуються самі." : src === "books" ? "Дочитані за період книжки з полиці рахуються самі." : src === "games" ? "Пройдені за період ігри з бібліотеки рахуються самі." : "Дані зі «Здоровʼя» підставляються самі."}</p>`;
     }
     if (!locked) {
       if (t === "once") h += `<button class="btn ${it.done ? "btn--ghost" : "btn--gold"}" type="button" data-gs="once">${it.done ? "Зняти позначку" : "Виконано"}</button>`;

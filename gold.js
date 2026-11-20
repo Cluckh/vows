@@ -133,7 +133,7 @@
     }
     if (E.day[p]) return Math.round(E.day[p][1] * (e.mul || 1));          // ×0,5 у день Lay on Hands, ×1,5 — Відродження                                           // ідеальний день, зал, сповідь, кроки, підйом
     if (p === "v") return E.vowDay[1];                                          // чистий день обітниці
-    if (p === "a") return E.achGold ? E.achGold(e.xp0 || e.xp, e.d) : E.ach[1];         // нагорода: золото за складністю (досвід × 1, від 50; до 19.11 — × 2)
+    if (p === "a") return E.achGold ? E.achGold(e.xp0 || e.xp, e.d) : E.ach[1];         // медаль: з 21.11 без золота
     if (p === "mo") return e.gold || 0;                                           // нагорода за момент від писаря
     if (p === "g") return e.xp >= 400 ? 75 : 20;                                 // старі записи цілей без ціни
     if (p === "gm") return Math.round(e.xp / 8);                                // ревю: відсоток виконаного
@@ -247,13 +247,13 @@
       }
     });
     secrets().forEach((id) => { const r = grant(id, "таємний подвиг"); if (r) reveals.push(Object.assign(r, { why: relic(id).hint })); ch = true; });
-    /* церемонія рівня: за кожен новий рівень — золото (ECON.lvGold: 100 + 20 × рівень з 19.11), за нове звання — ще й спорядження */
+    /* церемонія рівня: жетон або скриня, за нове звання — ще й спорядження (золота за рівень з 21.11 нема — ECON.lvGold = 0) */
     const lv = Dy.levelOf ? Dy.levelOf() : null;
     if (lv) {
       if (G.lv == null) { G.lv = lv.L; G.ri = lv.ri; ch = true; }
       else if (lv.L > G.lv) {
         for (let L = G.lv + 1; L <= lv.L; L++) {
-          const g = window.ORDO_ECON && window.ORDO_ECON.lvGold ? window.ORDO_ECON.lvGold(L) : 100 + 20 * L; G.inc["lv:" + L] = { at: Date.now(), amt: g, why: `рівень ${L}` };
+          const g = window.ORDO_ECON && window.ORDO_ECON.lvGold ? window.ORDO_ECON.lvGold(L) : 100 + 20 * L; if (g) G.inc["lv:" + L] = { at: Date.now(), amt: g, why: `рівень ${L}` };
           const up = { level: L, rank: L === lv.L ? lv.rank.name : "", g, newRank: L === lv.L && lv.ri > (G.ri || 0), page: L <= 30 ? L : null };
           if (L % 2 === 1) { const kd = L % 4 === 1 ? "reroll" : "extend"; G.tk["lv:" + L] = { kind: kd, d: 1, at: Date.now() }; up.token = kd; } else up.lvChest = true;   // непарний — жетон, парний — скриня
           if (up.newRank) { const id = randomRelic(lv.ri >= 6 ? "legend" : "rare", "rank" + lv.ri); if (id) { const r = grant(id, `звання «${lv.rank.name}»`); if (r && !r.dup) up.relic = id; } }
@@ -564,8 +564,8 @@
       if (arg.level) { el.innerHTML = `${grip}<div class="gs-kicker">Церемонія Ордену</div>${scene("levelup") ? `<img class="gd-scene gd-scene--tall" src="${scene("levelup")}" alt="">` : ""}
         <div class="lv-big">${arg.level}</div><div class="sheet__title dy-sht">${arg.newRank ? `Нове звання — «${esc(arg.rank)}»` : `Рівень ${arg.level}`}</div>
         <p class="dy-note dy-note--t">${arg.newRank ? "Капітул вписує нове звання в книгу Ордену. Слово тримав — і слово тримає тебе." : "Орден відзначає ще одну сходинку."}</p>
-        <div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>${arg.relic ? `<p class="rl-bonus">і реліквія — <span class="rw rw--${relic(arg.relic).rar}">«${esc(relic(arg.relic).n)}»</span></p>` : ""}
-        ${arg.token ? `<p class="rl-bonus">і ${tkIc(arg.token)} жетон ${arg.token === "reroll" ? "перекидання" : "відстрочки"}</p>` : arg.lvChest ? `<p class="rl-bonus">і ${tkIc("chest")} скриня — відкриється слідом</p>` : ""}
+        ${arg.g ? `<div class="gd-big">${coin("gd-coin--big")}<b>+${fmtN(arg.g)}</b></div>` : ""}${arg.relic ? `<p class="rl-bonus">${arg.g ? "і " : ""}реліквія — <span class="rw rw--${relic(arg.relic).rar}">«${esc(relic(arg.relic).n)}»</span></p>` : ""}
+        ${arg.token ? `<p class="rl-bonus">${arg.g || arg.relic ? "і " : ""}${tkIc(arg.token)} жетон ${arg.token === "reroll" ? "перекидання" : "відстрочки"}</p>` : arg.lvChest ? `<p class="rl-bonus">${arg.g || arg.relic ? "і " : ""}${tkIc("chest")} скриня — відкриється слідом</p>` : ""}
         ${arg.newRank ? perkLine(rankIdx()) : ""}
         ${arg.page ? `<button type="button" class="btn btn--line" data-gd="chron" data-l="${arg.page}">Нова сторінка хроніки Ордену</button>` : ""}
         <button type="button" class="btn btn--gold" data-gd="close">${arg.relic ? "Подивитися реліквію" : "Прийняти"}</button>`;

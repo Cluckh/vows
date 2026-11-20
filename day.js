@@ -774,9 +774,9 @@
     day: { pd: [25, 30], pw: [100, 100], gy: [20, 8], jr: [10, 4], st: [10, 4], er: [5, 3], sl: [10, 0], nw: [5, 0], rt: [3, 0] },   // ідеальний день, зал, сповідь, кроки, підйом, сон, варта, повернення
     vowDay: [4, 1],                                                                           // день обітниці: досвід 4–10 (росте зі стріком), золото 1
     milestone: { 10: [60, 15], 25: [120, 40], 75: [250, 100], 180: [500, 225], 365: [1000, 500], 500: [1300, 625], 730: [1800, 875], 1000: [2500, 1250] },
-    /* нагорода (медаль): золото = досвід / 4 (від 15). Ревю — за кожен відсоток виконаного */
-    ach: [0, 25], achGold: (xp) => (xp > 0 ? Math.max(15, Math.round(xp / 4 / 5) * 5) : 0), review: { m: [2, 1], y: [6, 3] },
-    lvGold: (L) => 25 + 5 * L                                                                 // рівень
+    /* медалі й рівні (з 21.11, власник): без золота — лише досвід, скрині, жетони, спорядження й хроніка. Золото — за справи, квести й цілі. Ревю — за кожен відсоток виконаного */
+    ach: [0, 0], achGold: () => 0, review: { m: [2, 1], y: [6, 3] },
+    lvGold: () => 0
   };
   const RARN = { common: "звичайна", rare: "рідкісна", legend: "легендарна", myth: "міфічна" };
   const rarOf = (t) => ({ easy: "common", normal: "rare", hard: "legend" })[t && t.diff] || (t && ECON.task[t.diff] ? t.diff : "rare");
@@ -2343,7 +2343,7 @@
       const perks = rankPerks(ri);
       h += `<div class="rk-big">${rankFace(ri, true)}</div><div class="gs-kicker">звання · з ${R.lv}-го рівня · ${esc(st)}</div><div class="sheet__title dy-sht">${esc(R.name)}</div>
         ${perks.length ? `<div class="gs-h">Що дає звання</div><ul class="ar-rules">${perks.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-        <div class="gs-h">Рівні</div><ul class="rk-lv">${Array.from({ length: Math.max(1, to - R.lv + 1) }, (_, i) => R.lv + i).map((L) => `<li class="${L <= lv.L ? "is-got" : ""}"><b>${L}</b><span>+${lvGold(L)} золота · ${L % 2 ? (L % 4 === 1 ? "жетон перекидання" : "жетон відстрочки") : "скриня"}${chapterOf(L) ? " · сторінка хроніки" : ""}</span><i>${L <= lv.L ? "✓" : ""}</i></li>`).join("")}</ul>
+        <div class="gs-h">Рівні</div><ul class="rk-lv">${Array.from({ length: Math.max(1, to - R.lv + 1) }, (_, i) => R.lv + i).map((L) => `<li class="${L <= lv.L ? "is-got" : ""}"><b>${L}</b><span>${lvGold(L) ? `+${lvGold(L)} золота · ` : ""}${L % 2 ? (L % 4 === 1 ? "жетон перекидання" : "жетон відстрочки") : "скриня"}${chapterOf(L) ? " · сторінка хроніки" : ""}</span><i>${L <= lv.L ? "✓" : ""}</i></li>`).join("")}</ul>
         ${ch ? `<button class="btn btn--gold" type="button" data-ds="chron" data-ch="${ch.n}" ${lv.L >= Math.min(...Object.keys(ch.pages).map(Number)) ? "" : "disabled"}>Хроніка · розділ ${ch.n}: «${esc(ch.t)}»</button>` : ""}
         <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "chron") {                   // хроніка Ордену: розділ з артом, сторінки відкриваються рівнями

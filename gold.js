@@ -289,7 +289,8 @@
   /* поповнення білої, про які ще не спитали (не частіше ніж раз на 6 год, якщо відклав) */
   /* «звідки?» — лише про поповнення, не звʼязане з жодним виведенням (запізніле звʼязування від бази прибирає питання) */
   const unsealed = () => { const linked = new Set(Object.values(G.out).map((o) => o.tx).filter(Boolean));
-    return Object.entries(G.uns).filter(([id, u]) => u.st === "ask" && !linked.has(id) && Date.now() - (u.later || 0) > 6 * 3600e3).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => a.at - b.at); };
+    /* і не раніше ніж за 2 год після переказу: база за цей час звʼяже навіть виведення, натиснуте вже після переказу, — питання лише про справді незрозумілі гроші */
+    return Object.entries(G.uns).filter(([id, u]) => u.st === "ask" && !linked.has(id) && Date.now() - (u.at || 0) > 2 * 3600e3 && Date.now() - (u.later || 0) > 6 * 3600e3).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => a.at - b.at); };
   function setUnsealed(id, st) { const u = G.uns[id]; if (!u) return; if (st === "later") u.later = Date.now(); else { u.st = st; u.ans = Date.now(); } save(); }
   function reconcile() {
     const W = T() && T().white && T().white(); if (!W) return false;

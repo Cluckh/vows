@@ -2089,6 +2089,7 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 /* ---- ціна справи ---- */
 .dy-gold{display:inline-flex;align-items:center;gap:3px;color:var(--gold);font-style:normal;white-space:nowrap}
 .dy-gold.is-got{color:var(--gold-2)}
+.dy-q__xp{font-style:normal;font-size:12px;color:var(--ash-2);opacity:.75;white-space:nowrap}
 .gd-coin--xs{width:12px;height:12px}
 
 /* нова медаль у Літописі (за 7 днів) і банер здобутої */

@@ -1540,7 +1540,7 @@
   function questCard(q) {
     const r = RAR[q.rar], due = q.until ? (q.until === today() ? "до кінця дня" : `до ${human(q.until)}`) : q.scope === "day" ? "на сьогодні" : q.scope === "week" ? "на тиждень" : q.scope === "month" ? "на 30 днів" : "до кінця року";
     const lim = q.type === "budget" ? (q.limitPct && T() ? ` Ліміт — близько ${T().money(q.limitPct * (T().avgWeek(q.cats) || 0) * ((q.days || (q.scope === "week" ? 7 : q.scope === "month" ? 30 : 1))) / 7)}.` : q.limit ? ` Ліміт — ${T() ? T().money(q.limit) : q.limit}.` : " Жодної монети.") + " Перевірить виписка банку." : "";
-    return `«${q.t}»${q.desc ? ` — ${q.desc}` : ""} ${r.n} квест, ${due}, +${q.xp} досвіду.${lim}`;
+    return `«${q.t}»${q.desc ? ` — ${q.desc}` : ""} ${r.n} квест, ${due}, +${fmtN(qGold(q))} золота й ${fmtN(q.xp)} досвіду.${lim}`;
   }
   async function offerScene(q) {
     const h = H(); if (!h) return false;
@@ -1722,6 +1722,15 @@
     const m = (1 + Math.min(0.3, 0.03 * chainBefore(t, k))) * (S.loh && S.loh[k] && !lohHealed(k) ? Math.min(1, 0.5 + GEAR("lohMul")) : 1);
     return `<span class="dy-gold">${cn}${fmtN(Math.max(1, Math.round(ECON.task[effRar(t, k)][1] * m)))}</span>`;
   }
+  /* золото квесту: виконаний — скільки справді дав (з бонусами спорядження й благословенням); ще ні — скільки дасть за рідкістю.
+     Власнику цікавіше золото, ніж досвід (20.11) — тож скрізь золото першим, досвід дрібно поруч */
+  function qGold(q) {
+    const G = window.ORDO_GOLD, got = (q.st === "done" || q.st === "part") && G && G.goldFor ? G.goldFor("q:" + q.id) : 0;
+    return got || (q.st === "part" ? 0 : ((ECON.quest[q.rar] || ECON.quest.rare)[1]));
+  }
+  const coinXs = () => (window.ORDO_GOLD && window.ORDO_GOLD.coin ? window.ORDO_GOLD.coin("gd-coin--xs") : "");
+  const qRew = (q) => `<span class="dy-gold${q.st === "done" ? " is-got" : ""}">${coinXs()}+${fmtN(qGold(q))}</span> <em class="dy-q__xp">+${fmtN(q.xp)} досв</em>`;
+  function dayGold(k) { const G = window.ORDO_GOLD; if (!G || !G.goldFor) return 0; return Object.entries(X.e).filter(([, e]) => e.d === k).reduce((a, [id]) => a + (G.goldFor(id) || 0), 0); }
   function metaOf(t, r, k) {
     const bits = [], gt = goldTag(t, r, k); if (gt) bits.push(gt);
     if (t.time) bits.push(t.time);
@@ -1790,7 +1799,7 @@
         ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}${q.app && q.appMax == null && q.st === "active" && (q.cur || 0) < q.target ? ` · ще ${fmtN(q.target - (q.cur || 0))}` : ""}</em></span>` : ""}
         ${q.app && q.appMax != null && q.st === "active" && q.from <= today() ? `<span class="dy-q__app">сьогодні ${q.app === "reading" ? "читання" : `в ${esc(appName(q.app))}`}</span>${appBar(Math.floor(appMin(today(), q.app)), q.appMax, true)}` : ""}
         ${q.hold && q.st === "active" && q.from ? (() => { const n = diff(q.from, q.until) + 1, d = Math.min(n, Math.max(0, diff(q.from, today()) + 1)); return `<div class="gl-bar"><i style="width:${Math.round((d / n) * 100)}%"></i></div><span class="dy-num">день ${d} <em>з ${n} · зарахується сам</em></span>`; })() : ""}
-        <span class="dy-q__due">${q.st === "done" ? `виконано · +${q.xp}` : due}${q.st === "active" ? ` · +${q.xp}` : ""}</span></div>
+        <span class="dy-q__due">${q.st === "done" ? `виконано · ${qRew(q)}` : due}${q.st === "active" ? ` · ${qRew(q)}` : ""}</span></div>
       ${q.st === "active" && !qAuto(q) && !q.hold ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
   }
   /* ===================================================== ВІСТІ ПИСАРЯ ===== */
@@ -2024,7 +2033,7 @@
     h += `<ul class="dy-list">${open.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
     if (shut.length) h += `<ul class="dy-list dy-list--shut">${shut.map(({ t, r }) => rowHTML(t, r, k)).join("")}</ul>`;
     h += `<button class="gl-new" type="button" data-dnew="1"><svg><use href="#i-plus"/></svg>Нова ціль</button></section>`;
-    if (dayXP) h += `<button type="button" class="dy-sum" data-dxp="${k}">${k === today() ? "За сьогодні" : "За день"}: <b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""} <span class="dy-sum__more">за що ›</span></button>`;
+    if (dayXP) h += `<button type="button" class="dy-sum" data-dxp="${k}">${k === today() ? "За сьогодні" : "За день"}: ${(() => { const g = dayGold(k); return g ? `${coinXs()}<b>+${fmtN(g)}</b> золота · ` : ""; })()}<b>+${fmtN(dayXP)}</b> досвіду${perfect(k) ? " · чистий день" : ""} <span class="dy-sum__more">за що ›</span></button>`;
     if (k === today() && !bad.length) h += `<button type="button" class="dy-watch-ok" data-dwatch="1">сторож: усе на місці</button>`;
     patch(box, [segR, segA + segN, segQ, h]); teaserDots();          // квести — над справами (компактно), справи — одразу під ними
   }
@@ -2356,7 +2365,7 @@
         <div class="sheet__title dy-sht">${esc(a.n)}</div><p class="dy-note dy-note--t">${esc(a.h)}</p>
         ${(() => { const w = window.ORDO_ARM && window.ORDO_ARM.achWhy ? window.ORDO_ARM.achWhy(a.id) : ""; return w ? `<p class="ach-src">${esc(w)}</p>` : ""; })()}
         ${got ? `<p class="ach-when">здобуто ${human(got)}</p>` : pr ? `<div class="gl-bar ach-bar"><i style="width:${Math.round((pr[0] / pr[1]) * 100)}%"></i></div><p class="ach-when">${fmtN(pr[0])} з ${fmtN(pr[1])}</p>` : `<p class="ach-when">ще попереду</p>`}
-        <p class="ach-rew">${a.xp || gold ? `${got ? "Дала" : "Дасть"}${a.xp ? ` <b>+${fmtN(a.xp)}</b> досвіду` : ""}${gold ? `${a.xp ? " ·" : ""} <b>+${gold}</b> золота` : ""}` : "Почесна — без досвіду, лише честь"}</p>
+        <p class="ach-rew">${a.xp || gold ? `${got ? "Дала" : "Дасть"}${gold ? ` <b>+${fmtN(gold)}</b> золота` : ""}${a.xp ? `${gold ? " ·" : ""} <b>+${fmtN(a.xp)}</b> досвіду` : ""}` : "Почесна — без досвіду, лише честь"}</p>
         <button class="btn btn--ghost" type="button" data-ds="close">Закрити</button>`;
     } else if (sh.mode === "fix") {
       const t = S.tasks[sh.id], r = rec(sh.k, sh.id);
@@ -2732,7 +2741,7 @@
     const left = q.until ? diff(today(), q.until) : 0;
     el.innerHTML = `<div class="sheet__grip"></div><div class="gs-kicker dy-kick--${q.rar}">${RAR[q.rar].n} квест</div><div class="sheet__title dy-sht">${esc(q.t)}</div>
       ${q.desc ? `<p class="dy-note">${esc(q.desc)}</p>` : ""}
-      <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : q.st === "fail" ? (q.broke ? `порушено: ${esc(q.broke)}` : "не встиг") : ""} · +${q.xp} досвіду</div>
+      <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : q.st === "fail" ? (q.broke ? `порушено: ${esc(q.broke)}` : "не встиг") : ""} · ${coinXs()}+${fmtN(qGold(q))} золота · +${fmtN(q.xp)} досвіду</div>
       ${canBreath(q) ? `<button class="btn btn--gold" type="button" data-dqs="breath">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("breath", "gd-tk--btn") : ""}Друге дихання — ще 2 дні, 85% мети</button>` : ""}
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
       ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
@@ -2781,7 +2790,7 @@
     h += vowMedals.map((m) => `<div class="dy-a is-on dy-a--vow"><svg><use href="#i-${m.v.icon}"/></svg><b>${esc(m.v.name)} · ${m.n}</b><span>печатка обітниці</span></div>`).join("");
     h += `</div><div class="st-h st-h--sub">Шлях звань</div><ol class="dy-ranks">${RANKS.map((r, i) => `<li class="${i < lv.ri ? "is-past" : i === lv.ri ? "is-on" : ""}" data-rank="${i}" role="button">${rankFace(i)}<b>${esc(r.name)}</b><span>з ${r.lv}-го</span></li>`).join("")}</ol>`;
     const done = Q.list.filter((q) => q.st === "done").slice(-6).reverse();
-    if (done.length) h += `<div class="st-h st-h--sub">Хроніка квестів</div><ul class="dy-qlog">${done.map((q) => `<li class="dy-q--${q.rar}"><b>${esc(q.t)}</b><span>${human(q.end)} · +${q.xp}</span></li>`).join("")}</ul>`;
+    if (done.length) h += `<div class="st-h st-h--sub">Хроніка квестів</div><ul class="dy-qlog">${done.map((q) => `<li class="dy-q--${q.rar}"><b>${esc(q.t)}</b><span>${human(q.end)} · ${qRew(q)}</span></li>`).join("")}</ul>`;
     return h + `</section>`;
   }
   function renderStatsIfOpen() { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); if (A.tab && A.tab() === "treasury" && A.renderTreasury) A.renderTreasury(); }
@@ -2818,7 +2827,7 @@
       <div class="ach-big tier-${a.tier || "gold"} is-on">${achFace(a, true)}</div>
       <div class="ach-ban__t">Нагороду здобуто</div><div class="ach-ban__n">${esc(a.n)}</div>
       <p class="ach-ban__h">${esc(a.h)}</p>
-      ${a.xp || gold ? `<p class="ach-ban__r">${a.xp ? `<b>+${fmtN(a.xp)}</b> досвіду` : ""}${gold ? `${a.xp ? " · " : ""}<b>+${fmtN(gold)}</b> золота` : ""}</p>` : `<p class="ach-ban__r">почесна — лише честь</p>`}
+      ${a.xp || gold ? `<p class="ach-ban__r">${gold ? `<b>+${fmtN(gold)}</b> золота` : ""}${a.xp ? `${gold ? " · " : ""}<b>+${fmtN(a.xp)}</b> досвіду` : ""}</p>` : `<p class="ach-ban__r">почесна — лише честь</p>`}
       <button class="btn btn--gold" type="button">${more > 0 ? `Далі · ще ${more}` : "Слава Ордену"}</button></div>`;
     document.body.appendChild(el); void el.offsetWidth; el.classList.add("on"); fx("date"); buzz("heavy");
     const t0 = performance.now();

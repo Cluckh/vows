@@ -141,7 +141,7 @@
     if (p === "q") { const q = Q.list.find((x) => "q:" + x.id === id), b = (E.quest[q && q.rar] || E.quest.rare)[1]; return q && q.st === "part" ? Math.round(b * Math.min(1, (q.cur || 0) / (q.target || 1)) * 0.6) : b; }     // частково — як і досвід: частка прогресу × 0.6
     return 0;
   }
-  const CAT = { mo: "day", pd: "day", jr: "day", t: "day", gy: "body", st: "body", er: "body", q: "quest", vm: "vow", v: "vow" };
+  const CAT = { mo: "day", pd: "day", jr: "day", t: "day", gy: "body", st: "body", er: "body", q: "quest", vm: "vow", v: "vow", g: "goal", gm: "goal" };
   function ledger() {
     const Dy = DAY(); if (!Dy || !Dy._state) return [];
     const { X, Q, S } = Dy._state();
@@ -202,6 +202,7 @@
     const early5 = er.some((k, i) => i >= 4 && (Date.parse(k) - Date.parse(er[i - 4])) / 864e5 <= 6);
     const ok = {
       night: n("nw") > 0,
+      valor25: !!(DAY() && DAY().valor && DAY().valor(today()) >= 25),
       steps15: Object.entries(HL.days || {}).some(([k, d]) => k >= START && d.steps >= 15000),
       journal10: n("jr") >= 10,
       hands2000: Object.entries(PK.days || {}).some(([k, d]) => k >= START && d.hands >= 2000),
@@ -248,6 +249,13 @@
         if (q && q.st === "done" && roll("relic" + x.id) < (DROP[q.rar] || 0)) { const id = randomRelic(q.rar, "pick" + x.id); if (id) { const r = grant(id, `квест «${q.t}»`); if (r) reveals.push(Object.assign(r, { why: `За квест «${q.t}»` })); } }
       }
     });
+    /* Звитяга — віхи ланцюга: 10 — скриня Сенешаля, 25 — спорядження до легендарного, 50 і 80 — до міфічного (кожна — раз) */
+    { const vn = Dy.valor ? Dy.valor(today()) : 0;
+      [[10, "chest"], [25, "legend"], [50, "myth"], [80, "myth"]].forEach(([m, w]) => {
+        if (vn < m || G.proc["valor:" + m]) return; G.proc["valor:" + m] = today(); ch = true;
+        if (w === "chest") freeChest("valor:10", "Звитяга — десять днів поспіль", "Скриня Звитяги", true);
+        else { const id = randomRelic(w, "valor" + m, m >= 50 ? "legend" : "rare"); if (id) { const r = grant(id, `Звитяга ${m}`); if (r) reveals.push(Object.assign(r, { why: `Звитяга — ${m} днів поспіль` })); } }
+      }); }
     secrets().forEach((id) => { const r = grant(id, "таємний подвиг"); if (r) reveals.push(Object.assign(r, { why: relic(id).hint })); ch = true; });
     /* церемонія рівня: жетон або скриня, за нове звання — ще й спорядження (золота за рівень з 21.11 нема — ECON.lvGold = 0) */
     const lv = Dy.levelOf ? Dy.levelOf() : null;
@@ -348,7 +356,30 @@
   /* ----------------------------------------------------------------- відгук */
   function toast(html) { let el = $("dyToast"); if (!el) { el = document.createElement("div"); el.id = "dyToast"; document.body.appendChild(el); } el.className = "dy-toast dy-toast--gold"; el.innerHTML = html; void el.offsetWidth; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600); }
   /* після дій «Дня»: обробити нове (бонуси, благословення, реліквії), показати приріст золота й відкриття */
+  /* РУКАВИЦЯ (з 21.11.2026): квест-застава. Прийняв — заморожено V золота (G.out kind "stake", st "hold");
+     виконав — застава вертається подвоєною (G.inc 2V) плюс звичайне золото квесту; не виконав, відмовився — застава згоріла */
+  function stake(q) {
+    const V = (q && q.stake) | 0, k = "stake:" + (q && q.id);
+    if (!V || G.out[k] || balance() < V) return false;
+    G.out[k] = { kind: "stake", amt: V, st: "hold", at: Date.now(), q: q.id, item: `Застава: ${q.t}` }; save(); return true;
+  }
+  function settleStakes() {
+    const Dy = DAY(); if (!Dy || !Dy._state) return;
+    const QL = (Dy._state().Q || {}).list || []; let ch = false;
+    Object.values(G.out).filter((o) => o.kind === "stake" && o.st === "hold").forEach((o) => {
+      const q = QL.find((x) => x.id === o.q); if (!q || q.st === "active") return;
+      if (q.st === "done") {
+        G.inc["stake:" + o.q] = G.inc["stake:" + o.q] || { at: Date.now(), amt: o.amt * 2 + Math.round(o.amt * bonusOf("stakeWin")), why: `Рукавиця виграна: ${q.t}` }; o.st = "won";
+        /* виграна рукавиця — 35 % на спорядження рідкості виклику */
+        if (roll("stakeR" + o.q) < 0.35) { const id = randomRelic(q.rar, "stakeP" + o.q); if (id) { const r = grant(id, `рукавиця «${q.t}»`); if (r) reveals.push(Object.assign(r, { why: `За виграну рукавицю «${q.t}»` })); } }
+      }
+      else { o.st = "lost"; setTimeout(() => toast(`${coin()} Застава ${fmtN(o.amt)} згоріла — «${esc(q.t)}»`), 2600); }
+      o.end = Date.now(); ch = true;
+    });
+    if (ch) save();
+  }
   function tick() {
+    settleStakes();
     process();
     /* «+N золота» показуємо раз: позначка — у спільному стані (G.seenE), тож зароблене на телефоні не «приходить» удруге на компі */
     const e = earned(), seen = G.seenE ? G.seenE.v : LS.get("ordo.k.goldSeen", null), setSeen = () => { G.seenE = { v: e, at: Date.now() }; save(); };
@@ -360,11 +391,13 @@
 
   /* ------------------------------------------------------------------ вигляд */
   const chip = () => `<span class="gd-chip">${coin()}<b>${fmtN(balance())}</b></span>`;
-  const bonusText = (b) => !b ? "" : b.type === "gold" ? `+${Math.round(b.v * 100)}% золота ${({ all: "за все", day: "за справи, ідеальні дні й сповіді", body: "за зал, кроки й ранні підйоми", quest: "за квести", vow: "за дні й віхи обітниць" })[b.src] || ""}`
+  const bonusText = (b) => !b ? "" : b.type === "gold" ? `+${Math.round(b.v * 100)}% золота ${({ all: "за все", day: "за справи, ідеальні дні й сповіді", body: "за зал, кроки й ранні підйоми", quest: "за квести", vow: "за дні й віхи обітниць", goal: "за цілі місяця й року" })[b.src] || ""}`
     : b.type === "luck" ? `+${Math.round(b.v * 100)}% до шансу благословення` : b.type === "reroll" ? `перекинути квест ${b.v > 1 ? b.v + " рази" : "раз"} на тиждень` : b.type === "extend" ? `+1 день до квесту ${b.v > 1 ? b.v + " рази" : "раз"} на місяць`
     : b.type === "nightGuard" ? "після тривожної ночі ідеальний день прощає одну справу" : b.type === "chainGuard" ? `пропуск не рве ланцюжок справи — ${b.v > 1 ? b.v + " рази" : "раз"} на тиждень`
     : b.type === "questUp" ? "раз на тиждень квест — на рідкість вищий" : b.type === "lohMul" ? `Lay on Hands платить ${Math.round((0.5 + b.v) * 100)}% навіть без зцілення`
-    : b.type === "rebirth" ? `Відродження ×${String(1.5 + b.v).replace(".", ",")}` : b.type === "chest" ? "скрині щедріші: здобич частіше рідкісніша" : "";
+    : b.type === "rebirth" ? `Відродження ×${String(1.5 + b.v).replace(".", ",")}` : b.type === "chest" ? "скрині щедріші: здобич частіше рідкісніша"
+    : b.type === "valorGuard" ? `Звитяга: неідеальний день не забирає −10 — ${b.v > 1 ? b.v + " рази" : "раз"} на тиждень` : b.type === "valorCap" ? `стеля Звитяги +${b.v} % (до ×${String((180 + b.v) / 100).replace(".", ",")})`
+    : b.type === "stakeWin" ? `виграна Рукавиця: ще +${Math.round(b.v * 100)} % від застави` : "";
   const fxText = (r) => effects(r).map(bonusText).filter(Boolean).join(" · ");
   /* арти реліквій: art/sealed/<хеш>.json (зашифровані, з непрозорими назвами — щоб і список файлів нічого не підказував);
      розшифровані кешуються на пристрої (Cache Storage), відсутні — не питаємо частіше ніж раз на 6 год */
@@ -507,8 +540,8 @@
       rows.push({ d: x.d, at: e.at || 0, g: x.g + (typeof rb === "number" ? rb : rb.amt || 0) + (typeof bl === "number" ? bl : bl.amt || 0), k: KIND[p] || "інше", t: x.why || KIND[p] || x.id,
         x: [e.mul && e.mul !== 1 ? (e.mul < 1 ? `Lay on Hands ×${e.mul}` : `Відродження ×${e.mul}`) : "", x.vm > 1 ? `звитяга ×${x.vm.toFixed(2).replace(".", ",")}` : "", rb ? "спорядження" : "", bl ? "благословення" : ""].filter(Boolean).join(" · ") });
     });
-    Object.entries(G.inc).filter(([, v]) => fresh(v)).forEach(([k, v]) => rows.push({ d: new Date(v.at).toLocaleDateString("sv-SE"), at: v.at, g: v.amt || 0, k: k.startsWith("lv:") ? "рівень" : k.startsWith("dup:") ? "переплавлено" : k.startsWith("wk:") ? "недільна скриня" : "скриня", t: v.why || k, x: "" }));
-    Object.values(G.out).filter((o) => live(o) && fresh(o)).forEach((o) => rows.push({ d: new Date(o.at).toLocaleDateString("sv-SE"), at: o.at, g: -o.amt, k: o.kind === "white" ? "вивід" : "крамниця",
+    Object.entries(G.inc).filter(([, v]) => fresh(v)).forEach(([k, v]) => rows.push({ d: new Date(v.at).toLocaleDateString("sv-SE"), at: v.at, g: v.amt || 0, k: k.startsWith("lv:") ? "рівень" : k.startsWith("stake:") ? "рукавиця" : k.startsWith("dup:") ? "переплавлено" : k.startsWith("wk:") ? "недільна скриня" : "скриня", t: v.why || k, x: "" }));
+    Object.values(G.out).filter((o) => live(o) && fresh(o)).forEach((o) => rows.push({ d: new Date(o.at).toLocaleDateString("sv-SE"), at: o.at, g: -o.amt, k: o.kind === "white" ? "вивід" : o.kind === "stake" ? (o.st === "lost" ? "застава згоріла" : o.st === "won" ? "застава" : "застава · чекає") : "крамниця",
       t: o.kind === "white" ? (o.st === "pending" ? "на білу картку · чекаю виписку" : "на білу картку") : (o.item || "покупка"), x: "" }));
     return rows.filter((r) => r.g).sort((a, c) => (c.d > a.d ? 1 : c.d < a.d ? -1 : (c.at || 0) - (a.at || 0)));
   }
@@ -756,5 +789,5 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}     // попросити браузер не викидати кеш артів
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { _hist: history, artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
+  window.ORDO_GOLD = { _hist: history, stake, artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

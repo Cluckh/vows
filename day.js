@@ -918,10 +918,12 @@
   let valorMemo = null;
   function valorMap() {
     const t0 = today(); if (valorMemo && valorMemo.t === t0 && Date.now() - valorMemo.at < 4000) return valorMemo.m;
-    const F = faithIdx(), m = {}; let c = 0;
+    const F = faithIdx(), m = {}, guard = GEAR("valorGuard"), cap = VALOR_MAX + GEAR("valorCap"), used = {}; let c = 0;
     for (let k = VALOR_FROM; k <= t0; k = add(k, 1)) {
       m[k] = c; if (k === t0) break;
-      if (F.all.has(k)) c = 0; else if (S.loh && S.loh[k]) { /* заморожено */ } else if (perfect(k)) c = Math.min(VALOR_MAX, c + 1); else c = Math.max(0, c - 10);
+      if (F.all.has(k)) c = 0; else if (S.loh && S.loh[k]) { /* заморожено */ } else if (perfect(k)) c = Math.min(cap, c + 1);
+      else if (guard > (used[wkKey(k)] || 0)) used[wkKey(k)] = (used[wkKey(k)] || 0) + 1;     // спорядження: раз на тиждень неідеальний день лише заморожує
+      else c = Math.max(0, c - 10);
     }
     valorMemo = { t: t0, at: Date.now(), m }; return m;
   }
@@ -1375,7 +1377,7 @@
       if (q.st === "active" && q.until < t0) {
         const prog = q.type === "count" && q.target ? (q.cur || 0) / q.target : 0;
         q.st = "fail"; q.end = t0; q.at = Date.now();
-        if (q.type === "count" && !q.retry && prog >= 0.5 && prog < 1 && roll("retry" + q.id) < 0.35) {
+        if (q.type === "count" && !q.retry && !q.stake && prog >= 0.5 && prog < 1 && roll("retry" + q.id) < 0.35) {
           const rar = q.rar === "myth" ? "legend" : "rare", tg = Math.ceil(q.target * 0.85);
           Q.list.push({ id: q.id + "r", pid: q.pid + "~2", rar, giver: q.giver, t: `Друга спроба: ${q.t}`, scope: "day", days: 2,
             desc: `Ще два дні — і планка нижча: ${fmtN(tg)} ${q.unit || ""} замість ${fmtN(q.target)}. Зроблене зараховано.`,
@@ -1490,7 +1492,7 @@
 
     /* видно, що не встигаєш: минуло 60%+ строку, а зроблено менше ніж 60% від потрібного темпу — храмовник (через раз) пропонує
        полегшене доручення замість цього: мета 70%, той самий строк, зроблене зараховано, нагорода на рідкість нижча. Один раз на квест */
-    if (!again) for (const q of Q.list.filter((x) => x.st === "active" && x.type === "count" && x.target && !x.retry && !x.replaces && !x.easeAt && x.until && x.from)) {
+    if (!again) for (const q of Q.list.filter((x) => x.st === "active" && x.type === "count" && x.target && !x.retry && !x.stake && !x.replaces && !x.easeAt && x.until && x.from)) {
       const total = diff(q.from, q.until) + 1, fr = diff(q.from, t0) / total, prog = (q.cur || 0) / q.target;
       if (total < 3 || fr < 0.6 || prog >= fr * 0.6) continue;
       const tg = Math.max(1, Math.ceil(q.target * 0.7)), left = diff(t0, q.until) + 1;
@@ -1536,7 +1538,30 @@
     const ODDS = { myth: [18, 0.045, 0.015], legend: [6, 0.18, 0.07], rare: [2, 0.5, 0.22] };     // [після скількох днів — повний шанс, повний, знижений]; v1.1: ~в 1,5 раза частіше
     const rolled = again ? [] : ["myth", "legend", "rare"].filter((r) => { const [d, hi, lo] = ODDS[r]; return roll(t0 + r[0]) < (since(r) >= d ? hi : lo); });
     (trig ? [[trig, tag]] : []).concat(rolled.map((r) => [r, null])).forEach(([r, tg]) => { const q = draw(r, tg); if (q) { Q.list.push(q); Q.clock[r] = t0; } });
+    /* Рукавиця: не частіше ніж раз на 10 днів, ~15 % на день після того; лише коли на рахунку є чим заставити */
+    if (!again && since("stake") >= 10 && roll(t0 + "stake") < 0.15) { const q = drawStake(); if (q) { Q.list.push(q); Q.clock.stake = t0; } }
     saveQ();
+  }
+  /* РУКАВИЦЯ (з 21.11.2026): храмовник кидає виклик — квест-лічильник із метою ×1,5, а щоб прийняти, ставиш заставу (ціна квесту цієї рідкості).
+     Виконав — застава вертається подвоєною й ще звичайне золото квесту (разом 3×), ні — застава згоріла. Перекинути, відстрочити, друге дихання, полегшене — не можна */
+  const STAKE_X = 1.5;
+  function drawStake() {
+    const G = window.ORDO_GOLD, x = roll(today() + "stakeR"), rar = x < 0.2 ? "myth" : x < 0.7 ? "legend" : "rare", V = ECON.quest[rar][1];
+    if (!G || !G.balance || G.balance() < V) return null;
+    const perDay = (u) => /вірн|зал|тренуван|кардіо|сповід|ранк|дн/i.test(u || "");
+    const win = (p) => p.days || ({ day: 1, week: 7, month: 30 })[p.scope] || 1;
+    const c = pool().filter((p) => p.rar === rar && p.type === "count" && +p.target > 0 && !p.offerOn && !p.flash && (!p.app || appTracked(p.app))
+      && !Q.list.some((q) => (q.pid === p.id || q.pid === "stake:" + p.id) && (q.st === "active" || q.st === "offer"))
+      && (!perDay(p.unit) || Math.ceil(p.target * STAKE_X) <= win(p)));
+    if (!c.length) return null;
+    const p = c[Math.floor(roll(today() + "stakeP" + Q.list.length) * c.length)], q = qFrom(p, "stake:" + p.id);
+    const step = p.target >= 2000 ? 500 : p.target >= 20 ? 5 : 1, tg = Math.ceil((p.target * STAKE_X) / step) * step;
+    const L = ((D().DAY || {}).quest || {}).gauntlet || {};
+    return Object.assign(q, { t: `Рукавиця: ${p.t}`, target: tg, stake: V,
+      desc: `Мета — ${fmtN(tg)} ${p.unit || ""} замість звичних ${fmtN(p.target)}. ${p.desc || ""}`.trim(),
+      offer: pick(L.offer) || "Брате, кидаю тобі рукавицю. Ставиш заставу — і йдеш до кінця.",
+      accept: pick(L.accept) || "Рукавицю піднято. Застава лежить на столі.", decline: pick(L.decline) || "Розумно. Рукавицю піднімають, коли певні.",
+      done: pick(L.win) || "Виклик прийнято й виграно. Застава вертається подвоєною." });
   }
   /* тригер — «rare:return@ret2026-11-11~пристрій~час»: ключ нагоди (до ~) один на всі пристрої. Спожитий лягає в Q.tdone і синхронізується,
      тож другий пристрій не запропонує квест за ту саму нагоду. Чужий тригер пристрій бере лише через 10 хв (власник не встиг — напр. закрили) */
@@ -1567,7 +1592,19 @@
     const lines = (L.offer && L.offer[q.rar]) || [];
     const open = q.offer || pick(lines) || "Брате, маю для тебе доручення.";
     if ((await h.say(fill(open, { rar: RAR[q.rar].n.toLowerCase() }))) === "closed") return false;
-    const G = window.ORDO_GOLD, rr = G && G.can("reroll");                  // реліквія чи жетон перекидання — можна попросити інше доручення
+    const G = window.ORDO_GOLD, rr = !q.stake && G && G.can("reroll");     // реліквія чи жетон перекидання — можна попросити інше доручення (рукавицю — ні)
+    if (q.stake) {                                                               // Рукавиця: застава — те саме золото, що й ціна квесту
+      const V = q.stake, bal = G && G.balance ? G.balance() : 0;
+      const card = `«${q.t}» — ${q.desc} ${RAR[q.rar].n} виклик, ${q.until ? "" : q.scope === "day" ? "на сьогодні" : q.scope === "week" ? "на тиждень" : `на ${q.days || 1} дн.`}. Застава — ${fmtN(V)} золота: виконаєш — отримаєш ${fmtN(V * 3)} (застава ×2 і ще ${fmtN(V)} за квест), ні — застава згорить. Перекинути чи відстрочити не можна.`;
+      if (bal < V) { await h.say(`${card} На рахунку зараз ${fmtN(bal)} — застави не вистачає. Наступного разу.`); q.st = "declined"; q.at = Date.now(); saveQ(); render(); return h.isOpen(); }
+      const j = await h.choose(card, ["Піднімаю рукавицю", "Не цього разу"], "hall__acts--row");
+      if (j === "closed") return false;
+      if (j === 0 && G.stake && (q.st = "active", q.from = today(), q.until = untilFor(q.scope, q.from, q.days), G.stake(q))) {
+        q.at = Date.now(); saveQ(); fx("yes"); buzz("heavy");
+        await h.say(q.accept || "Рукавицю піднято.");
+      } else { q.st = "declined"; q.at = Date.now(); delete q.from; delete q.until; saveQ(); await h.say(q.decline || "Як скажеш."); }
+      render(); return h.isOpen();
+    }
     const i = await h.choose(questCard(q), rr ? ["Приймаю", "Не цього разу", `Перекинути · ${G.srcShort ? G.srcShort("reroll") : ""}`] : ["Приймаю", "Не цього разу"], "hall__acts--row");
     if (i === "closed") return false;
     if (i === 2) {
@@ -1744,7 +1781,7 @@
     return got || (q.st === "part" ? 0 : ((ECON.quest[q.rar] || ECON.quest.rare)[1]));
   }
   const coinXs = () => (window.ORDO_GOLD && window.ORDO_GOLD.coin ? window.ORDO_GOLD.coin("gd-coin--xs") : "");
-  const qRew = (q) => `<span class="dy-gold${q.st === "done" ? " is-got" : ""}">${coinXs()}+${fmtN(qGold(q))}</span> <em class="dy-q__xp">+${fmtN(q.xp)} досв</em>`;
+  const qRew = (q) => q.stake ? `<span class="dy-gold${q.st === "done" ? " is-got" : ""}">${coinXs()}${fmtN(q.stake)} → +${fmtN(q.stake * 3)}</span> <em class="dy-q__xp">рукавиця · +${fmtN(q.xp)} досв</em>` : `<span class="dy-gold${q.st === "done" ? " is-got" : ""}">${coinXs()}+${fmtN(qGold(q))}</span> <em class="dy-q__xp">+${fmtN(q.xp)} досв</em>`;
   function dayGold(k) { const G = window.ORDO_GOLD; if (!G || !G.goldFor) return 0; return Object.entries(X.e).filter(([, e]) => e.d === k).reduce((a, [id]) => a + (G.goldFor(id) || 0), 0); }
   function metaOf(t, r, k) {
     const bits = [], gt = goldTag(t, r, k); if (gt) bits.push(gt);
@@ -2738,7 +2775,7 @@
     const q = e.target.closest("[data-dq]"); if (q) { qSheet(q.dataset.dq); }
   }
   /* «Друге дихання» (жетон з крамниці): провалений квест — ще 2 дні; лічильник — 85% мети, зроблене зараховано */
-  const canBreath = (q) => q.st === "fail" && !q.revived && q.end && diff(q.end, today()) < 1 && !!(window.ORDO_GOLD && window.ORDO_GOLD.can && window.ORDO_GOLD.can("breath"));
+  const canBreath = (q) => q.st === "fail" && !q.stake && !q.revived && q.end && diff(q.end, today()) < 1 && !!(window.ORDO_GOLD && window.ORDO_GOLD.can && window.ORDO_GOLD.can("breath"));
   function secondWind(q) {
     q.revived = 1; q.at = Date.now();
     if (q.type === "count" && q.target) {
@@ -2768,8 +2805,9 @@
       <div class="sheet__stat">${q.st === "active" ? (left <= 0 ? "сьогодні останній день" : `до ${human(q.until)}`) : q.st === "done" ? "виконано" : q.st === "fail" ? (q.broke ? `порушено: ${esc(q.broke)}` : "не встиг") : ""} · ${coinXs()}+${fmtN(qGold(q))} золота · +${fmtN(q.xp)} досвіду</div>
       ${canBreath(q) ? `<button class="btn btn--gold" type="button" data-dqs="breath">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("breath", "gd-tk--btn") : ""}Друге дихання — ще 2 дні, 85% мети</button>` : ""}
       ${q.st === "active" && q.type === "count" ? `<div class="dy-f dy-f--row dy-f--cur"><label>Зараз</label><input class="dy-in dy-in--n" id="dqC" inputmode="decimal" value="${q.cur || 0}"><span class="dy-unit">/ ${fmtN(q.target)} ${esc(q.unit || "")}</span></div>` : ""}
-      ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
-      ${q.st === "active" && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.srcLabel && window.ORDO_GOLD.srcLabel("extend") ? `<p class="dy-note">${esc(window.ORDO_GOLD.srcLabel("extend"))}</p>` : ""}
+      ${q.stake ? `<p class="dy-note dy-note--t">Рукавиця: застава ${fmtN(q.stake)} ${q.st === "active" ? "заморожена" : q.st === "done" ? "вернулась подвоєною" : "згоріла"}. Виконаєш — ${fmtN(q.stake * 3)} золота разом; ні — застава згорає. Відмовитись — теж згорає.</p>` : ""}
+      ${q.st === "active" && !q.stake && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.can("extend") ? `<button class="btn btn--line" type="button" data-dqs="ext">${window.ORDO_GOLD.tkIc ? window.ORDO_GOLD.tkIc("extend", "gd-tk--btn") : ""}Відстрочка +1 день</button>` : ""}
+      ${q.st === "active" && !q.stake && q.until && q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD && window.ORDO_GOLD.srcLabel && window.ORDO_GOLD.srcLabel("extend") ? `<p class="dy-note">${esc(window.ORDO_GOLD.srcLabel("extend"))}</p>` : ""}
       ${q.st === "active" && q.hold ? `<p class="dy-note dy-note--t">Це обітниця на строк: виконано — коли витримаєш до ${human(q.until)} включно. Орден зарахує сам${q.from ? ` · день ${Math.min(diff(q.from, today()) + 1, diff(q.from, q.until) + 1)} з ${diff(q.from, q.until) + 1}` : ""}.</p>` : ""}
       ${q.st === "active" ? `<div class="dy-acts">${q.type === "count" ? `<button class="btn btn--gold" type="button" data-dqs="cur">Записати</button>` : q.hold ? "" : `<button class="btn btn--gold" type="button" data-dqs="done">Виконано</button>`}
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
@@ -2783,6 +2821,7 @@
       if (a === "cur") { const c = numIn(($("dqC") || {}).value); if (c != null) { q.cur = Math.max(0, c); q.at = Date.now(); if (q.target && q.cur >= q.target) { closeSheet(); el.onclick = null; qDone(q.id); return; } saveQ(); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "ext") { const paid = q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD.use("extend", true); if (paid) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b> · ${paid}`); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "breath") { if (canBreath(q) && window.ORDO_GOLD.use("breath")) { secondWind(q); fx("yes"); buzz("medium"); toast(`Друге дихання: <b>${esc(q.t)}</b> — до ${human(add(today(), 1))}`, "is-gift"); } closeSheet(); el.onclick = null; render(); return; }
+      if (a === "drop" && q.stake && q.st === "active" && !confirm(`Рукавиця: застава ${fmtN(q.stake)} золота згорить. Відмовитись?`)) return;
       if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); toast(`Квест «${esc(q.t)}» відпущено`); }
       if (a === "letgo") { q.revived = 1; q.at = Date.now(); q.stAt = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
     };
@@ -3080,7 +3119,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, goalLaw, picker, smartQuests, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, valor, valorMax: VALOR_MAX, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, goalLaw, picker, smartQuests, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, valor, valorMax: VALOR_MAX, offerQuest: (id) => { const q = Q.list.find((x) => x.id === id && x.st === "offer"); return q ? offerScene(q) : null; }, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

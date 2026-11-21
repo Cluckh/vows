@@ -446,7 +446,12 @@
   /* трапеза дня: зелене — їв від голоду, жовте — зайвий перекус, червоне — перебір (вікно помірності) */
   const MEALS = [["g", "по голоду", "meal-ok"], ["y", "зайвий перекус", "meal-snack"], ["r", "перебір", "meal-feast"]];
   const mealHTML = (m) => { const x = MEALS.find((y) => y[0] === m); return x ? `<span class="ml-tag ml--${m}"><svg><use href="#i-${x[2]}"/></svg>${x[1]}</span>` : ""; };
-  const JTAGS = { work: "робота", people: "люди", poker: "покер", body: "тіло", money: "гроші", anx: "тривога", joy: "радість", win: "перемога", fall: "зрив" };
+  /* позначки сповіді (id — у базі, ordo.day/journal/<день>.tags; старі id не міняти). З 21.11 — дві групи й більше подій та станів */
+  const JTAG_G = [
+    ["Що було", { work: "робота", study: "навчання", people: "люди", family: "родина", date: "побачення", poker: "покер", games: "ігри", read: "читання", body: "тіло", walk: "прогулянка", money: "гроші", screen: "залип в екран", ill: "хворів", fest: "свято" }],
+    ["Що відчував", { joy: "радість", calm: "спокій", grat: "вдячність", proud: "гордість", tired: "втома", bored: "нудьга", lonely: "самотність", angry: "роздратування", anx: "тривога", urge: "спокуса — встояв", win: "перемога", fall: "зрив" }]
+  ];
+  const JTAGS = Object.assign({}, ...JTAG_G.map(([, o]) => o));
   const jSent = (k) => !!(S.journal[k] && S.journal[k].sent);
   const journalCount = (from, to) => { let n = 0; const end = to < today() ? to : today(); for (let k = from; k <= end; k = add(k, 1)) if (jSent(k)) n++; return n; };
   function applyJournal() {
@@ -2299,7 +2304,7 @@
           <div class="dy-f"><label>Трапеза дня</label><div class="ml-pick" data-dk="jmeal">${MEALS.map(([v, n, ic]) => `<button type="button" data-dv="${v}" class="ml--${v}${J.meal === v ? " is-on" : ""}"><svg><use href="#i-${ic}"/></svg><span>${n}</span></button>`).join("")}</div>
             ${(() => { if (J.meal !== "r") return J.meal === "y" ? `<p class="dy-note ml-note">Вікно не витрачається — але писар бачить.</p>` : ""; const I = API().mealInfo ? API().mealInfo(sh.k) : null; if (!I) return "";
               return `<p class="dy-note ml-note ml-note--r">${I.ex === "breach" ? "Цього дня вже зрив помірності." : I.ex === "mark" ? "Вікно помірності цього дня вже відмічено." : I.used >= I.limit ? `Вікон помірності не лишилось (${I.limit} з ${I.limit}) — з відправкою це зрив, стрік з нуля.` : `З відправкою — вікно помірності: лишиться <b>${I.limit - I.used - 1} з ${I.limit}</b>.`}</p>`; })()}</div>
-          <div class="dy-f"><label>Позначки</label><div class="dy-chips dy-chips--wrap" data-dk="jtag">${Object.entries(JTAGS).map(([v, n]) => `<button type="button" data-dv="${v}" class="${(J.tags || []).includes(v) ? "is-on" : ""}">${n}</button>`).join("")}</div></div>
+          ${JTAG_G.map(([g, o]) => `<div class="dy-f"><label>${g}</label><div class="dy-chips dy-chips--wrap" data-dk="jtag">${Object.entries(o).map(([v, n]) => `<button type="button" data-dv="${v}" class="${(J.tags || []).includes(v) ? "is-on" : ""}">${n}</button>`).join("")}</div></div>`).join("")}
           <textarea class="dy-in gy-text" id="jText" rows="10" placeholder="Що було сьогодні? Що вдалось, що ні, що відчуваєш? Пиши як є — це бачиш ти й писар.">${esc(J.text || "")}</textarea>
           <div class="gy-saved" id="jSaved">${J.at ? `збережено о ${clock(J.at)}` : "зберігається саме, можна закривати й повертатися"}</div>
           <button class="btn btn--gold" type="button" data-ds="jsend">${sent ? "Зберегти доповнення" : "Віддати сповідь"}</button>`;
@@ -2942,7 +2947,7 @@
       steps: { month: periodSteps(t0.slice(0, 7)), year: periodSteps(t0.slice(0, 4)) },
       faith: Object.assign(faith(), { comeback: comeback() }),
       weight: { last: weightOn(t0, "last"), avg7: weightOn(t0, "avg7") },
-      journal: Object.keys(S.journal).filter((k) => k >= since(14) && jSent(k)).sort().map((k) => { const J = S.journal[k]; return { d: k, mood: J.mood ? +J.mood : null, meal: J.meal || null, tags: J.tags || [], text: (J.text || "").trim().slice(0, 1500) }; }),
+      journal: Object.keys(S.journal).filter((k) => k >= since(14) && jSent(k)).sort().map((k) => { const J = S.journal[k]; return { d: k, mood: J.mood ? +J.mood : null, meal: J.meal || null, tags: (J.tags || []).map((x) => JTAGS[x] || x), text: (J.text || "").trim().slice(0, 1500) }; }),
       nights: Object.keys(S.night).filter((k) => k >= since(14)).sort().map((k) => { const N = S.night[k]; return { d: k, at: N.at, kind: N.kind || "", topic: N.topic || "", text: (N.text || "").slice(0, 140), dealt: N.dealt || "" }; }),
       poker: { days: days14.map((k) => Object.assign({ d: k }, pDay(k) || {})).filter((x) => x.hands), month: periodHands(t0.slice(0, 7)), year: periodHands(t0.slice(0, 4)) },
       health: days14.map((k) => ({ d: k, steps: (hDay(k) || {}).steps, sleepMin: (hDay(k) || {}).sleepMin, weight: (hDay(k) || {}).weight, up: S.wake[k] || null, feel: (S.sleep[k] || {}).q || null, siren: (S.sleep[k] || {}).siren || null, wakes: (S.sleep[k] || {}).wakes ?? null, bed: (S.sleep[k] || {}).bed || null, wake: (S.sleep[k] || {}).wake || null, awakeMin: (S.sleep[k] || {}).gap || null, napMin: (S.sleep[k] || {}).nap || null, sleepHealth: (hDay(k) || {}).sleepHealth || null, sleepFocus: (focusSleep(k) || {}).txt || null, dream: (S.sleep[k] || {}).dream || null })).filter((x) => x.steps != null || x.sleepMin || x.up || x.siren || x.dream),

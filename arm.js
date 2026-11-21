@@ -183,18 +183,19 @@
   }
 
   /* ============================================================= БІБЛІОТЕКА == */
-  function libBooks() {
+  /* all — разом із закинутим (з 21.11 закинуте не зникає: окремий розділ «Закинуте» внизу бібліотеки) */
+  function libBooks(all) {
     const Y = DY(), BK = Y && Y.books ? Y.books() : { list: {} }, seeds = (D().LIBRARY || {}).books || [];
     const bk = Object.values(BK.list || {}), out = [];
     seeds.forEach((s) => {
       const o = LIB.books[s.id] || {};
       if (s.match && bk.some((b) => new RegExp(s.match, "i").test(b.t || ""))) return;          // уже на полиці Дня
-      const st = o.st || s.st; if (st === "drop") return;
+      const st = o.st || s.st; if (st === "drop" && !all) return;
       out.push(Object.assign({}, s, o, { st, src: "lib" }));
     });
     bk.forEach((b) => { const s = seeds.find((x) => x.match && new RegExp(x.match, "i").test(b.t || "")) || seeds.find((x) => norm(x.t) === norm(b.t)) || {};
       out.push({ id: b.id, t: b.t, a: s.a || "", art: b.art || s.art || null, st: b.end ? "done" : "read", end: b.end || null, pages: b.pages, src: "bk", knight: s.knight, take: s.take, note: s.note }); });
-    Object.keys(LIB.books).filter((id) => !seeds.some((s) => s.id === id) && LIB.books[id].t).forEach((id) => { const o = LIB.books[id]; if (o.st !== "drop") out.push(Object.assign({ id, src: "lib" }, o)); });
+    Object.keys(LIB.books).filter((id) => !seeds.some((s) => s.id === id) && LIB.books[id].t).forEach((id) => { const o = LIB.books[id]; if (o.st !== "drop" || all) out.push(Object.assign({ id, src: "lib" }, o)); });
     return out;
   }
   /* гра чи книжка без картинки — база малює сама (функція art: Gemini вигадує статуетку чи емблему й малює, ~15–30 с), не чекаючи ночі писаря.
@@ -215,10 +216,10 @@
       }
     } finally { genBusy = false; }
   }
-  function libGames() {
+  function libGames(all) {
     const seeds = (D().LIBRARY || {}).games || [], out = [];
-    seeds.forEach((s) => { const o = LIB.games[s.id] || {}; const g = Object.assign({}, s, o); if (g.st !== "drop") out.push(g); });
-    Object.keys(LIB.games).filter((id) => !seeds.some((s) => s.id === id) && LIB.games[id].t).forEach((id) => { const g = Object.assign({ id }, LIB.games[id]); if (g.st !== "drop") out.push(g); });
+    seeds.forEach((s) => { const o = LIB.games[s.id] || {}; const g = Object.assign({}, s, o); if (g.st !== "drop" || all) out.push(g); });
+    Object.keys(LIB.games).filter((id) => !seeds.some((s) => s.id === id) && LIB.games[id].t).forEach((id) => { const g = Object.assign({ id }, LIB.games[id]); if (g.st !== "drop" || all) out.push(g); });
     return out;
   }
   /* для цілей: «Пройти Elden Ring…» — закривається, коли гру позначено пройденою */
@@ -351,22 +352,29 @@
         ${q.length ? `<div class="st-h st-h--sub">На черзі</div><ul class="lb-books lb-books--q">${q.map((b) => `<li data-lbbook="${esc(b.id)}">${cover(b)}<div><b>${esc(b.t)}</b><span>${esc(b.a || "")}</span></div></li>`).join("")}</ul>` : ""}
         <div class="st-h st-h--sub">Зал трофеїв <em>${gd.length} пройдено</em></div>
         <div class="lb-games">${gp.concat(gd).map((g) => `<button type="button" data-lbgame="${esc(g.id)}">${statue(g)}<b>${esc(g.t)}</b><span>${g.st === "play" ? "у процесі" : esc(g.d && g.d.length === 10 ? human(g.d) : g.d || "")}</span></button>`).join("")}</div>
+        ${(() => { const dropAt = (x) => x.dd || (x.mt ? new Date(x.mt).toLocaleDateString("sv-SE") : "");
+          const dg = libGames(true).filter((g) => g.st === "drop" && g.t && g.t.length > 2), db = libBooks(true).filter((b) => b.st === "drop" && b.t);
+          if (!dg.length && !db.length) return "";
+          const L = dg.map((g) => ({ k: "g", id: g.id, t: g.t, d: dropAt(g), x: g })).concat(db.map((b) => ({ k: "b", id: b.id, t: b.t, d: dropAt(b), x: b }))).sort((a, b) => (b.d > a.d ? 1 : -1));
+          return `<div class="st-h st-h--sub">Закинуте <em>${L.length}</em></div><ul class="lb-books lb-drop">${L.map((e) => `<li ${e.k === "g" ? "data-lbgame" : "data-lbbook"}="${esc(e.id)}">${e.k === "g" ? statue(e.x) : cover(e.x)}<div><b>${esc(e.t)}</b><span>${e.k === "g" ? "гра" : "книжка"}${e.d ? ` · закинуто ${human(e.d)}` : ""}</span></div></li>`).join("")}</ul>`; })()}
         <div class="lb-add"><input class="dy-in" id="lbT" placeholder="Нова гра чи книжка в чергу"><div class="ar-ab"><button type="button" data-ar="addg">+ гра</button><button type="button" data-ar="addb">+ книжка</button></div></div>
         <button type="button" class="btn btn--ghost" data-ar="close">Закрити</button>`;
     } else if (mode === "game") {
-      const g = libGames().find((x) => x.id === sel) || {}, a = art("game:" + (g.art || (g.t || "").toLowerCase()));
-      h += `<div class="lb-big">${a ? `<img src="${a}" alt="">` : ""}</div><div class="gs-kicker">${g.st === "play" ? "у процесі" : "пройдено" + (g.d ? " · " + (g.d.length === 10 ? human(g.d) : g.d) : "")}</div>
+      const g = libGames(true).find((x) => x.id === sel) || {}, a = art("game:" + (g.art || (g.t || "").toLowerCase()));
+      const gdd = g.dd || (g.mt ? new Date(g.mt).toLocaleDateString("sv-SE") : "");
+      h += `<div class="lb-big">${a ? `<img src="${a}" alt="">` : ""}</div><div class="gs-kicker">${g.st === "play" ? "у процесі" : g.st === "drop" ? "закинуто" + (gdd ? " · " + human(gdd) : "") : "пройдено" + (g.d ? " · " + (g.d.length === 10 ? human(g.d) : g.d) : "")}</div>
         <div class="sheet__title dy-sht">${esc(g.t)}</div>${g.note ? `<p class="dy-note dy-note--t">${esc(g.note)}</p>` : ""}
         <textarea class="dy-in dy-in--note lb-cm" id="lbCm" rows="3" placeholder="Мій коментар: враження, що запамʼяталось, оцінка">${esc((LIB.games[sel] || {}).cm || "")}</textarea>
-        ${g.st === "play" ? `<button type="button" class="btn btn--gold" data-ar="gdone">Пройдено!</button><button type="button" class="btn btn--line" data-ar="gdrop">Кинув — прибрати</button>` : `<button type="button" class="btn btn--line" data-ar="gundo">Ще не пройдено</button>`}
+        ${g.st === "play" ? `<button type="button" class="btn btn--gold" data-ar="gdone">Пройдено!</button><button type="button" class="btn btn--line" data-ar="gdrop">Закинув</button>` : g.st === "drop" ? `<button type="button" class="btn btn--line" data-ar="gundo">Повернутись — знову в процесі</button>` : `<button type="button" class="btn btn--line" data-ar="gundo">Ще не пройдено</button>`}
         <button type="button" class="btn btn--ghost" data-ar="lib">До бібліотеки</button>`;
     } else if (mode === "book") {
-      const b = libBooks().find((x) => x.id === sel) || {}, a = art("book:" + (b.art || String(b.t || "").toLowerCase().trim()));
-      h += `<div class="lb-big lb-big--book">${a ? `<img src="${a}" alt="">` : ""}</div><div class="gs-kicker">${b.st === "done" ? "прочитано" + (b.end ? " · " + human(b.end) : "") : b.st === "read" ? "читаю" : "на черзі"}</div>
+      const b = libBooks(true).find((x) => x.id === sel) || {}, a = art("book:" + (b.art || String(b.t || "").toLowerCase().trim()));
+      const bdd = b.dd || (b.mt ? new Date(b.mt).toLocaleDateString("sv-SE") : "");
+      h += `<div class="lb-big lb-big--book">${a ? `<img src="${a}" alt="">` : ""}</div><div class="gs-kicker">${b.st === "done" ? "прочитано" + (b.end ? " · " + human(b.end) : "") : b.st === "read" ? "читаю" : b.st === "drop" ? "закинуто" + (bdd ? " · " + human(bdd) : "") : "на черзі"}</div>
         <div class="sheet__title dy-sht">${esc(b.t)}</div>${b.a ? `<p class="dy-note">${esc(b.a)}</p>` : ""}${b.note ? `<p class="dy-note dy-note--t">${esc(b.note)}</p>` : ""}
         <textarea class="dy-in dy-in--note lb-cm" id="lbCm" rows="3" placeholder="Мій коментар: думки, цитата, оцінка">${esc((LIB.books[sel] || {}).cm || "")}</textarea>
         ${b.take && b.take.length ? `<div class="gs-h">Що забрав собі</div><ul class="ar-rules">${b.take.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-        ${b.st === "queue" || (b.st === "read" && b.src === "lib") ? `<button type="button" class="btn btn--gold" data-ar="bstart">Почати читати — на полицю Дня</button><button type="button" class="btn btn--line" data-ar="bdrop">Прибрати з черги</button>` : ""}
+        ${b.st === "queue" || (b.st === "read" && b.src === "lib") ? `<button type="button" class="btn btn--gold" data-ar="bstart">Почати читати — на полицю Дня</button><button type="button" class="btn btn--line" data-ar="bdrop">Закинув</button>` : b.st === "drop" ? `<button type="button" class="btn btn--line" data-ar="bback">Повернути в чергу</button>` : ""}
         ${b.st === "read" && b.src === "bk" ? `<p class="dy-note">Сторінки й «дочитав» — на полиці в справі читання (День).</p>` : ""}
         <button type="button" class="btn btn--ghost" data-ar="lib">До бібліотеки</button>`;
     }
@@ -394,11 +402,12 @@
       const o = ARM.ex[sel] = ARM.ex[sel] || {}; o.last = { k: today(), w, reps }; o.mt = Date.now(); saveA(); fx("yes", "medium"); render(); refresh(); return;
     }
     if (a === "gdone" || a === "gundo" || a === "gdrop") {
-      const o = LIB.games[sel] = LIB.games[sel] || {}; o.st = a === "gdone" ? "done" : a === "gdrop" ? "drop" : "play"; o.d = a === "gdone" ? today() : o.d || null; o.mt = Date.now(); saveL();
+      const o = LIB.games[sel] = LIB.games[sel] || {}; o.st = a === "gdone" ? "done" : a === "gdrop" ? "drop" : "play"; o.d = a === "gdone" ? today() : o.d || null; o.dd = a === "gdrop" ? today() : null; o.mt = Date.now(); saveL();
       fx(a === "gdone" ? "date" : null, "medium"); if (a === "gdrop") { mode = "lib"; } render(); refresh(); return;
     }
     if (a === "bstart") { const bk = libBooks().find((x) => x.id === sel); const Y = DY(); if (bk && Y && Y.bookStart) { Y.bookStart(bk.t, null, bk.art || null); const o = LIB.books[sel] = LIB.books[sel] || {}; o.st = "drop"; o.moved = 1; o.mt = Date.now(); saveL(); fx("yes", "medium"); mode = "lib"; render(); } return; }
-    if (a === "bdrop") { const o = LIB.books[sel] = LIB.books[sel] || {}; o.st = "drop"; o.mt = Date.now(); saveL(); mode = "lib"; render(); return; }
+    if (a === "bdrop") { const o = LIB.books[sel] = LIB.books[sel] || {}; o.st = "drop"; o.dd = today(); o.mt = Date.now(); saveL(); mode = "lib"; render(); return; }
+    if (a === "bback") { const o = LIB.books[sel] = LIB.books[sel] || {}; o.st = "queue"; o.dd = null; o.mt = Date.now(); saveL(); render(); return; }
     if (a === "addg" || a === "addb") {
       const t = ($("lbT").value || "").trim(); if (!t) return;
       const id = (a === "addg" ? "g" : "b") + Date.now().toString(36);

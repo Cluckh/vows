@@ -184,6 +184,7 @@
 
   /* ============================================================= БІБЛІОТЕКА == */
   /* all — разом із закинутим (з 21.11 закинуте не зникає: окремий розділ «Закинуте» внизу бібліотеки) */
+  let dropOpen = false;                                    // розділ «Закинуте» — згорнутий, відкривається кнопкою
   function libBooks(all) {
     const Y = DY(), BK = Y && Y.books ? Y.books() : { list: {} }, seeds = (D().LIBRARY || {}).books || [];
     const bk = Object.values(BK.list || {}), out = [];
@@ -356,7 +357,8 @@
           const dg = libGames(true).filter((g) => g.st === "drop" && g.t && g.t.length > 2), db = libBooks(true).filter((b) => b.st === "drop" && b.t);
           if (!dg.length && !db.length) return "";
           const L = dg.map((g) => ({ k: "g", id: g.id, t: g.t, d: dropAt(g), x: g })).concat(db.map((b) => ({ k: "b", id: b.id, t: b.t, d: dropAt(b), x: b }))).sort((a, b) => (b.d > a.d ? 1 : -1));
-          return `<div class="st-h st-h--sub">Закинуте <em>${L.length}</em></div><ul class="lb-books lb-drop">${L.map((e) => `<li ${e.k === "g" ? "data-lbgame" : "data-lbbook"}="${esc(e.id)}">${e.k === "g" ? statue(e.x) : cover(e.x)}<div><b>${esc(e.t)}</b><span>${e.k === "g" ? "гра" : "книжка"}${e.d ? ` · закинуто ${human(e.d)}` : ""}</span></div></li>`).join("")}</ul>`; })()}
+          if (!dropOpen) return `<button type="button" class="dy-more-t lb-drop-t" data-ar="dropt">закинуте · ${L.length} ›</button>`;
+          return `<button type="button" class="dy-more-t lb-drop-t" data-ar="dropt">закинуте · ${L.length} ‹ сховати</button><ul class="lb-books lb-drop">${L.map((e) => `<li ${e.k === "g" ? "data-lbgame" : "data-lbbook"}="${esc(e.id)}">${e.k === "g" ? statue(e.x) : cover(e.x)}<div><b>${esc(e.t)}</b><span>${e.k === "g" ? "гра" : "книжка"}${e.d ? ` · закинуто ${human(e.d)}` : ""}</span></div></li>`).join("")}</ul>`; })()}
         <div class="lb-add"><input class="dy-in" id="lbT" placeholder="Нова гра чи книжка в чергу"><div class="ar-ab"><button type="button" data-ar="addg">+ гра</button><button type="button" data-ar="addb">+ книжка</button></div></div>
         <button type="button" class="btn btn--ghost" data-ar="close">Закрити</button>`;
     } else if (mode === "game") {
@@ -406,6 +408,7 @@
       fx(a === "gdone" ? "date" : null, "medium"); if (a === "gdrop") { mode = "lib"; } render(); refresh(); return;
     }
     if (a === "bstart") { const bk = libBooks().find((x) => x.id === sel); const Y = DY(); if (bk && Y && Y.bookStart) { Y.bookStart(bk.t, null, bk.art || null); const o = LIB.books[sel] = LIB.books[sel] || {}; o.st = "drop"; o.moved = 1; o.mt = Date.now(); saveL(); fx("yes", "medium"); mode = "lib"; render(); } return; }
+    if (a === "dropt") { dropOpen = !dropOpen; render(); return; }
     if (a === "bdrop") { const o = LIB.books[sel] = LIB.books[sel] || {}; o.st = "drop"; o.dd = today(); o.mt = Date.now(); saveL(); mode = "lib"; render(); return; }
     if (a === "bback") { const o = LIB.books[sel] = LIB.books[sel] || {}; o.st = "queue"; o.dd = null; o.mt = Date.now(); saveL(); render(); return; }
     if (a === "addg" || a === "addb") {

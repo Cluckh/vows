@@ -2170,3 +2170,4 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .lb-drop li{opacity:.55}
 .lb-drop .lb-statue{width:46px;height:46px;flex:none;margin:0}
 .lb-drop .lb-statue img,.lb-drop .lb-statue svg{width:100%;height:100%;object-fit:contain}
+.lb-drop-t{margin:16px auto 8px;padding:6px 12px}

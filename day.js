@@ -911,6 +911,21 @@
     const its = items(k).map(({ t, r }) => stOf(t, r, k)).filter((s) => s !== "moved" && s !== "cancel"), miss = its.filter((s) => !isFull(s)).length;
     return its.length >= 3 && (miss === 0 || (miss === 1 && k < today() && roughNight(k) && GEAR("nightGuard") > 0));     // спорядження: після тривожної ночі — одна справа прощається
   }
+  /* ЗВИТЯГА (з 21.11.2026, власник: «compound effect — до 10к, але майже нереально»): ланцюг ідеальних днів без жодного зриву —
+     множник на все золото дня. Кожен ідеальний день без зривів: +1 % (до +80 % на 80-й день); зрив будь-якої обітниці — з нуля;
+     неідеальний день — −10; день Lay on Hands — заморожений (ні росту, ні втрати). Золото дня множиться на ланцюг, набраний ДО нього */
+  const VALOR_FROM = "2026-11-21", VALOR_MAX = 80;
+  let valorMemo = null;
+  function valorMap() {
+    const t0 = today(); if (valorMemo && valorMemo.t === t0 && Date.now() - valorMemo.at < 4000) return valorMemo.m;
+    const F = faithIdx(), m = {}; let c = 0;
+    for (let k = VALOR_FROM; k <= t0; k = add(k, 1)) {
+      m[k] = c; if (k === t0) break;
+      if (F.all.has(k)) c = 0; else if (S.loh && S.loh[k]) { /* заморожено */ } else if (perfect(k)) c = Math.min(VALOR_MAX, c + 1); else c = Math.max(0, c - 10);
+    }
+    valorMemo = { t: t0, at: Date.now(), m }; return m;
+  }
+  const valor = (k) => (!k || k < VALOR_FROM ? 0 : valorMap()[k] || 0);
   function settleTasks(k) { items(k).forEach(({ t, r }) => putXP(`t:${t.id}:${k}`, xpTask(t, r, k), "task", t.t, k)); }
 
   /* =========================================================== НАГОРОДИ ==== */
@@ -1982,6 +1997,7 @@
     const t0d = today(), strip = []; for (let i = -1; i <= 5; i++) strip.push(add(t0d, i));
     if (!strip.includes(k)) strip.push(k);
     h += `<div class="dy-strip">${strip.map((d) => `<button type="button" data-dday="${d}" class="${d === k ? "is-on" : ""}${d === t0d ? " is-today" : ""}"><span>${WD[wd(d)]}</span><b>${dt(d).getDate()}</b></button>`).join("")}</div>`;
+    { const vn = valor(k); if (vn > 0 && k <= today()) h += `<div class="dy-valor"><svg><use href="#i-swords"/></svg><span><b>Звитяга ${vn}</b> ${API().daysWord ? API().daysWord(vn) : "днів"} · золото дня ×${(1 + vn / 100).toFixed(2).replace(".", ",")}</span><em>зрив — з нуля, неідеальний день — −10</em></div>`; }
     if (k !== today()) h += `<button class="dy-today" type="button" data-dnav="0">до сьогодні</button>`;
     if (k === today() && !(S.loh && S.loh[k])) h += `<button type="button" class="dy-loh-btn" data-dloh="1"><span>✋</span><b>Важкий день?</b><em>Lay on Hands</em></button>`;
     if (S.loh && S.loh[k]) h += `<div class="dy-loh"><b>✋ Lay on Hands</b><span>ноша дня — наполовину · ${lohHealed(k) ? "зцілення виконано — нагорода сповна" : "нагороди ×0,5, зцілення поверне сповна"}</span></div>`;
@@ -3064,7 +3080,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, goalLaw, picker, smartQuests, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, goalLaw, picker, smartQuests, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, valor, valorMax: VALOR_MAX, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

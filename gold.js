@@ -145,7 +145,9 @@
   function ledger() {
     const Dy = DAY(); if (!Dy || !Dy._state) return [];
     const { X, Q, S } = Dy._state();
-    return Object.entries(X.e || {}).filter(([, e]) => e.d >= START).map(([id, e]) => ({ id, d: e.d, why: e.why, g: goldOf(id, e, Q, S) })).filter((x) => x.g > 0);
+    /* Звитяга: усе золото дня × (1 + ланцюг ідеальних днів без зривів до нього / 100) — day.js valor() */
+    const vm = (d) => 1 + ((Dy.valor ? Dy.valor(d) : 0) || 0) / 100;
+    return Object.entries(X.e || {}).filter(([, e]) => e.d >= START).map(([id, e]) => { const b = goldOf(id, e, Q, S), m = b > 0 ? vm(e.d) : 1; return { id, d: e.d, why: e.why, g: Math.round(b * m), vm: m }; }).filter((x) => x.g > 0);
   }
   const sum = (o) => Object.values(o).reduce((a, x) => a + (typeof x === "number" ? x : x.amt || 0), 0);
   const earned = () => { const L = ledger(), ids = new Set(L.map((x) => x.id));
@@ -503,7 +505,7 @@
     ledger().forEach((x) => {
       const p = x.id.split(":")[0], rb = G.bon["rb:" + x.id] || 0, bl = G.bon["bl:" + x.id] || 0, e = ((DAY() && DAY()._state && DAY()._state().X.e) || {})[x.id] || {};
       rows.push({ d: x.d, at: e.at || 0, g: x.g + (typeof rb === "number" ? rb : rb.amt || 0) + (typeof bl === "number" ? bl : bl.amt || 0), k: KIND[p] || "інше", t: x.why || KIND[p] || x.id,
-        x: [e.mul && e.mul !== 1 ? (e.mul < 1 ? `Lay on Hands ×${e.mul}` : `Відродження ×${e.mul}`) : "", rb ? "спорядження" : "", bl ? "благословення" : ""].filter(Boolean).join(" · ") });
+        x: [e.mul && e.mul !== 1 ? (e.mul < 1 ? `Lay on Hands ×${e.mul}` : `Відродження ×${e.mul}`) : "", x.vm > 1 ? `звитяга ×${x.vm.toFixed(2).replace(".", ",")}` : "", rb ? "спорядження" : "", bl ? "благословення" : ""].filter(Boolean).join(" · ") });
     });
     Object.entries(G.inc).filter(([, v]) => fresh(v)).forEach(([k, v]) => rows.push({ d: new Date(v.at).toLocaleDateString("sv-SE"), at: v.at, g: v.amt || 0, k: k.startsWith("lv:") ? "рівень" : k.startsWith("dup:") ? "переплавлено" : k.startsWith("wk:") ? "недільна скриня" : "скриня", t: v.why || k, x: "" }));
     Object.values(G.out).filter((o) => live(o) && fresh(o)).forEach((o) => rows.push({ d: new Date(o.at).toLocaleDateString("sv-SE"), at: o.at, g: -o.amt, k: o.kind === "white" ? "вивід" : "крамниця",

@@ -411,7 +411,7 @@
   async function panic() {
     const P = D().PANIC; if (!P) return;
     show(SUPREME);
-    { const DY = window.ORDO_DAY, n = DY && DY.newsFor ? DY.newsFor("supreme") : null; if (n) { DY.heard("supreme"); if ((await say(n.t)) === "closed") return; } }
+    { const DY = window.ORDO_DAY, n = DY && DY.newsFor ? DY.newsFor("supreme") : null; if (n) { DY.heard("supreme"); if ((await say(n.t)) === "closed") return; if (n.n && n.n.length && !(await runDialog({ n: n.n }))) return; } }
     let st;
     for (;;) {                                       // «Твої слова для мене» — архів Магістра одразу з першого меню
       const arch = hasArch("supreme");
@@ -519,10 +519,12 @@
     const v = (D().VOWS || []).find((x) => x.id === vowId), k = (D().KEEPERS || {})[vowId]; if (!v || !k) return;
     show({ id: vowId, icon: v.icon });
     let lead = null;
-    if (k.talks && k.talks.length && Math.random() < 0.3) {                 // інколи хранитель сам заводить розмову
+    /* «є що сказати»: спершу вся розмова від писаря (репліка й продовження з вибором), а вже потім звичне меню */
+    const DY = window.ORDO_DAY, nw = DY && DY.newsFor ? DY.newsFor(vowId) : null;
+    if (nw) { DY.heard(vowId); if ((await say(nw.t)) === "closed") return; if (nw.n && nw.n.length && !(await runDialog({ n: nw.n }))) return; }
+    else if (k.talks && k.talks.length && Math.random() < 0.3) {          // інколи хранитель сам заводить розмову
       const t = fresh("talk." + vowId, k.talks, 3); if (!(await runDialog(t.v))) return;
     } else lead = fresh("keeper." + vowId, k.lines, 6).v;
-    { const DY = window.ORDO_DAY, n = DY && DY.newsFor ? DY.newsFor(vowId) : null; if (n) { lead = n.t; DY.heard(vowId); } }      // «є що сказати» — спершу це слово від писаря
     for (;;) {
       const opts = [];
       if (k.gains && k.gains.length) opts.push(["gain", "Що мені дає цей стрік?"]);

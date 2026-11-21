@@ -1824,9 +1824,11 @@
     const d0 = dropDay() || today(), until = n.until || add(d0, 3), key = `${id}:${d0}:${n.t.length}`;
     if (today() < d0 || today() > until || (S.heard && S.heard[key])) return null;
     if (Object.values(S.arch || {}).some((e) => e.who === id && e.n && e.n[0] && e.n[0].s === n.t)) return null;     // те саме слово вже чув (писар переніс зі старого drop) — не повторюємо
-    return { t: n.t, rar: rarOk(n.rar), key };
+    /* з 21.11: вість — це розмова, а не анонс: t — перша репліка, n — продовження (вузли { s, c? } як у подіях) */
+    const nodes = Array.isArray(n.n) ? n.n.filter((x) => x && x.s) : [];
+    return { t: n.t, n: nodes, rar: rarOk(n.rar), key };
   }
-  function heard(id) { const n = newsFor(id); if (!n) return; S.heard = S.heard || {}; S.heard[n.key] = today(); archive("n:" + n.key, { who: id, rar: n.rar, title: n.t.slice(0, 60), n: [{ s: n.t }] }); saveS(); const A = API(); if (A.renderBoard) A.renderBoard(); teaserDots(); }
+  function heard(id) { const n = newsFor(id); if (!n) return; S.heard = S.heard || {}; S.heard[n.key] = today(); archive("n:" + n.key, { who: id, rar: n.rar, title: n.t.slice(0, 60), n: [{ s: n.t }].concat(n.n || []) }); saveS(); const A = API(); if (A.renderBoard) A.renderBoard(); teaserDots(); }
 
   /* моменти: сцени з умовою, які писар пише заздалегідь, а Орден запускає сам, коли умова справдилась
      at: open (при відкритті) · ritual (уранці до 12:00, після ранкового звіту) · confession (одразу після сповіді) · board (тизер на головному)
@@ -1936,7 +1938,9 @@
     const [kind, id] = String(key).split(":");
     if (kind === "moment") return playMomentId(id);
     const n = newsFor(id), h = H(); if (!n || !h) return;
-    heard(id); refreshViews(); h.stage(id); await h.say(n.t); if (h.isOpen()) h.close(); refreshViews();
+    heard(id); refreshViews(); h.stage(id);
+    if ((await h.say(n.t)) !== "closed" && n.n.length) await h.runDialog({ n: n.n });
+    if (h.isOpen()) h.close(); refreshViews();
   }
   const playMomentId = (id) => { const m = DROP && Array.isArray(DROP.moments) && DROP.moments.find((x) => x.id === id); return m ? playMoment(m) : null; };
   function budgetLine(q) {

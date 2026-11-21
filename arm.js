@@ -341,7 +341,7 @@
         ${DS.length < 6 ? `<button type="button" class="gl-new" data-ar="spadd"><svg><use href="#i-plus"/></svg>День ${String.fromCharCode(65 + DS.length)}</button>` : ""}
         <button type="button" class="btn btn--gold" data-ar="spsave">Зберегти</button><button type="button" class="btn btn--ghost" data-ar="close">Закрити</button>`;
     } else if (mode === "lib") {
-      want(libBooks().map((b) => "book:" + (b.art || String(b.t || "").toLowerCase().trim())).concat(libGames().map((g) => "game:" + (g.art || g.t.toLowerCase()))));
+      want(libBooks(true).map((b) => "book:" + (b.art || String(b.t || "").toLowerCase().trim())).concat(libGames(true).filter((g) => g.t).map((g) => "game:" + (g.art || g.t.toLowerCase()))));   // і закинутим — уже намальоване не пропадає
       setTimeout(genLib, 8000);
       const B = libBooks(), G = libGames(), reading = B.filter((b) => b.st === "read"), done = B.filter((b) => b.st === "done").sort((a, b) => ((b.end || "") > (a.end || "") ? 1 : -1)), q = B.filter((b) => b.st === "queue");
       const gd = G.filter((g) => g.st === "done"), gp = G.filter((g) => g.st === "play");

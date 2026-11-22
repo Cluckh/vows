@@ -407,7 +407,7 @@ window.ORDO_START = function () {
   }
   function bestOf(v) {
     const fromLog = LOG.reduce((m, e) => (e.k === "breach" && e.v === v.id && e.prev > m ? e.prev : m), 0);
-    const b = Math.max(streak(v), fromLog, BEST[v.id] || 0);
+    const b = Math.max(streak(v), fromLog, BEST[v.id] || 0, v.best || 0);     // v.best — рекорд іще до Ордену
     if (BEST[v.id] !== b) { BEST[v.id] = b; LS.set("ordo.best", BEST); }
     return b;
   }
@@ -2262,8 +2262,19 @@ window.ORDO_START = function () {
   })();
   renderSound();
   sync();
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); });
-  window.addEventListener("pageshow", (e) => { if (e.persisted) sync(); });
+  /* 22.11: застосунок, що «спав» (збережений веб-застосунок на компі, вкладка з учора), прокидається — спершу свіже з бази, потім ритуал і сцени.
+     Інакше вранці на компі вдруге грав ритуал і вісті, які вже бачив на телефоні, а за мить сторінка перезапускалась зі свіжим станом */
+  let resuming = false;
+  async function resume() {
+    if (resuming) return; resuming = true;
+    try { const V = window.ORDO_VAULT; if (V && V.fresh && !(await V.fresh())) return; } catch (e) {}      // прийшло нове — сторінка перезапуститься сама, нічого не показуємо
+    finally { resuming = false; }
+    sync();
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resume(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted) resume(); });
+  /* вікно на компі лежало під іншими, і браузер вважав його видимим — новий день помічаємо, коли повертаєшся у вікно */
+  window.addEventListener("focus", () => { if (shownDay !== todayKey()) resume(); });
   /* ---- оновлення: нова версія на сервері → тихе перезавантаження, коли ніщо не відкрито ---- */
   if ("serviceWorker" in navigator) {
     const sw = navigator.serviceWorker;

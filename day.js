@@ -2987,7 +2987,7 @@
       exiles: Object.values((LS.get("ordo.exiles", { list: {} }) || {}).list || {}).filter((e) => e.st === "on").map((e) => ({ n: e.n, left: e.days - diff(e.from, t0) })),
       gear: (() => { const G = window.ORDO_GOLD, g = LS.get("ordo.gold", {}) || {}, R = D().RELICS || []; return { on: (g.eq || []).map((id) => (R.find((r) => r.id === id) || {}).n).filter(Boolean), own: Object.keys(g.own || {}).filter((id) => R.some((r) => r.id === id)).length, gold: G && G.balance ? G.balance() : null }; })(),
       xp7: days14.slice(-7).map((k) => ({ d: k, xp: Object.values(X.e).filter((e) => e.d === k).reduce((a, e) => a + e.xp, 0) })),
-      vows: vows.map((v) => ({ id: v.id, name: v.name, streak: A.streak ? A.streak(v) : null, start: (LS.get("ordo.starts", {})[v.id]) || v.start, best: (LS.get("ordo.best", {})[v.id]) || null })),
+      vows: vows.map((v) => ({ id: v.id, name: v.name, streak: A.streak ? A.streak(v) : null, start: (LS.get("ordo.starts", {})[v.id]) || v.start, best: Math.max((LS.get("ordo.best", {})[v.id]) || 0, v.best || 0) || null })),
       breaches30: LOG.filter((e) => e.k === "breach" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, why: e.why || "" })),
       calls30: LOG.filter((e) => e.k === "call" && e.d >= since(30)).map((e) => ({ v: e.v, d: e.d, st: e.st })),
       tasks: Object.values(S.tasks).filter((t) => !t.del && (!t.end || t.end >= t0)).map((t) => ({ t: t.t, type: t.type, target: t.target, unit: t.unit, rep: repText(t) || "раз", time: t.time || "", gym: isGym(t), rate14: rate(t),

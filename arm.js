@@ -149,10 +149,22 @@
       else if (light && !e.body) w = Math.max(0, Math.round((e.inv ? w * 1.15 : w * 0.85) / (e.step || 2.5)) * (e.step || 2.5));
       return { id: e.id, n: e.n, e, last: s.last, best: s.best, w, reps, prog: null };
     });
+    /* 22.11: повернення до робочих ваг — після паузи ваги впали на чверть, а одна прогресія на тренування вела б назад місяцями.
+       Вправа нижче 90 % твоєї найкращої ваги, де минулого разу всі підходи ≥ 10 повторів, — одразу +10 % (щонайменше крок), не вище найкращої */
+    const ramp = [];
+    if (!deload && !rough && !light) ex.forEach((x) => {
+      if (x.e.body || !x.best || !x.best.w || !x.last || !(x.reps || []).length || x.reps.some((r) => r < 10)) return;
+      const st = x.e.step || 2.5, inv = !!x.e.inv;
+      if (inv ? x.w > x.best.w * 1.1 : x.w < x.best.w * 0.9) {
+        const to = inv ? Math.max(x.best.w, Math.min(x.w - st, Math.round(x.w * 0.9 / st) * st)) : Math.min(x.best.w, Math.max(x.w + st, Math.round(x.w * 1.1 / st) * st));
+        if (to !== x.w) { x.w = to; x.reps = x.reps.map(() => 10); x.prog = "back"; ramp.push(x); }
+      }
+    });
+    if (ramp.length) reasons.push(`повертаємось до робочих ваг: ${ramp.map((x) => x.n.toLowerCase()).join(", ")} — +10 % за тренування, до твого найкращого`);
     if (!deload && !rough && !light) {
-      const wcand = ex.find((x) => !x.e.body && x.reps.length >= 3 && x.reps.every((r) => r >= 12));
+      const wcand = ex.find((x) => !x.e.body && !x.prog && x.reps.length >= 3 && x.reps.every((r) => r >= 12));
       if (wcand) { wcand.w = Math.max(0, wcand.w + (wcand.e.inv ? -1 : 1) * (wcand.e.step || 2.5)); wcand.reps = wcand.reps.map(() => 10); wcand.prog = "w"; prog = wcand; }
-      else { const rc = ex.find((x) => !x.e.body && x.reps.some((r) => r < 12)); if (rc) { rc.reps = rc.reps.map((r) => Math.min(12, r + 1)); rc.prog = "r"; prog = rc; } }
+      else { const rc = ex.find((x) => !x.e.body && !x.prog && x.reps.some((r) => r < 12)); if (rc) { rc.reps = rc.reps.map((r) => Math.min(12, r + 1)); rc.prog = "r"; prog = rc; } }
     }
     const nc = Y.nextCardio ? Y.nextCardio(t0) : null;
     return { k, type, label: dayLabel(type), cardio: nc, reasons, warn, ex, prog, deload, rough, light, lastK, today: k === t0, doneToday };
@@ -261,7 +273,7 @@
     if (!P) { box.innerHTML = `<p class="dy-note">Зброярня відчиняється…</p>`; return; }
     const when = P.today ? "сьогодні" : diff(today(), P.k) === 1 ? "завтра" : WDN[wd(P.k)];
     const head = P.warn.length && P.today ? P.warn[0]
-      : `${when.charAt(0).toUpperCase() + when.slice(1)} — плац. День ${P.type}: ${P.label}.${P.prog ? ` Одна прогресія: ${P.prog.n.toLowerCase()} — ${P.prog.prog === "w" ? fmtN(P.prog.w) + unit(P.prog.e) : "на повтор більше"}.` : P.rough ? " Без прогресії — тримай закріплене." : ""}`;
+      : `${when.charAt(0).toUpperCase() + when.slice(1)} — плац. День ${P.type}: ${P.label}.${P.ex.some((x) => x.prog === "back") ? ` Повернення до робочих ваг: ${P.ex.filter((x) => x.prog === "back").length} вправ +10 %.` : ""}${P.prog ? ` Одна прогресія: ${P.prog.n.toLowerCase()} — ${P.prog.prog === "w" ? fmtN(P.prog.w) + unit(P.prog.e) : "на повтор більше"}.` : P.rough ? " Без прогресії — тримай закріплене." : ""}`;
     let h = `${exArt() ? `<img class="ar-scene" src="${exArt()}" alt="">` : ""}
       <div class="md md--voice ar-voice"><div class="md__fig"${K.art ? ` data-card="sobriety"` : ""}>${K.art ? `<img class="md__img" src="${esc(K.art)}" alt="">` : ""}</div><div class="md__txt"><div class="md__who">${esc(K.name || "брат Северин")} · майстер плацу</div><p class="md__say">${esc(head)}</p></div></div>
       <section class="ar-next"><div class="ar-next__h"><span class="gs-kicker">Наступний зал</span><b>${esc(when)}${P.today ? "" : `, ${human(P.k)}`}</b>

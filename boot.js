@@ -95,7 +95,7 @@
 
   /* ------------------------------------------- копії й синхронізація ----
      Синк між пристроями — база (cloud.js). Тут — зашифрована резервна копія всього стану в приватне сховище
-     (раз на 30 хв і копія дня — для відновлення) та злиття mergeData: ним база обʼєднує дані при першому вході.
+     (раз на день — для відновлення) та злиття mergeData: ним база обʼєднує дані при першому вході.
      Налаштування пристрою (звук, музика, сьогоднішній ритуал) не синхронізуються. */
   /* лише налаштування пристрою; усе інше — спільний стан Ордену (зокрема ранковий вступ і черга цитат: відкрив на телефоні — комп уже знає) */
   const LOCAL_ONLY = ["ordo.statsMode", "ordo.ver", "ordo.sound", "ordo.music"];
@@ -287,16 +287,18 @@
 
   let busy = false, cloudOn = false;
   const cloudActive = () => !!(window.ORDO_CLOUD && window.ORDO_CLOUD.active());
-  /* з 19.11.2026 синк між пристроями — лише база (cloud.js). Старий синк знімками через GitHub прибрано: тут тільки зашифрована
-     резервна копія в приватне сховище — не частіше ніж раз на 30 хв і лише коли є зміни ("force" — одразу, з кнопки) */
+  /* з 19.11.2026 синк між пристроями — лише база (cloud.js). Тут тільки зашифрована резервна копія в приватне сховище — запасна, поза базою.
+     23.11: раз на день на всі пристрої (була що 30 хв: зашифроване git не стискає, і сховище росло на ~4,5 МБ на день); "force" — одразу, з кнопки */
   async function syncNow(push) {
     if (busy || !token() || !LS.get(K.backup, null) || navigator.onLine === false) return { pulled: false };
-    const last = LS.get("ordo.bk.last", {});
-    if (push !== "force" && (Date.now() - (last.at || 0) < 30 * 60e3 || snapHash() === last.h)) return { pulled: false };
+    const last = LS.get("ordo.bk.last", {}), dk = LS.get("ordo.bk.day", {});
+    if (push !== "force" && (dk.d === day() || snapHash() === last.h)) return { pulled: false };
     busy = true; status("saving");
     try {
+      /* копію дня вже зробив інший пристрій — не дублюємо */
+      if (push !== "force") { let have = null; try { have = await gh(`backups/${day()}.json`); } catch (e) {} if (have && have.sha) { LS.set("ordo.bk.day", { d: day(), at: Date.now() }); busy = false; status("ok"); return { pulled: false }; } }
       const b = await makeBackup(); await putFile("backups/latest.json", b.file, "копія");
-      const dk = LS.get("ordo.bk.day", {}); if (dk.d !== day()) { await putFile(`backups/${day()}.json`, b.file, "копія дня"); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
+      if (dk.d !== day()) { await putFile(`backups/${day()}.json`, b.file, "копія дня"); LS.set("ordo.bk.day", { d: day(), at: Date.now() }); }
       LS.set("ordo.bk.last", { h: snapHash(), at: Date.now(), remoteAt: b.at }); LS.del("ordo.bk.err"); busy = false; status("ok");
     } catch (e) { busy = false; LS.set("ordo.bk.err", { at: Date.now(), code: e.status || 0 }); status("err"); }
     return { pulled: false };
@@ -536,7 +538,7 @@
           <button class="btn btn--gold" type="button" data-vt="cloudin">Увійти</button>
           <button class="btn btn--line" type="button" data-vt="cloudup">Перший раз — створити пароль</button>
           <p class="vt-lead" id="vtCloudMsg"></p></div>`;
-    box.innerHTML = cloud + `<p class="vt-lead">${CL && CL.active() ? "Резервна копія раз на 30 хв іде й у приватне сховище — зашифрована твоїм ключем Ордену." : "Без входу в базу дані живуть лише на цьому пристрої: синку між телефоном і компом нема. Резервна копія все одно йде в приватне сховище."}</p>
+    box.innerHTML = cloud + `<p class="vt-lead">${CL && CL.active() ? "Резервна копія раз на день іде й у приватне сховище — зашифрована твоїм ключем Ордену." : "Без входу в базу дані живуть лише на цьому пристрої: синку між телефоном і компом нема. Резервна копія все одно йде в приватне сховище."}</p>
       <div class="vt-row">${line}</div>
       ${pulseHTML()}
       <button class="btn btn--gold" type="button" data-vt="now">Зберегти копію зараз</button>

@@ -1271,6 +1271,21 @@
     return q.type === "count" && q.target ? Math.min(1, (q.cur || 0) / q.target) : q.st === "done" ? 1 : 0;
   }
   /* квест-лічильник з тією ж одиницею, що й денний лічильник, рахується з денних відміток */
+  /* квест «сесій»: скільки завершених сесій від прийняття і чи була глибша за стоп (окремо — щоб хвилинний таймер міг перевірити без settle) */
+  const isSessQ = (q) => q.st === "active" && q.type === "count" && /^сесій$/i.test((q.unit || "").trim());
+  function sessTally(q) {
+    const stop = q.stopBB || 400, acc = q.stAt || (q.from ? Date.parse(q.from + "T00:00:00") : 0), last = q.until < today() ? q.until : today();
+    let n = 0, bust = null;
+    for (let k = q.from; k <= last; k = add(k, 1)) {
+      ((pDay(k) || {}).sess || []).forEach((x) => {
+        const st = Date.parse(`${k}T${x.s || "00:00"}:00`), end = st + (x.m || 0) * 6e4;
+        if (!(st >= acc - 6e4)) return;                                          // сесія почалась ще до того, як узяв квест
+        if ((x.bb || 0) < -stop) bust = bust || x;
+        else if (Date.now() - end > 20 * 6e4) n++;                               // завершена — минуло 20 хв від кінця
+      });
+    }
+    return { n, bust };
+  }
   function autoCount() {
     Q.list.forEach((q) => {
       /* Зброярня: «рекорд» — підхід із вагою не менше w і повторами не менше r у вправі ex (компенсація — вага не більше); кардіо — дні кардіо */
@@ -1314,17 +1329,8 @@
       }
       /* «сесій» (з 23.11): завершені покерні сесії з HM3 від прийняття квесту (сесія — роздачі з перервою до 20 хв; завершена — минуло 20 хв від кінця).
          Будь-яка сесія глибше −stopBB (типово 400 bb) — квест провалено одразу */
-      if (q.st === "active" && q.type === "count" && /^сесій$/i.test((q.unit || "").trim())) {
-        const stop = q.stopBB || 400, acc = q.stAt || (q.from ? Date.parse(q.from + "T00:00:00") : 0), last = q.until < today() ? q.until : today();
-        let n = 0, bust = null;
-        for (let k = q.from; k <= last; k = add(k, 1)) {
-          ((pDay(k) || {}).sess || []).forEach((x) => {
-            const st = Date.parse(`${k}T${x.s || "00:00"}:00`), end = st + (x.m || 0) * 6e4;
-            if (!(st >= acc - 6e4)) return;                                          // сесія почалась ще до того, як узяв квест
-            if ((x.bb || 0) < -stop) bust = bust || x;
-            else if (Date.now() - end > 20 * 6e4) n++;
-          });
-        }
+      if (isSessQ(q)) {
+        const { n, bust } = sessTally(q);
         if (bust) { q.st = "fail"; q.end = today(); q.at = Date.now(); q.bust = Math.round(bust.bb); return; }
         if (n !== (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
@@ -3117,7 +3123,11 @@
     const cb2 = $("confessBtn"); if (cb2) cb2.addEventListener("click", () => openJournal(today())); confessStatus();
     render(); loadHealth(true); afterPhoneSync(); loadPoker(true); applyDrop(); loadDrop(); setTimeout(writerSync, 8000); setTimeout(stamp, 1200);
     let day = today();
-    setInterval(() => { if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); applyHealth(); settle(); render(); } }, 60000);
+    setInterval(() => {
+      if (today() !== day) { if (view === day) view = today(); day = today(); carryOver(); applyHealth(); settle(); render(); return; }
+      /* сесія стає «завершеною» через 20 хв після кінця — без нових даних з HM3; не чекаємо перевідкриття */
+      if (!document.hidden && Q.list.some((q) => isSessQ(q) && (() => { const t = sessTally(q); return t.bust || t.n !== (q.cur || 0); })())) { settle(); render(); }
+    }, 60000);
     setInterval(() => { if (!document.hidden) loadHealth(); }, 90e3);                 // поки Орден відкритий — кроки й хвилини з телефона підтягуються самі
     document.addEventListener("visibilitychange", () => { if (!document.hidden) { carryOver(); confessStatus(); stamp(); loadHealth(); afterPhoneSync(); loadPoker(); loadDrop(); settle(); render(); setTimeout(scenes, 1500); } else writerSync(); });
     setTimeout(scenes, 2500);

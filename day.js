@@ -121,10 +121,11 @@
 
   /* екземпляри на день: за розкладом + перенесені сюди */
   function rec(k, id) { return (S.log[k] || {})[id] || null; }
+  let logVer = 0;
   function setRec(k, id, patch) {
     const day = S.log[k] || (S.log[k] = {});
     day[id] = Object.assign({}, day[id] || {}, patch, { at: Date.now() });
-    saveS();
+    logVer++; saveS();
   }
   function items(k) {
     const out = [], seen = new Set(), day = S.log[k] || {};
@@ -906,8 +907,24 @@
       for (let i = 1; i <= 7; i++) if (F.all.has(add(k, -i))) { X.e[`rt:${k}`] = { d: k, xp: 3, src: "vow", why: `шлях повернення, день ${i}` }; break; }
     }
   }
-  /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані */
+  /* ПЕРЕНОСИ (з 23.11.2026, власник: «3 переноси зривають ідеальність»): ручні переноси справ рахуються за тижнем дня, З ЯКОГО перенесли,
+     у порядку, як їх робив. Перші MOVE_FREE на тиждень — без наслідків; третій і далі — день, з якого перенесено, не може бути ідеальним.
+     Не рахуються: самоперенос разових цілей (auto), «зроблено наперед» (early), скасування. Спорядження moveGuard — ще v безкоштовних на тиждень */
+  const MOVE_FROM = "2026-11-23", MOVE_FREE = 2;
+  let moveMemo = null;
+  function moveIdx() {
+    if (moveMemo && moveMemo.v === logVer && Date.now() - moveMemo.at < 3000) return moveMemo.m;
+    const wk = {}, m = { bad: {}, wk: {} }, free = MOVE_FREE + GEAR("moveGuard");
+    Object.keys(S.log).forEach((k) => { if (k < MOVE_FROM) return; const day = S.log[k];
+      Object.keys(day).forEach((id) => { const r = day[id]; if (r && r.st === "moved" && !r.auto && !r.early && S.tasks[id]) (wk[wkKey(k)] || (wk[wkKey(k)] = [])).push({ k, at: r.at || 0 }); }); });
+    Object.keys(wk).forEach((w) => { const l = wk[w].sort((a, b) => a.at - b.at || (a.k < b.k ? -1 : 1)); m.wk[w] = { n: l.length, free };
+      l.forEach((x, i) => { if (i >= free) m.bad[x.k] = (m.bad[x.k] || 0) + 1; }); });
+    moveMemo = { v: logVer, at: Date.now(), m }; return m;
+  }
+  const movesOver = (k) => moveIdx().bad[k] || 0;                    // скільки «зайвих» переносів зроблено з цього дня
+  /* чистий день: щонайменше 3 справи, усі (крім перенесених і скасованих) виконані, і з дня не було «зайвого» переносу */
   function perfect(k) {
+    if (movesOver(k)) return false;
     const its = items(k).map(({ t, r }) => stOf(t, r, k)).filter((s) => s !== "moved" && s !== "cancel"), miss = its.filter((s) => !isFull(s)).length;
     return its.length >= 3 && (miss === 0 || (miss === 1 && k < today() && roughNight(k) && GEAR("nightGuard") > 0));     // спорядження: після тривожної ночі — одна справа прощається
   }
@@ -2461,7 +2478,10 @@
     } else if (sh.mode === "move") {
       const k = sh.k, t1 = add(today(), 1), base = k < today() ? today() : k;
       const nextMon = add(base, 8 - wd(base));
-      h += `<div class="gs-kicker">Перенести</div><div class="sheet__title dy-sht">${esc(S.tasks[sh.id].t)}</div>
+      const mw = k >= MOVE_FROM ? (moveIdx().wk[wkKey(k)] || { n: 0, free: MOVE_FREE + GEAR("moveGuard") }) : null;
+      const mNote = !mw ? "" : mw.n >= mw.free ? `<p class="dy-note dy-note--t">Це вже ${mw.n + 1}-й перенос цього тижня (без наслідків — ${mw.free}). Перенесеш — ${k === today() ? "сьогодні" : human(k)} не буде ідеальним днем.</p>`
+        : `<p class="dy-note">Переносів цього тижня: ${mw.n} з ${mw.free} без наслідків.</p>`;
+      h += `<div class="gs-kicker">Перенести</div><div class="sheet__title dy-sht">${esc(S.tasks[sh.id].t)}</div>${mNote}
         <div class="dy-acts dy-acts--col">
           ${k < today() ? `<button type="button" class="btn btn--line" data-dmv="${today()}">На сьогодні</button>` : ""}
           <button type="button" class="btn btn--line" data-dmv="${k < t1 ? t1 : add(k, 1)}">На ${k < t1 ? "завтра" : "наступний день"}</button>
@@ -3147,7 +3167,7 @@
   }
   function shown() { settle(); render(); setTimeout(scenes, 700); }
 
-  window.ORDO_DAY = { init, goalLaw, picker, smartQuests, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, valor, valorMax: VALOR_MAX, offerQuest: (id) => { const q = Q.list.find((x) => x.id === id && x.st === "offer"); return q ? offerScene(q) : null; }, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
+  window.ORDO_DAY = { init, perfect, moveInfo: () => moveIdx(), goalLaw, picker, smartQuests, letterRead, openLetter, layOnHands, lohConfirm, cardioOpen, cardioLog: () => Object.keys(GYM.cd || {}).sort().slice(-14).map((k) => ({ k, n: GYM.cd[k].n, iv: GYM.cd[k].iv })), lohOn: () => !!(S.loh && S.loh[today()]), shown, render, gloryHTML, trigger, scenes, levelOf: () => levelOf(totalXP()), emblem, valor, valorMax: VALOR_MAX, offerQuest: (id) => { const q = Q.list.find((x) => x.id === id && x.st === "offer"); return q ? offerScene(q) : null; }, isNight, faithCount, journalCount, openJournal, periodSteps, periodHands, periodMind, periodPages, booksFor, newsFor, heard, teaserHTML, playMomentId, playTeaser, teaserDots, archiveFor, replayArchive, linkables, linkCount, weightOn, bankSync: () => { applyBank(); render(); }, xpSync: () => after(totalXP()),
     nextGym: (from) => nextMarked(from, (t) => isGym(t) && !CARDIO_RE.test(t.t || "")), nextCardio: (from) => nextMarked(from, (t) => CARDIO_RE.test(t.t || "")),
     rwAt: () => (X && X.rw && X.rw[RW_DAY]) || 0, rwAt2: () => (X && X.rw && X.rw[RW_DAY + ":2"]) || 0, purge, sleepMin: (k) => { const h = hDay(k) || {}; return h.sleepMin || (S.sleep[k] && S.sleep[k].min) || null; }, ranks: () => RANKS, openChron: (L) => { const c = chapterOf(L) || (D().CHRONICLE || [])[0]; if (c) openSheet("chron", c.n); }, trainDays, gymOpen, sessions, roughNight, nightKind: (k) => (S.night[k] || {}).kind || null, isFullDay: (k) => perfect(k),
     books: () => BK, bookStart: (t, pages, art) => { const nid = "b" + uid(); BK.list[nid] = { id: nid, t, pages: pages || null, from: 0, start: today(), mt: Date.now(), art: art || null }; BK.cur = nid; BK.curAt = Date.now(); saveBK(); render(); return nid; },

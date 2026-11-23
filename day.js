@@ -1275,16 +1275,17 @@
   const isSessQ = (q) => q.st === "active" && q.type === "count" && /^сесій$/i.test((q.unit || "").trim());
   function sessTally(q) {
     const stop = q.stopBB || 400, acc = q.stAt || (q.from ? Date.parse(q.from + "T00:00:00") : 0), last = q.until < today() ? q.until : today();
-    let n = 0, bust = null;
+    let n = 0, bust = null, wait = null;
     for (let k = q.from; k <= last; k = add(k, 1)) {
       ((pDay(k) || {}).sess || []).forEach((x) => {
         const st = Date.parse(`${k}T${x.s || "00:00"}:00`), end = st + (x.m || 0) * 6e4;
         if (!(st >= acc - 6e4)) return;                                          // сесія почалась ще до того, як узяв квест
         if ((x.bb || 0) < -stop) bust = bust || x;
         else if (Date.now() - end > 20 * 6e4) n++;                               // завершена — минуло 20 хв від кінця
+        else wait = { s: x.s, at: end + 20 * 6e4 + 6e4 };                         // ще чекає: покажемо, коли зарахується
       });
     }
-    return { n, bust };
+    return { n, bust, wait };
   }
   function autoCount() {
     Q.list.forEach((q) => {
@@ -1871,7 +1872,7 @@
       <div class="dy-q__body"><span class="dy-q__kind">${r.n} квест${who ? ` · ${esc(who.name)}` : ""}</span><b class="dy-q__t">${esc(q.t)}</b>
         ${q.desc ? `<span class="dy-q__d">${esc(q.desc)}</span>` : ""}
         ${q.type === "budget" ? budgetLine(q) : ""}
-        ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}${q.app && q.appMax == null && q.st === "active" && (q.cur || 0) < q.target ? ` · ще ${fmtN(q.target - (q.cur || 0))}` : ""}</em></span>` : ""}
+        ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}${q.app && q.appMax == null && q.st === "active" && (q.cur || 0) < q.target ? ` · ще ${fmtN(q.target - (q.cur || 0))}` : ""}${(() => { const w = isSessQ(q) && sessTally(q).wait; if (!w) return ""; const d = new Date(w.at); return ` · сесія ${esc(w.s || "")} зарахується о ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })()}</em></span>` : ""}
         ${q.app && q.appMax != null && q.st === "active" && q.from <= today() ? `<span class="dy-q__app">сьогодні ${q.app === "reading" ? "читання" : `в ${esc(appName(q.app))}`}</span>${appBar(Math.floor(appMin(today(), q.app)), q.appMax, true)}` : ""}
         ${q.hold && q.st === "active" && q.from ? (() => { const n = diff(q.from, q.until) + 1, d = Math.min(n, Math.max(0, diff(q.from, today()) + 1)); return `<div class="gl-bar"><i style="width:${Math.round((d / n) * 100)}%"></i></div><span class="dy-num">день ${d} <em>з ${n} · зарахується сам</em></span>`; })() : ""}
         <span class="dy-q__due">${q.st === "done" ? `виконано · ${qRew(q)}` : due}${q.st === "active" ? ` · ${qRew(q)}` : ""}</span></div>

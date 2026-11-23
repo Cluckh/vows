@@ -1260,7 +1260,9 @@
     /* тригери: третій чистий день поспіль → рідкісний квест; віха обітниці сьогодні → легендарний */
     const t0 = today();
     if (perfect(t0) && perfect(add(t0, -1)) && perfect(add(t0, -2)) && Q.clock.tPd !== t0) { Q.clock.tPd = t0; trigger("rare", "", "pd" + t0); }
-    if (Object.keys(X.e).some((id) => id.startsWith("vm:") && X.e[id].d === t0) && Q.clock.tMs !== t0) { Q.clock.tMs = t0; trigger("legend", "", "ms" + t0); }
+    /* віха обітниці сьогодні: 25+ днів — легендарний; 10 — лише рідкісний (з 23.11: при 8 обітницях «десятки» сипали легендарні — три за 4 дні) */
+    const msTop = Math.max(0, ...Object.keys(X.e).filter((id) => id.startsWith("vm:") && X.e[id].d === t0).map((id) => +id.split(":")[2] || 0));
+    if (msTop && Q.clock.tMs !== t0) { Q.clock.tMs = t0; trigger(msTop >= 25 ? "legend" : "rare", "", "ms" + t0); }
     const cb = comeback();          // зрив → доручення на шлях повернення
     if (cb && cb.n === 0 && Q.clock.tRet !== cb.from) { Q.clock.tRet = cb.from; trigger("rare", "return", "ret" + cb.from); }
     const lv = levelOf(totalXP());

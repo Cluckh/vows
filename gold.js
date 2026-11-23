@@ -789,5 +789,7 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}     // попросити браузер не викидати кеш артів
   /* золото за конкретний запис книги досвіду (з бонусом реліквій і благословенням) — для розшифровки дня */
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
-  window.ORDO_GOLD = { _hist: history, stake, artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
+  /* виведення на білу (будь-якого стану, крім скасованих) — щоб сторожа Гідності не питала про власний переказ «на білу картку» */
+  const whiteOuts = () => Object.values(G.out).filter((o) => o.kind === "white" && o.st !== "cancel").map((o) => ({ amt: o.amt, at: o.at || 0 }));
+  window.ORDO_GOLD = { _hist: history, stake, whiteOuts, artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

@@ -150,6 +150,11 @@
 
   /* --------------------------------------------------------------- сцени */
   /* хто отримав переказ: монобанк дає імʼя в описі («Анна Х.»), а не в counterName; «Переказ на картку» без імені — не запамʼятовуємо */
+  /* 23.11: свій переказ «на білу» — банк шле дві половини окремо, і питання «кому переказав?» встигало вискочити між ними.
+     Тож переказ людині питаємо не раніше ніж за 2 хв, і не питаємо, якщо сума й час збігаються з виведенням золота на білу */
+  const ownWhite = (t) => { const G = window.ORDO_GOLD, L = G && G.whiteOuts ? G.whiteOuts() : [];
+    return L.some((o) => Math.round(o.amt * 100) === -t.a && Math.abs(o.at - t.t * 1000) <= 864e5); };
+  const tooFresh = (t) => t.w === "dignity" && Date.now() / 1000 - t.t < 120;
   const whoKey = (t) => { const k = (t.cn || t.d || "").trim(); return /^переказ на картку$/i.test(k) ? "" : k; };
   /* Скарбниця: того ж дня — вікно чи зрив Помірності або червона/жовта трапеза? */
   const mealDay = (k) => { const log = LS.get("ordo.log", []); if (log.some((e) => e.v === "temperance" && e.d === k && (e.k === "mark" || e.k === "breach"))) return true;
@@ -241,6 +246,7 @@
     let t = null;
     for (let i = 0; i < 4 && !t; i++) { if (i) await new Promise((r) => setTimeout(r, 1500)); await load(true); t = B && B.watch ? B.watch.find((x) => x.id === id) : null; }
     if (!t) return;
+    if (t.w === "dignity" && ownWhite(t)) return;                                 // це виведення золота на білу — питати нема про що
     if (W.seen[t.id]) { h.stage(t.w); await h.say("Про цей переказ ти вже відповів. Дякую."); if (h.isOpen()) h.close(); return; }
     if (await watchScene(t)) { const h2 = H(); if (h2 && h2.isOpen()) h2.close(); }
   }
@@ -250,7 +256,7 @@
     if (!B || !B.watch) { const h = H(); if (U.length && h && h.isOpen()) h.close(); return; }
     const cutoff = Date.now() / 1000 - 3 * 86400;                  // питаємо лише про свіже; старше — у списку сторожі
     const ask = BK().ask || [], named = BK().named || [];
-    const todo = B.watch.filter((t) => ask.includes(t.w) && !W.seen[t.id] && t.t >= cutoff && !(named.includes(t.w) && W.ok.includes(whoKey(t)))).slice(0, 2);
+    const todo = B.watch.filter((t) => ask.includes(t.w) && !W.seen[t.id] && t.t >= cutoff && !tooFresh(t) && !(t.w === "dignity" && ownWhite(t)) && !(named.includes(t.w) && W.ok.includes(whoKey(t)))).slice(0, 2);
     for (const t of todo) { if (!(await watchScene(t))) return; }
     await weekScene();
     if (!(await honestScene())) return;

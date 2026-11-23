@@ -394,7 +394,7 @@
     }
     el.innerHTML = h;
   }
-  function onSheet(e) {
+  async function onSheet(e) {
     const ab = e.target.closest("[data-arday]");
     if (ab) { const o = ARM.ex[sel] = ARM.ex[sel] || {}; o.day = ab.dataset.arday; o.mt = Date.now(); saveA(); fx(null); render(); return; }
     const lb = e.target.closest("[data-lbbook]"); if (lb) { mode = "book"; sel = lb.dataset.lbbook; render(); return; }
@@ -415,6 +415,8 @@
       if (!reps.length) return;
       const o = ARM.ex[sel] = ARM.ex[sel] || {}; o.last = { k: today(), w, reps }; o.mt = Date.now(); saveA(); fx("yes", "medium"); render(); refresh(); return;
     }
+    if (a === "gdrop" && window.ORDO_WHY && !(await window.ORDO_WHY({ what: "game", t: (libGames(true).find((x) => x.id === sel) || {}).t, title: "Закинути гру", ok: "Закинути" }))) return;     // «Чому?» — у Літопис
+    if (a === "bdrop" && window.ORDO_WHY && !(await window.ORDO_WHY({ what: "book", t: (libBooks(true).find((x) => x.id === sel) || {}).t, title: "Закинути книжку", ok: "Закинути" }))) return;
     if (a === "gdone" || a === "gundo" || a === "gdrop") {
       const o = LIB.games[sel] = LIB.games[sel] || {}; o.st = a === "gdone" ? "done" : a === "gdrop" ? "drop" : "play"; o.d = a === "gdone" ? today() : o.d || null; o.dd = a === "gdrop" ? today() : null; o.mt = Date.now(); saveL();
       fx(a === "gdone" ? "date" : null, "medium"); if (a === "gdrop") { mode = "lib"; } render(); refresh(); return;

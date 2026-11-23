@@ -1308,7 +1308,19 @@ body[data-slide="prev"] .view.is-on{animation:slidePrev .42s var(--ease)}
 .dy-q__due{display:block;font-family:var(--f-serif);font-style:italic;font-size:13.5px;color:var(--ash-2);margin-top:3px}
 .dy-q .gl-bar i{background:var(--qc)}
 .dy-mark--q{border-color:var(--qc)}
-.dy-q.st-done{opacity:.75}
+/* пройдений квест (з 23.11.2026): не тьмяніє, а «запечатується» кольором своєї рідкості — заливка, рамка, печатка ✓ */
+.dy-q.st-done{border-color:var(--qc);border-width:1.5px;background:linear-gradient(135deg,color-mix(in srgb,var(--qc) 30%,transparent),color-mix(in srgb,var(--qc) 8%,rgba(0,0,0,.2)));
+  box-shadow:0 0 22px color-mix(in srgb,var(--qc) 32%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--qc) 30%,transparent)}
+.dy-q.st-done .dy-q__t{color:var(--qc)}
+.dy-q.st-done .dy-q__d{opacity:.7}
+.dy-q.st-done .dy-q__fig{border-width:2px;box-shadow:0 0 10px color-mix(in srgb,var(--qc) 55%,transparent)}
+.dy-q.st-done .gl-bar i{box-shadow:0 0 8px var(--qc)}
+.dy-q__won{font-style:normal;font-weight:600;letter-spacing:.04em;color:var(--qc)}
+.dy-q__seal{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:20px;font-weight:700;color:var(--bg,#0b0f1a);
+  background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--qc) 60%,#fff),var(--qc));box-shadow:0 0 14px color-mix(in srgb,var(--qc) 65%,transparent);transform:rotate(-8deg)}
+.dy-q.st-fail{filter:saturate(.45);opacity:.8}
+.dy-qlog__ok{font-style:normal;color:var(--qc);margin-right:6px;font-weight:700}
+.dy-qlog li{background:linear-gradient(90deg,color-mix(in srgb,var(--qc) 12%,transparent),transparent 70%)}
 .dy-q .gs-plus{border-color:var(--qc);color:var(--qc)}
 /* шторка дня */
 .dsheet .gs-kicker{margin-bottom:8px}
@@ -2178,3 +2190,8 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dy-valor span{flex:1;font-size:13.5px;color:var(--bone)}
 .dy-valor b{color:var(--gold-2);font-weight:600}
 .dy-valor em{font-size:11px;color:var(--ash-2);font-style:italic;text-align:right;max-width:38%}
+/* «Чому?» перед видаленням — запис у Літописі (з 23.11.2026) */
+.why-in{display:block;width:100%;margin:-8px 0 18px;resize:none;line-height:1.4;text-align:left}
+.st-log li.ev-x .lg-v{color:var(--ash)}
+.st-log li.ev-x .lg-w{color:var(--bone)}
+.lg-why{display:block;font-family:var(--f-serif);font-style:italic;color:var(--ash);margin-top:3px;text-align:right}

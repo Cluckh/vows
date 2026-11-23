@@ -1317,7 +1317,7 @@
         return;
       }
       if (q.st === "active" && q.type === "count" && /ранк/i.test(q.unit || "")) {
-        let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (early(k)) n++;
+        let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (early(k) || roughNight(k)) n++;     /* ранок після тривожної ночі (сирена, безсоння) зараховується сам — власник 23.11: «з тривогами простий квест стає складним» */
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
@@ -1891,7 +1891,8 @@
         ${q.type === "count" && q.target ? `<div class="gl-bar"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num">${fmtN(q.cur || 0)} <em>/ ${fmtN(q.target)} ${esc(q.unit || "")}${q.app && q.appMax == null && q.st === "active" && (q.cur || 0) < q.target ? ` · ще ${fmtN(q.target - (q.cur || 0))}` : ""}${(() => { const w = isSessQ(q) && sessTally(q).wait; if (!w) return ""; const d = new Date(w.at); return ` · сесія ${esc(w.s || "")} зарахується о ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })()}</em></span>` : ""}
         ${q.app && q.appMax != null && q.st === "active" && q.from <= today() ? `<span class="dy-q__app">сьогодні ${q.app === "reading" ? "читання" : `в ${esc(appName(q.app))}`}</span>${appBar(Math.floor(appMin(today(), q.app)), q.appMax, true)}` : ""}
         ${q.hold && q.st === "active" && q.from ? (() => { const n = diff(q.from, q.until) + 1, d = Math.min(n, Math.max(0, diff(q.from, today()) + 1)); return `<div class="gl-bar"><i style="width:${Math.round((d / n) * 100)}%"></i></div><span class="dy-num">день ${d} <em>з ${n} · зарахується сам</em></span>`; })() : ""}
-        <span class="dy-q__due">${q.st === "done" ? `виконано · ${qRew(q)}` : due}${q.st === "active" ? ` · ${qRew(q)}` : ""}</span></div>
+        <span class="dy-q__due">${q.st === "done" ? `<b class="dy-q__won">виконано${q.end ? " " + human(q.end) : ""}</b> · ${qRew(q)}` : due}${q.st === "active" ? ` · ${qRew(q)}` : ""}</span></div>
+      ${q.st === "done" ? `<span class="dy-q__seal" aria-label="виконано">✓</span>` : ""}
       ${q.st === "active" && !qAuto(q) && !q.hold ? (q.type === "count" ? `<button type="button" class="gs-plus" data-dqplus="${q.id}" aria-label="Додати">+</button>` : `<button type="button" class="dy-mark dy-mark--q" data-dqdone="${q.id}" aria-label="Виконано"></button>`) : ""}</li>`;
   }
   /* ===================================================== ВІСТІ ПИСАРЯ ===== */
@@ -2253,7 +2254,7 @@
         <div class="dy-f"><label>Позначки</label><div class="dy-chips" data-dk="flags">
           <button type="button" data-dv="gym" class="${isGym(d) ? "is-on" : ""}">тренування</button></div></div>
         <button class="btn btn--gold" type="button" data-ds="save">${sh.id ? "Зберегти" : "Додати"}</button>
-        ${sh.id ? `<button class="btn btn--reset" type="button" data-ds="del">Видалити ціль</button>` : ""}
+        ${sh.id ? `<button class="btn btn--reset" type="button" data-ds="del">Видалити справу</button>` : ""}
         <button class="btn btn--ghost" type="button" data-ds="close">Скасувати</button>`;
     } else if (sh.mode === "item") {
       const t = S.tasks[sh.id]; if (!t) { closeSheet(); return; }
@@ -2575,7 +2576,7 @@
     setRec(k2, id, { from: k, st: null });
     buzz("light"); closeSheet(); after(before);
   }
-  function onSheet(e) {
+  async function onSheet(e) {
     if (!sh) return;
     const ch = e.target.closest("[data-dv]");
     if (ch && sh.mode === "journal") {
@@ -2663,6 +2664,7 @@
     }
     if (a === "del") {
       const t = S.tasks[id]; if (!t) return;
+      if (window.ORDO_WHY && !(await window.ORDO_WHY({ what: "task", t: t.t, title: "Видалити справу", ok: "Видалити справу" }))) return;     // «Чому?» — у Літопис
       if (t.rep && t.rep.f !== "none" && t.start < today()) { t.end = add(today(), -1); t.mt = Date.now(); }        // історія лишається
       else { t.del = Date.now(); t.mt = t.del; }
       saveS(); buzz("medium"); closeSheet(); after(before); return;
@@ -2856,7 +2858,7 @@
         <button class="btn btn--ghost" type="button" data-dqs="drop">Відмовитись</button></div>` : ""}
       ${canBreath(q) ? `<button class="btn btn--ghost" type="button" data-dqs="letgo">Відпустити — без другого дихання</button>` : ""}
       <button class="btn btn--ghost" type="button" data-dqs="close">Закрити</button>`;
-    el.onclick = (e) => {
+    el.onclick = async (e) => {
       const b = e.target.closest("[data-dqs]"); if (!b) return; e.stopPropagation();
       const a = b.dataset.dqs;
       if (a === "close") { closeSheet(); el.onclick = null; return; }
@@ -2865,6 +2867,7 @@
       if (a === "ext") { const paid = q.type !== "budget" && !q.flash && !q.hold && window.ORDO_GOLD.use("extend", true); if (paid) { q.until = add(q.until, 1); q.at = Date.now(); saveQ(); fx("yes"); toast(`квест — до <b>${human(q.until)}</b> · ${paid}`); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "breath") { if (canBreath(q) && window.ORDO_GOLD.use("breath")) { secondWind(q); fx("yes"); buzz("medium"); toast(`Друге дихання: <b>${esc(q.t)}</b> — до ${human(add(today(), 1))}`, "is-gift"); } closeSheet(); el.onclick = null; render(); return; }
       if (a === "drop" && q.stake && q.st === "active" && !confirm(`Рукавиця: застава ${fmtN(q.stake)} золота згорить. Відмовитись?`)) return;
+      if (a === "drop" && q.st === "active" && window.ORDO_WHY && !(await window.ORDO_WHY({ what: "quest", t: q.t, title: "Відпустити квест", ok: "Відпустити квест" }))) return;     // «Чому?» — у Літопис
       if (a === "drop") { q.st = "declined"; q.at = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); toast(`Квест «${esc(q.t)}» відпущено`); }
       if (a === "letgo") { q.revived = 1; q.at = Date.now(); q.stAt = Date.now(); saveQ(); buzz("light"); closeSheet(); el.onclick = null; render(); }
     };
@@ -2896,7 +2899,7 @@
     h += vowMedals.map((m) => `<div class="dy-a is-on dy-a--vow"><svg><use href="#i-${m.v.icon}"/></svg><b>${esc(m.v.name)} · ${m.n}</b><span>печатка обітниці</span></div>`).join("");
     h += `</div><div class="st-h st-h--sub">Шлях звань</div><ol class="dy-ranks">${RANKS.map((r, i) => `<li class="${i < lv.ri ? "is-past" : i === lv.ri ? "is-on" : ""}" data-rank="${i}" role="button">${rankFace(i)}<b>${esc(r.name)}</b><span>з ${r.lv}-го</span></li>`).join("")}</ol>`;
     const done = Q.list.filter((q) => q.st === "done").slice(-6).reverse();
-    if (done.length) h += `<div class="st-h st-h--sub">Хроніка квестів</div><ul class="dy-qlog">${done.map((q) => `<li class="dy-q--${q.rar}"><b>${esc(q.t)}</b><span>${human(q.end)} · ${qRew(q)}</span></li>`).join("")}</ul>`;
+    if (done.length) h += `<div class="st-h st-h--sub">Хроніка квестів</div><ul class="dy-qlog">${done.map((q) => `<li class="dy-q--${q.rar}"><b><i class="dy-qlog__ok">✓</i>${esc(q.t)}</b><span>${human(q.end)} · ${qRew(q)}</span></li>`).join("")}</ul>`;
     return h + `</section>`;
   }
   function renderStatsIfOpen() { const A = API(); if (A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); if (A.tab && A.tab() === "treasury" && A.renderTreasury) A.renderTreasury(); }

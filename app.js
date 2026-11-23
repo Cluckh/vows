@@ -360,6 +360,31 @@ window.ORDO_START = function () {
     LOGIDS = new Set(LOG.map(lid)); LS.set("ordo.log", LOG);
   };
   const logPush = (e) => { e.ts = Date.now(); LOG.push(e); saveLog(); };
+  /* «ЧОМУ?» (з 23.11.2026, власник: «щоб в історії було видно, чому я відмовився») — перед видаленням чи відмовою (ціль, справа, квест, гра, книжка)
+     коротке віконце з коментарем; запис { k: "gone", what, t, why } лягає в журнал (синхронізується) і видно в Літописі → «Записи».
+     ORDO_WHY({ what, t, title, ok }) → true (зроблено, записано) | false (скасовано) */
+  const GONE_N = { goal: "Ціль", task: "Справа", quest: "Квест", game: "Гра", book: "Книжка" };
+  function askWhy(o) {
+    return new Promise((res) => {
+      let m = document.getElementById("whyModal");
+      if (!m) { m = document.createElement("div"); m.className = "confirm"; m.id = "whyModal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); document.body.appendChild(m); }
+      m.innerHTML = `<div class="confirm__card"><div class="confirm__title">${esc(o.title || "Видалити")} «<b>${esc(o.t || "")}</b>»?</div>
+        <p class="confirm__text why-t">Чому? Кілька слів — ляже в Літопис, щоб потім було видно, від чого й навіщо ти відмовився.</p>
+        <textarea class="dy-in why-in" id="whyIn" rows="3" maxlength="400" placeholder="наприклад: ціль втратила сенс після…"></textarea>
+        <button class="btn btn--reset" id="whyYes" type="button">${esc(o.ok || "Видалити")}</button>
+        <button class="btn btn--ghost" id="whyNo" type="button">Скасувати</button></div>`;
+      const done = (v) => { m.classList.remove("open"); setTimeout(() => { m.innerHTML = ""; }, 300); res(v); };
+      m.querySelector("#whyYes").onclick = () => done((m.querySelector("#whyIn").value || "").trim());
+      m.querySelector("#whyNo").onclick = () => done(null);
+      m.onclick = (e) => { if (e.target === m) done(null); };
+      requestAnimationFrame(() => m.classList.add("open"));
+    });
+  }
+  window.ORDO_WHY = async (o) => {
+    const why = await askWhy(o); if (why === null) return false;
+    logPush({ k: "gone", what: o.what, t: o.t || "", why: why || null, d: todayKey() });
+    return true;
+  };
 
   /* одноразові виправлення літопису (приходять у зашифрованому вмісті, D.PATCHES):
      застосовуються один раз; час запису детермінований, тож на різних пристроях
@@ -854,6 +879,7 @@ window.ORDO_START = function () {
       if (e.k === "call") { nm = "Верховний храмовник"; const st = (D.PANIC && D.PANIC.states.find((x) => x.id === e.st)) || null;
         what = e.st === "held" ? "хвиля минула — встояв" : `покликав${st ? " · " + st.t.toLowerCase() : ""}`; cls = "c"; }
       else if (e.k === "goal") { nm = e.kind === "y" ? "Ціль року" : "Ціль місяця"; what = esc(e.t.length > 34 ? e.t.slice(0, 33) + "…" : e.t); cls = "g"; }
+      else if (e.k === "gone") { nm = `${GONE_N[e.what] || "Запис"} · ${e.what === "quest" || e.what === "game" || e.what === "book" ? "відпущено" : "видалено"}`; what = `${esc(e.t || "")}${e.why ? `<i class="lg-why">«${esc(e.why)}»</i>` : ""}`; cls = "x"; }
       else {
         const v = vowById(e.v); nm = v ? v.name : e.v;
         if (e.k === "mark") { what = `вікно ${e.w || ""}${e.n ? ` · ${e.n}` : ""}`; cls = "w"; }
@@ -1615,7 +1641,7 @@ window.ORDO_START = function () {
     FX.play(closed ? "yes" : "add", true); FX.buzz(closed ? "heavy" : "medium");
     renderGoalSheet(); renderGoals(); if (closed) popGoal(it.id);
   }
-  on("gSheet", "click", (e) => {
+  on("gSheet", "click", async (e) => {
     if (!gs) return;
     const P = per(gs.kind, gs.key), it = gs.id ? P.items.find((i) => i.id === gs.id) : null;
     const a = e.target.closest("[data-gs]"), act = a && a.dataset.gs;
@@ -1678,13 +1704,13 @@ window.ORDO_START = function () {
       gsAfter(it); return;
     }
     if (act === "lose") {
-      if (!confirm(`Провалити «${it.t}» достроково? На ревю вона буде «не виконано».`)) return;
+      if (!(await window.ORDO_WHY({ what: "goal", t: it.t, title: "Провалити достроково", ok: "Провалити — на ревю «не виконано»" }))) return;
       it.lost = todayKey(); saveG(); FX.play("no", true); FX.buzz("medium");
       closeGoalSheet(); renderGoals(); updateGoalsDot(); return;
     }
     if (act === "unlose") { delete it.lost; settle(it, gs.kind, gs.key); saveG(); FX.buzz("light"); renderGoalSheet(); renderGoals(); updateGoalsDot(); return; }
     if (act === "delete") {
-      if (!confirm("Видалити ціль «" + it.t + "»?")) return;
+      if (!(await window.ORDO_WHY({ what: "goal", t: it.t, title: "Видалити ціль", ok: "Видалити ціль" }))) return;
       P.items = P.items.filter((i) => i.id !== it.id); G.gone = G.gone || {}; G.gone[it.id] = Date.now();     // надгробок: синк не поверне
       LOG = LOG.filter((x) => !(x.k === "goal" && x.gid === it.id)); saveLog(); saveG();
       FX.buzz("medium"); closeGoalSheet(); renderGoals(); updateGoalsDot();

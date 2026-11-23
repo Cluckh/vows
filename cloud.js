@@ -16,6 +16,9 @@
   const put = (k, v) => { try { rawSet.call(localStorage, k, JSON.stringify(v)); } catch (e) {} };
   const LOCAL_ONLY = ["ordo.statsMode", "ordo.ver", "ordo.sound", "ordo.music"];
   const DATA_KEY = (k) => k.startsWith("ordo.") && !k.startsWith("ordo.k.") && !k.startsWith("ordo.bk.") && !LOCAL_ONLY.includes(k);
+  /* стан даних на мить завантаження сторінки (до того, як модулі щось записали): 23.11 — телефон уранці стартував, поки вхід у базу ще
+     не встиг (> 6 с), і все записане в ці секунди («ритуал сьогодні пройдено») база так і не отримала — бо при вході порівнювали з уже зміненим */
+  const BOOT = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("ordo.") && !k.startsWith("ordo.k.") && !k.startsWith("ordo.bk.")) BOOT[k] = rawGet.call(localStorage, k); } } catch (e) {}
   const dev = () => { let d = get("ordo.k.dev", ""); if (!d) { d = Math.random().toString(36).slice(2, 12); put("ordo.k.dev", d); } return d; };
 
   /* ----------------------------------------------------- розкладання на записи
@@ -230,13 +233,20 @@
 
   /* ----------------------------------------------------- вхід */
   async function session() { const c = client(); if (!c) return null; try { const { data } = await c.auth.getSession(); return data && data.session; } catch (e) { return null; } }
-  async function init(mergeData) {
+  /* дочекатися входу в базу (не довше ms): ритуал і сцени питають «чи вже показано на іншому пристрої» лише після нього */
+  let initP = null;
+  const whenReady = (ms) => Promise.race([initP || Promise.resolve(), new Promise((r) => setTimeout(r, ms || 8000))]).then(() => active);
+  function init(mergeData) { initP = initReal(mergeData); return initP; }
+  async function initReal(mergeData) {
     const s = await session(); if (!s) { status = "out"; return { active: false }; }
     user = s.user; active = true; status = "sync";
     let changed = [];
     try {
       if (!get("ordo.k.cloud.init", 0)) changed = await firstSync(mergeData);
-      else { localKeys().forEach((k) => { cache[k] = flatten(k, rawGet.call(localStorage, k)); }); changed = await applyRows(await pullSince(lastTs)); [...pend.keys()].forEach((p) => dirty.add(keyOf(p))); if (pend.size) sendDirty(); }
+      else {
+        /* записи з момента завантаження до входу — у відправку (порівнюємо з тим, що було на старті, а не з уже зміненим) */
+        localKeys().forEach((k) => { const b = Object.prototype.hasOwnProperty.call(BOOT, k) ? BOOT[k] : null; cache[k] = b == null ? new Map() : flatten(k, b); if (rawGet.call(localStorage, k) !== b) diffKey(k); });
+        changed = await applyRows(await pullSince(lastTs)); [...pend.keys()].forEach((p) => dirty.add(keyOf(p))); if (pend.size) sendDirty(); }
       status = "ok";
     } catch (e) { status = "err"; lastErr = (e && e.message) || String(e); }
     subscribe();
@@ -307,7 +317,7 @@
 
   window.ORDO_CLOUD = {
     artBlob, srvGet, srvSet, srvOn, call, ingestKey, pushSub,
-    init, signIn, signUp, signOut, claim, catchUp, onSet, flush: sendDirty,
+    init, whenReady, signIn, signUp, signOut, claim, catchUp, onSet, flush: sendDirty,
     active: () => active, user: () => user && user.email, status: () => ({ status, err: lastErr, pend: pend.size, ts: lastTs, caughtAt }),
     _t: { flatten, unflatten }
   };

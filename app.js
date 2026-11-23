@@ -2216,12 +2216,31 @@ window.ORDO_START = function () {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeConfirm(); closeSheet(); closeMark(); closeProto(); closeGoalSheet(); } });
 
   /* ---- старт + щоденна синхронізація ---- */
-  let shownDay = null;
+  let shownDay = null, introWaiting = false;
+  /* 23.11: ранковий ритуал — один на всі пристрої. Спершу дочекатися бази (вхід + свіже), тоді: позначка «сьогодні вже був» прийшла — не граємо;
+     ні — атомарне «моє» в базі (claim): виграв цей пристрій — граємо, інший уже показав — ні. Без бази — як раніше */
+  async function introGate(today) {
+    if (introWaiting) return; introWaiting = true;
+    let mine = true;
+    try {
+      const C = window.ORDO_CLOUD, V = window.ORDO_VAULT;
+      if (C && C.whenReady && (await C.whenReady(8000))) {
+        if (V && V.fresh && !(await V.fresh())) { introWaiting = false; return; }        // прийшло нове — сторінка перезапуститься й вирішить ще раз
+        mine = LS.get("ordo.lastIntro", "") !== today && (await C.claim("intro:" + today));
+      }
+    } catch (e) {}
+    introWaiting = false;
+    LS.set("ordo.lastIntro", today);
+    if (mine) { runIntro(); return; }
+    $("intro") && $("intro").setAttribute("hidden", ""); $("board") && $("board").classList.add("reveal");
+    const tasks = pendingTasks(); if (tasks.length && !queueBusy) setTimeout(() => { if (!queueBusy) runQueue(tasks); }, reduce ? 50 : 1200);
+  }
   function sync() {
     const today = todayKey(), dayChanged = shownDay !== today;
     if (dayChanged) { STARTS = loadStarts(); settleAll(); renderBoard(); updateGoalsDot(); if (TAB === "stats") renderStats(); if (TAB === "goals") renderGoals(); }
     const nw = new Date(), lateNight = nw.getHours() * 60 + nw.getMinutes() < 270;     // до 04:30 ранок ще не настав — вступ почекає (уночі приходить нічна варта)
-    if (LS.get("ordo.lastIntro", "") !== today && !lateNight) { LS.set("ordo.lastIntro", today); runIntro(); }
+    if (LS.get("ordo.lastIntro", "") !== today && !lateNight) introGate(today);
+    else if (introWaiting) { /* ще питаємо базу, чи ритуал уже був на іншому пристрої */ }
     else {
       if (dayChanged) { $("intro") && $("intro").setAttribute("hidden", ""); $("board") && $("board").classList.add("reveal"); }
       /* ритуал сьогодні вже був — але цілі чи ревю, що чекають, відкриваються при будь-якому вході */

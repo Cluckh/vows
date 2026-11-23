@@ -172,7 +172,7 @@
   const APPN = { reading: "читання", youtube: "YouTube", reddit: "Reddit", duolingo: "Duolingo" }, appName = (n) => APPN[n] || n;
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
   /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
-  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /^bb$|^плюсових днів$|^днів без довгих сесій$|^днів зі стоп-лосом$/i.test((q.unit || "").trim()) || /вірн|сповід|вечор|ранк|тренуван|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
+  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /^bb$|^плюсових днів$|^днів без довгих сесій$|^днів зі стоп-лосом$|^сесій$/i.test((q.unit || "").trim()) || /вірн|сповід|вечор|ранк|тренуван|кардіо|(^|[^а-яіїєґ])зал|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   /* ручна правка з Екранного часу (S.appFix[день][програма] = хв) — сильніша за підрахунок подій: iOS не каже, коли екран заблоковано */
   const appFix = (k, n) => { const f = S.appFix && S.appFix[k]; return f && f[n] != null ? f[n] : null; };
@@ -1312,6 +1312,23 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      /* «сесій» (з 23.11): завершені покерні сесії з HM3 від прийняття квесту (сесія — роздачі з перервою до 20 хв; завершена — минуло 20 хв від кінця).
+         Будь-яка сесія глибше −stopBB (типово 400 bb) — квест провалено одразу */
+      if (q.st === "active" && q.type === "count" && /^сесій$/i.test((q.unit || "").trim())) {
+        const stop = q.stopBB || 400, acc = q.stAt || (q.from ? Date.parse(q.from + "T00:00:00") : 0), last = q.until < today() ? q.until : today();
+        let n = 0, bust = null;
+        for (let k = q.from; k <= last; k = add(k, 1)) {
+          ((pDay(k) || {}).sess || []).forEach((x) => {
+            const st = Date.parse(`${k}T${x.s || "00:00"}:00`), end = st + (x.m || 0) * 6e4;
+            if (!(st >= acc - 6e4)) return;                                          // сесія почалась ще до того, як узяв квест
+            if ((x.bb || 0) < -stop) bust = bust || x;
+            else if (Date.now() - end > 20 * 6e4) n++;
+          });
+        }
+        if (bust) { q.st = "fail"; q.end = today(); q.at = Date.now(); q.bust = Math.round(bust.bb); return; }
+        if (n !== (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
       /* покер з HM3 (з 20.11.2026): «bb» — сума виграних bb за квест; «плюсових днів» — дні в плюсі; «днів без довгих сесій» (sessMax, хв) —
          ігрові дні, де жодна сесія не довша; «днів зі стоп-лосом» (stopBB) — ігрові дні, де жодна сесія не глибше −stopBB. Минулі дні — повністю, сьогодні — лише bb */
       { const u = (q.unit || "").trim().toLowerCase();
@@ -1550,7 +1567,7 @@
     if (!G || !G.balance || G.balance() < V) return null;
     const perDay = (u) => /вірн|зал|тренуван|кардіо|сповід|ранк|дн/i.test(u || "");
     const win = (p) => p.days || ({ day: 1, week: 7, month: 30 })[p.scope] || 1;
-    const c = pool().filter((p) => p.rar === rar && p.type === "count" && +p.target > 0 && !p.offerOn && !p.flash && (!p.app || appTracked(p.app))
+    const c = pool().filter((p) => p.rar === rar && p.type === "count" && +p.target > 0 && qAuto(p) && !p.offerOn && !p.flash && (!p.app || appTracked(p.app))
       && !Q.list.some((q) => (q.pid === p.id || q.pid === "stake:" + p.id) && (q.st === "active" || q.st === "offer"))
       && (!perDay(p.unit) || Math.ceil(p.target * STAKE_X) <= win(p)));
     if (!c.length) return null;

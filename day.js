@@ -1069,7 +1069,6 @@
     { id: "gm5", g: "l", ic: "medal", tier: "silver", n: "Зал трофеїв", h: "5 пройдених ігор", ok: (c) => c.games >= 5, xp: 100 },
     { id: "gm10", g: "l", ic: "medal", tier: "gold", n: "Колекціонер світів", h: "10 пройдених ігор", ok: (c) => c.games >= 10, xp: 250 },
     { id: "rd12", g: "l", ic: "book", tier: "legend", n: "Рік читача", h: "12 книжок за календарний рік", ok: (c) => c.booksYear >= 12, xp: 600, rar: "legend" },
-    { id: "kq", g: "l", ic: "book", tier: "gold", n: "Лицарська полиця", h: "Дочитати лицарську класику з черги (Айвенго, Роланд, Артур…)", ok: (c) => c.knight >= 1, xp: 200 },
     /* покер */
     { id: "pk10k", g: "p", ic: "dice", tier: "bronze", n: "Десять тисяч роздач", h: "10 000 роздач", ok: (c) => c.pkHands >= 10000, xp: 40 },
     { id: "pk100k", g: "p", ic: "dice", tier: "gold", n: "Сто тисяч", h: "100 000 роздач", ok: (c) => c.pkHands >= 100000, xp: 300 },
@@ -1111,7 +1110,7 @@
     mo1: ["heard", 1], mo15: ["heard", 15], mo50: ["heard", 50], mgift: ["gifts", 5], mleg: ["legendH", 1], mmyth: ["mythH", 1],
     ml1: ["meals", 1], mlg7: ["greenBest", 7], mlg30: ["greenBest", 30], ml60: ["meals", 60], sl7: ["mornings", 7], sl30: ["mornings", 30], sl100: ["mornings", 100], siren: ["siren", 1],
     pg100: ["pages", 100], pg1k: ["pages", 1000], bk1: ["books", 1], bk5: ["books", 5], st10: ["st10", 1], st10x: ["st10", 10], st15: ["st15", 1], qf: ["flash", 1], qf5: ["flash", 5], qch: ["chain", 1],
-    gp1: ["prs", 1], gp10: ["prs", 10], gmon: ["gmon", 1], g100: ["gymTotal", 100], cd10: ["cardioTotal", 10], cdi10: ["cdN", 10], gm1: ["games", 1], gm5: ["games", 5], gm10: ["games", 10], rd12: ["booksYear", 12], kq: ["knight", 1],
+    gp1: ["prs", 1], gp10: ["prs", 10], gmon: ["gmon", 1], g100: ["gymTotal", 100], cd10: ["cardioTotal", 10], cdi10: ["cdN", 10], gm1: ["games", 1], gm5: ["games", 5], gm10: ["games", 10], rd12: ["booksYear", 12],
     pk10k: ["pkHands", 10000], pk100k: ["pkHands", 100000], pk500k: ["pkHands", 500000], pkday: ["pkBest", 3000], sc7: ["calmBest", 7], sc30: ["calmDays", 30], du30: ["duoDays", 30], du100: ["duoDays", 100],
     md10: ["mindN", 10], md50: ["mindN", 50], md100: ["mindN", 100], wt10: ["weighN", 10], wt3: [(c) => Math.max(0, Math.round(c.wDrop * 10) / 10), 3], wt6: [(c) => Math.max(0, Math.round(c.wDrop * 10) / 10), 6],
     zz7: ["sleep7", 7], zz30: ["sleep7", 30], gl1: ["goalsDone", 1], gl10: ["goalsDone", 10], gl50: ["goalsDone", 50], gw1: ["whiteN", 1], gw10: ["whiteN", 10] };

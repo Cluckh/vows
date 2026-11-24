@@ -1,0 +1,96 @@
+/* ORDO — розкладка для ПК (з 24.11.2026). Підключається лише при ширині ≥ 1100 px (media в index.html),
+   тож телефон і вузьке вікно не змінюються зовсім. Логіка й розмітка — ті самі, що на мобільному: тут лише сітки й розміри.
+   Карта: бічна навігація зліва · широка рамка · обітниці сіткою карток · День у три колонки · решта екранів — у дві ·
+   аркуші (справа, квест, тренування) — вікно по центру, а не шторка знизу. */
+
+:root{--side:232px;--deskw:1500px}
+
+/* ---------- каркас: бічна панель замість нижніх вкладок ---------- */
+.frame{max-width:var(--deskw);margin:0 auto 0 calc(var(--side) + max(0px, (100vw - var(--side) - var(--deskw)) / 2));
+  padding:34px 44px 60px}
+.tabs{top:0;bottom:0;right:auto;width:var(--side);flex-direction:column;justify-content:flex-start;gap:4px;
+  padding:110px 16px 24px;border-top:none;border-right:1px solid var(--edge-soft);
+  background:linear-gradient(90deg,rgba(10,11,17,.94),rgba(10,11,17,.8))}
+.tabs::before{content:"Орден обітниць";position:absolute;top:38px;left:0;right:0;text-align:center;
+  font-family:var(--f-display);font-weight:700;font-size:16px;letter-spacing:.2em;color:var(--bone);text-transform:uppercase}
+.tabs::after{content:"";position:absolute;top:70px;left:40px;right:40px;height:1px;background:linear-gradient(90deg,transparent,rgba(231,199,119,.45),transparent)}
+.tabs>*{flex:none;max-width:none}
+.tab{flex-direction:row;justify-content:flex-start;gap:14px;padding:12px 16px;border-radius:12px;cursor:pointer}
+.tab:hover{color:var(--bone);background:rgba(205,163,73,.06)}
+.tab svg{width:22px;height:22px}
+.tabs .tab span{font-size:14px;letter-spacing:.12em}
+.tab.is-on{background:rgba(205,163,73,.1);box-shadow:inset 0 0 0 1px rgba(231,199,119,.18)}
+.tab.is-on::before{top:50%;left:0;width:3px;height:24px;margin:-12px 0 0}
+.tab__dot{left:30px;top:10px}
+
+/* заголовки екранів — ліворуч, компактніше */
+.vhead{display:flex;align-items:baseline;gap:14px;text-align:left;padding:0 0 24px;border-bottom:1px solid var(--edge-soft);margin-bottom:26px}
+.vhead__ic{margin:0;align-self:center;width:28px;height:28px}
+.vhead__title{font-size:26px}
+.vhead__sub{margin:0}
+
+/* ---------- аркуші: вікно по центру ---------- */
+.sheet{left:50%;right:auto;top:50%;bottom:auto;width:min(620px,calc(100vw - var(--side) - 80px));max-width:none;margin:0 0 0 calc(var(--side) / 2);
+  border:1px solid var(--edge);border-radius:20px;max-height:86vh;padding:14px 30px 28px;
+  transform:translate(-50%,-46%) scale(.97);opacity:0;pointer-events:none;transition:transform .32s var(--ease),opacity .25s ease;
+  box-shadow:0 30px 80px rgba(0,0,0,.65),inset 0 1px 0 rgba(231,199,119,.08)}
+.sheet.open{transform:translate(-50%,-50%);opacity:1;pointer-events:auto}
+.sheet__grip{display:none}
+
+/* ---------- Обітниці ---------- */
+.board .crest{padding:6px 0 30px}
+.crest__title{font-size:30px}
+.oaths{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;border-top:none}
+.oath{border:1px solid var(--edge-soft);border-radius:16px;padding:18px 20px 22px;background:linear-gradient(160deg,rgba(205,163,73,.06),rgba(10,11,17,.35));overflow:hidden}
+.oath:hover{border-color:var(--edge);background:linear-gradient(160deg,rgba(205,163,73,.1),rgba(10,11,17,.35))}
+.oath__icon{width:40px;height:40px}
+.oath__name{font-size:19px}
+.oath__sub{font-size:13.5px}
+.board__foot{margin-top:24px}
+
+/* ---------- День: три колонки ---------- */
+#vDay.is-on{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,1fr);column-gap:30px;align-items:start;
+  grid-template-rows:auto auto 1fr;grid-template-areas:"head head head" "conf tasks quests" "day tasks quests"}
+#vDay>.vhead{grid-area:head}
+#vDay>.confess{grid-area:conf;margin-top:0}
+#dayBody{display:contents}
+#dayBody>div:nth-child(1){display:none}
+#dayBody>div:nth-child(2){grid-area:day;min-width:0}
+#dayBody>div:nth-child(3){grid-area:quests;min-width:0;position:sticky;top:24px}
+#dayBody>div:nth-child(4){grid-area:tasks;min-width:0}
+#dayBody>div:nth-child(1):only-child,#dayBody>.dy-nav{grid-column:1/-1}
+
+/* ---------- Зброярня, Цілі, Скарбниця, Літопис: дві колонки ---------- */
+#armoryBody,#goalsBody,#treasuryBody,#statsBody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:34px;align-items:start}
+#armoryBody>*,#goalsBody>*,#treasuryBody>*,#statsBody>*{min-width:0}
+
+/* Зброярня: ліворуч — план залу, праворуч — голос Северина, спліт, місяць, довідка; робочі ваги — теж праворуч, під місяцем */
+#armoryBody>.ar-next{grid-column:1;grid-row:1 / span 6}
+#armoryBody>.ar-voice,#armoryBody>.ar-sp,#armoryBody>.ar-month,#armoryBody>.ar-info{grid-column:2}
+#armoryBody>.ar-table{grid-column:2}
+
+/* Літопис: ліворуч — нагороди й звання, праворуч — місяць/рік, обітниці, цілі, записи */
+#statsBody>*{grid-column:2}
+#statsBody>.dy-glory{grid-column:1;grid-row:1 / span 80}
+.dy-ach{grid-template-columns:repeat(5,1fr)}
+
+/* Цілі: місяць ліворуч, рік праворуч */
+#goalsBody>.md{grid-column:1/-1}
+#goalsBody>.gl-sec:nth-of-type(odd){grid-column:1}
+#goalsBody>.gl-sec:nth-of-type(even){grid-column:2}
+
+/* Скарбниця: золото й банк ліворуч, спорядження праворуч */
+#treasuryBody>.gd,#treasuryBody>.tr{grid-column:1}
+#treasuryBody>.rl{grid-column:2;grid-row:1 / span 6}
+.rl-grid{grid-template-columns:repeat(8,minmax(0,1fr))}
+
+/* вужчий ПК (1100–1399 px): День у дві колонки — квести під панеллю дня, справи праворуч; обітниці — так само дві */
+@media (max-width:1399px){
+  :root{--side:200px}
+  .frame{padding:28px 30px 60px}
+  #vDay.is-on{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);grid-template-rows:auto auto auto 1fr;
+    grid-template-areas:"head head" "conf tasks" "day tasks" "quests tasks"}
+  #dayBody>div:nth-child(3){position:static}
+  .dy-ach{grid-template-columns:repeat(4,1fr)}
+  .rl-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+}

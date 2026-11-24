@@ -1881,6 +1881,8 @@
     const tail = lim ? (over ? `понад ліміт на ${m - goal} хв` : `залишилось ${goal - m} хв`) : m >= goal ? "є" : `ще ${goal - m} хв`;
     return `<div class="gl-bar dy-app${lim ? " dy-app--lim" : ""}${over ? " is-over" : ""}"><i style="width:${Math.round(pr * 100)}%"></i></div><span class="dy-num${over ? " is-over" : ""}">${m} хв <em>/ ${lim ? "ліміт " : ""}${goal} · ${tail}</em></span>`;
   }
+  /* квести розгорнуті: на ПК (≥1100 px) — за замовчуванням так, на телефоні — ні; вибір власника пам'ятається */
+  const qOpenNow = () => LS.get("ordo.k.qOpen", !!(window.matchMedia && window.matchMedia("(min-width:1100px)").matches));
   function questHTML(q) {
     const r = RAR[q.rar], pr = qProg(q), left = q.until ? diff(today(), q.until) : 0;
     const due = q.st === "fail" ? "не встиг — є «Друге дихання»" : q.st !== "active" ? "" : q.flash ? `⚡ до ${q.flash}` : left <= 0 ? "сьогодні останній день" : left === 1 ? "завтра останній день" : `до ${human(q.until)} включно`;
@@ -2129,7 +2131,7 @@
     if (fails.length) live.push(...fails);
     const segN = k === today() ? newsHTML() : "";
     /* квести згортаються: у згорнутому — одна смуга з рідкостями («рідкісні 2 · легендарний 1»), розгорнув — звичні банери */
-    const qOpen = LS.get("ordo.k.qOpen", false), RQ = ["myth", "legend", "rare"], RQN = { myth: "міфічн", legend: "легендарн", rare: "рідкісн" };
+    const qOpen = qOpenNow(), RQ = ["myth", "legend", "rare"], RQN = { myth: "міфічн", legend: "легендарн", rare: "рідкісн" };
     const qSum = RQ.map((r) => [r, live.filter((q) => q.rar === r && q.st === "active").length]).filter(([, n]) => n).map(([r, n]) => `<span class="dy-qs1__r rar-${r}"><i></i>${RQN[r]}${n > 1 ? "і" : r === "rare" ? "ий" : "ий"} ${n}</span>`).join("");
     const qDoneN = live.filter((q) => q.st === "done").length, qFail = live.filter((q) => q.st === "fail").length;
     const segQ = (k === today() ? teaserHTML("day") : "") + (live.length ? `<section class="dy-sec dy-qsec${qOpen ? " is-open" : ""}"><button type="button" class="dy-qs1" data-dqtog><span class="gl-sec__kind">Квести</span>${qSum}${qDoneN ? `<span class="dy-qs1__r">✓ ${qDoneN}</span>` : ""}${qFail ? `<span class="dy-qs1__r">друге дихання ${qFail}</span>` : ""}<i>${qOpen ? "‹" : "›"}</i></button>${qOpen ? `<ul class="dy-qs">${live.map(questHTML).join("")}</ul>` : ""}</section>` : "");
@@ -2820,7 +2822,7 @@
     if (e.target.closest("[data-dsleep]") && (view || today()) === today()) { openSheet("sleep", null, today()); return; }
     if (e.target.closest("[data-dwatch]")) { openSheet("watch", null, today()); return; }
     if (e.target.closest("[data-dnews]")) { if (!newsOpen) newsOpen = true; else newsI++; buzz("light"); render(); return; }     // перший тап — розгорнути, далі — наступне слово
-    if (e.target.closest("[data-dqtog]")) { LS.set("ordo.k.qOpen", !LS.get("ordo.k.qOpen", false)); buzz("light"); render(); return; }
+    if (e.target.closest("[data-dqtog]")) { LS.set("ordo.k.qOpen", !qOpenNow()); buzz("light"); render(); return; }
     if (e.target.closest("[data-dnight]")) { nightOpen = !nightOpen; buzz("light"); render(); return; }
     if (e.target.closest("[data-dmore]")) { dayMore = !dayMore; buzz("light"); render(); return; }
     if (e.target.closest("[data-dloh]")) { buzz("medium"); lohConfirm(); return; }

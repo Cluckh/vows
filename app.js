@@ -386,6 +386,70 @@ window.ORDO_START = function () {
     return true;
   };
 
+  /* ===================================================== КЛЯТВИ ==========
+     (з 24.11.2026, власник: «як записки собі з підписом»; «як міні-обітниці: якщо зламались — уже не відновлюються»)
+     Клятва — коротке рішення з підписом і печаткою. Додається в будь-якій вкладці (печатка в шапці), живе в ній
+     одним тонким рядком (можна сховати). Зламана — назавжди: печатка розбита (арт scene:sealx), повернути не можна.
+     Прив'язана до обітниці (vow) — ламається сама, якщо після дати клятви ця обітниця зірвалась.
+     Дані — ordo.pledge.list (синхронізується), події «дав / зламав» — у Літопис. */
+  const PL_TAB = { board: "Обітниці", day: "День", armory: "Зброярня", stats: "Літопис", goals: "Цілі", treasury: "Скарбниця" };
+  const plGet = () => { const P = LS.get("ordo.pledge", null) || {}; P.list = P.list || {}; return P; };
+  const plSave = (P) => LS.set("ordo.pledge", P);
+  const plDays = (a, b) => Math.max(0, Math.round((parseLocal(b) - parseLocal(a)) / 864e5) + 1);
+  const plWord = (n) => pluralUk(n, ["день", "дні", "днів"]);
+  function plSettle(P) {                        // обітниця зірвалась після дати клятви — клятва зламана (і так лишається)
+    let ch = false;
+    Object.values(P.list).forEach((x) => { if (!x || x.broken || !x.vow) return;
+      const b = LOG.filter((e) => e.k === "breach" && e.v === x.vow && e.d >= (x.from || x.d)).map((e) => e.d).sort()[0];
+      if (b) { x.broken = b; x.auto = 1; x.mt = Date.now(); ch = true; logPush({ k: "pledge", t: x.t, d: b, st: "broken" }); } });
+    if (ch) plSave(P);
+  }
+  const plSeal = (broken, cls) => { const G = window.ORDO_GOLD, im = G && G.scene && G.scene(broken ? "sealx" : "seal");
+    return im ? `<img class="pl-seal ${cls || ""}" src="${im}" alt="">` : `<svg class="pl-seal pl-seal--svg${broken ? " is-broken" : ""} ${cls || ""}"><use href="#i-wax"/></svg>`; };
+  const plStat = (x) => x.broken ? `зламано ${fmtKey(x.broken)} · тримав ${plDays(x.from || x.d, x.broken) - 1} ${plWord(plDays(x.from || x.d, x.broken) - 1)}` : `${plDays(x.from || x.d, todayKey())} ${plWord(plDays(x.from || x.d, todayKey()))}`;
+  function renderPledges() {
+    const P = plGet(); plSettle(P);
+    const L = Object.values(P.list).filter((x) => x && x.t).sort((a, b) => (a.broken ? 1 : 0) - (b.broken ? 1 : 0) || (a.d < b.d ? 1 : -1));
+    document.querySelectorAll(".pl-strip").forEach((box) => { const t = box.dataset.pltab, vis = L.filter((x) => x.tab === t && !x.hide);
+      box.innerHTML = vis.map((x) => `<button type="button" class="pl-line${x.broken ? " is-broken" : ""}" data-plopen="${t}">${plSeal(!!x.broken)}<span class="pl-line__t">${esc(x.t)}</span><em>${x.broken ? "зламано" : esc(plStat(x))}</em></button>`).join(""); });
+    document.querySelectorAll("[data-pln]").forEach((i) => { const n = L.filter((x) => x.tab === i.dataset.pln && !x.broken).length; i.textContent = n ? String(n) : ""; });
+  }
+  function openPledges(tab) {
+    let m = $("plModal");
+    if (!m) { m = document.createElement("div"); m.className = "confirm"; m.id = "plModal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); document.body.appendChild(m); }
+    const draw = () => {
+      const P = plGet(), L = Object.values(P.list).filter((x) => x && x.t && x.tab === tab).sort((a, b) => (a.broken ? 1 : 0) - (b.broken ? 1 : 0) || (a.d < b.d ? 1 : -1));
+      const sig = P.sig || "";
+      m.innerHTML = `<div class="confirm__card pl-card"><div class="pl-h"><svg><use href="#i-wax"/></svg><b>Клятви</b><span>${esc(PL_TAB[tab] || "")}</span></div>
+        ${L.length ? `<ul class="pl-list">${L.map((x) => `<li class="${x.broken ? "is-broken" : ""}">${plSeal(!!x.broken, "pl-seal--big")}<div><p class="pl-t">${esc(x.t)}</p>${x.why ? `<p class="pl-why">${esc(x.why)}</p>` : ""}
+          <p class="pl-sig">${esc(x.sig || "")}<span>${fmtKey(x.d)}${x.vow && vowById(x.vow) ? ` · ${esc(vowById(x.vow).name)}` : ""}</span></p><p class="pl-st">${esc(plStat(x))}</p>
+          <div class="pl-acts"><button type="button" data-plhide="${x.id}">${x.hide ? "показувати у вкладці" : "сховати з вкладки"}</button>${x.broken ? "" : `<button type="button" class="is-bad" data-plbreak="${x.id}">зламав</button>`}</div></div></li>`).join("")}</ul>`
+          : `<p class="pl-empty">Записка собі з підписом і печаткою. Тримається, поки не зламаєш — а зламану вже не відновиш.</p>`}
+        <div class="pl-new"><textarea class="dy-in" id="plT" rows="2" maxlength="200" placeholder="клятва — коротко, твоїми словами"></textarea>
+          <div class="pl-row"><input class="dy-in" id="plS" maxlength="40" placeholder="підпис" value="${esc(sig)}">
+          <select class="dy-in" id="plV"><option value="">без обітниці</option>${D.VOWS.map((v) => `<option value="${v.id}">ламається з обітницею: ${esc(v.name)}</option>`).join("")}</select></div>
+          <button type="button" class="btn btn--gold" data-pladd="1">Поставити печатку</button></div>
+        <button type="button" class="btn btn--ghost" data-plclose="1">Закрити</button></div>`;
+    };
+    m.onclick = (e) => {
+      if (e.target === m || e.target.closest("[data-plclose]")) { m.classList.remove("open"); return; }
+      const P = plGet(), h = e.target.closest("[data-plhide]"), b = e.target.closest("[data-plbreak]");
+      if (h) { const x = P.list[h.dataset.plhide]; if (x) { x.hide = !x.hide; x.mt = Date.now(); plSave(P); draw(); renderPledges(); FX.buzz("light"); } return; }
+      if (b) { const x = P.list[b.dataset.plbreak]; if (!x || x.broken) return;
+        if (!confirm(`Зламати клятву «${x.t}»? Назад її не повернеш — печатка лишиться розбитою.`)) return;
+        x.broken = todayKey(); x.mt = Date.now(); plSave(P); logPush({ k: "pledge", t: x.t, d: x.broken, st: "broken" }); FX.play("no", true); FX.buzz("heavy"); draw(); renderPledges(); return; }
+      if (e.target.closest("[data-pladd]")) {
+        const t = ($("plT").value || "").trim(), sg = ($("plS").value || "").trim(), v = $("plV").value || null; if (!t) { $("plT").focus(); return; }
+        const id = "p" + Date.now().toString(36); P.list[id] = { id, t, sig: sg, d: todayKey(), from: todayKey(), tab, vow: v, at: Date.now(), mt: Date.now() }; if (sg) P.sig = sg;
+        plSave(P); logPush({ k: "pledge", t, d: todayKey(), st: "made" }); FX.play("date", true); FX.buzz("medium"); draw(); renderPledges();
+      }
+    };
+    draw(); requestAnimationFrame(() => m.classList.add("open"));
+  }
+  document.addEventListener("click", (e) => { const o = e.target.closest("[data-plopen]"); if (o && !o.closest("#plModal")) { e.stopPropagation(); openPledges(o.dataset.plopen); } }, true);
+  window.addEventListener("ordo-art", () => renderPledges());
+  window.ORDO_PLEDGE = { render: renderPledges, open: openPledges };
+
   /* одноразові виправлення літопису (приходять у зашифрованому вмісті, D.PATCHES):
      застосовуються один раз; час запису детермінований, тож на різних пристроях
      це той самий запис і синхронізація його не подвоїть */
@@ -515,6 +579,7 @@ window.ORDO_START = function () {
     return '<span class="wd wd--on"></span>'.repeat(L - used) + '<span class="wd"></span>'.repeat(used) + '<span class="wd wd--over"></span>'.repeat(over);
   }
   function renderBoard() {
+    renderPledges();
     const ct = $("crestTitle"); if (ct) ct.textContent = D.APP_CONFIG.title;
     const cs = $("crestSub"); if (cs) cs.textContent = D.APP_CONFIG.subtitle;
     const fd = $("footDate"); if (fd) fd.innerHTML = fmtShort(new Date()) + (VER ? `<span class="board__ver">v${VER}</span>` : "");
@@ -844,6 +909,7 @@ window.ORDO_START = function () {
     TAB = name;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("is-on", t.dataset.tab === name));
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("is-on", v.dataset.view === name));
+    renderPledges();
     if (name === "stats") renderStats();
     if (name === "treasury") renderTreasury();
     if (name === "goals") renderGoals();
@@ -879,6 +945,7 @@ window.ORDO_START = function () {
       if (e.k === "call") { nm = "Верховний храмовник"; const st = (D.PANIC && D.PANIC.states.find((x) => x.id === e.st)) || null;
         what = e.st === "held" ? "хвиля минула — встояв" : `покликав${st ? " · " + st.t.toLowerCase() : ""}`; cls = "c"; }
       else if (e.k === "goal") { nm = e.kind === "y" ? "Ціль року" : "Ціль місяця"; what = esc(e.t.length > 34 ? e.t.slice(0, 33) + "…" : e.t); cls = "g"; }
+      else if (e.k === "pledge") { nm = e.st === "broken" ? "Клятву зламано" : "Клятва"; what = esc(e.t || ""); cls = e.st === "broken" ? "b" : "g"; }
       else if (e.k === "gone") { nm = `${GONE_N[e.what] || "Запис"} · ${e.what === "quest" || e.what === "game" || e.what === "book" ? "відпущено" : "видалено"}`; what = `${esc(e.t || "")}${e.why ? `<i class="lg-why">«${esc(e.why)}»</i>` : ""}`; cls = "x"; }
       else {
         const v = vowById(e.v); nm = v ? v.name : e.v;
@@ -949,7 +1016,7 @@ window.ORDO_START = function () {
   const tzHTML = (place) => (window.ORDO_DAY && window.ORDO_DAY.teaserHTML ? window.ORDO_DAY.teaserHTML(place) : "");
   function renderTreasury() {
     const box = $("treasuryBody"); if (!box) return;
-    box.innerHTML = tzHTML("treasury") + (window.ORDO_TREASURY && window.ORDO_TREASURY.decreeHTML ? window.ORDO_TREASURY.decreeHTML() : "") + (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "");
+    box.innerHTML = tzHTML("treasury") + (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "");
   }
   function renderStats() {
     const box = $("statsBody"); if (!box) return;

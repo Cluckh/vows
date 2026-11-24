@@ -2198,21 +2198,46 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 /* «Сила є» — у шапці тренування після важкої ночі (з 24.11.2026) */
 .gy-strong{display:block;width:100%;margin-top:10px}
 .ar-warn--ok{color:var(--gold-2)}
-/* печатка ревізії в Скарбниці (з 24.11.2026) */
-.dc{margin-bottom:24px}
-.dc .st-h em{font-style:italic;font-family:var(--f-serif);letter-spacing:0;text-transform:none;color:var(--ash);margin-left:8px}
-.dc-card{position:relative;padding:20px 20px 14px;border:1px solid rgba(231,199,119,.35);border-radius:6px;
-  background:linear-gradient(170deg,rgba(231,199,119,.12),rgba(205,163,73,.04) 60%,rgba(10,11,17,.2));box-shadow:inset 0 0 30px rgba(231,199,119,.06)}
-.dc-t{font-family:var(--f-serif);font-size:21px;line-height:1.4;color:var(--bone);font-style:italic}
-.dc-why{font-family:var(--f-serif);font-size:14.5px;color:var(--ash);margin-top:8px;line-height:1.45}
-.dc-foot{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:14px}
-.dc-sig{font-family:var(--f-serif);font-style:italic;font-size:22px;color:var(--gold-2);transform:rotate(-4deg)}
-.dc-seal{width:58px;height:58px;flex:none;transform:rotate(-12deg);filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))}
-.dc-wax{fill:#8f1d1d}
-.dc-ring{fill:none;stroke:rgba(255,210,190,.35);stroke-width:2}
-.dc-cross{fill:none;stroke:rgba(255,220,200,.75);stroke-width:4;stroke-linecap:round}
-.dc-st{font-family:var(--f-ui);font-size:12.5px;letter-spacing:.04em;color:var(--ash-2);margin-top:10px}
-.dc-st b{color:var(--gold-2)}
-.dc.is-broken .dc-seal{opacity:.45;filter:grayscale(.6)}
-.dc.is-broken .dc-st{color:var(--ember-2)}
-.dc-seal--art{border-radius:50%;object-fit:cover;width:66px;height:66px}
+/* КЛЯТВИ (з 24.11.2026): тонкий рядок у вкладці, печатка в шапці, вікно зі списком і формою */
+.vhead{position:relative}
+.vhead__pl{position:absolute;right:0;top:2px;width:36px;height:36px;display:grid;place-items:center;color:var(--ash-2);border-radius:50%}
+.vhead__pl:hover{color:var(--gold-2)}
+.vhead__pl svg,.icobtn--pl svg{width:22px;height:22px}
+.vhead__pl i,.icobtn--pl i{position:absolute;right:1px;top:1px;min-width:15px;height:15px;padding:0 3px;border-radius:99px;font-style:normal;font-family:var(--f-ui);font-size:10px;line-height:15px;text-align:center;color:#fff;background:#8f1d1d}
+.vhead__pl i:empty,.icobtn--pl i:empty{display:none}
+.icobtn--pl{position:relative}
+.pl-strip{display:flex;flex-direction:column;gap:6px;margin:-6px 0 14px}
+.pl-strip:empty{display:none}
+.pl-line{display:flex;align-items:center;gap:10px;width:100%;padding:6px 10px;border-radius:10px;border:1px solid rgba(231,199,119,.16);background:rgba(143,29,29,.07);text-align:left;cursor:pointer}
+.pl-line__t{flex:1;min-width:0;font-family:var(--f-serif);font-style:italic;font-size:15px;color:var(--bone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-line em{font-style:normal;font-family:var(--f-ui);font-size:11.5px;color:var(--ash-2);white-space:nowrap}
+.pl-line.is-broken{opacity:.55}
+.pl-line.is-broken .pl-line__t{text-decoration:line-through;text-decoration-color:rgba(232,120,90,.6)}
+.pl-seal{width:22px;height:22px;flex:none;border-radius:50%;object-fit:cover}
+.pl-seal--svg{color:#b8342f}
+.pl-seal--svg.is-broken{color:var(--ash-2)}
+.pl-seal--big{width:44px;height:44px}
+.pl-card{max-width:460px;text-align:left;max-height:86vh;overflow:auto}
+.pl-h{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.pl-h svg{width:22px;height:22px;color:#b8342f;align-self:center}
+.pl-h b{font-family:var(--f-display);font-size:19px;letter-spacing:.1em;color:var(--bone)}
+.pl-h span{font-family:var(--f-serif);font-style:italic;color:var(--ash)}
+.pl-list{list-style:none;margin:0 0 14px;padding:0}
+.pl-list li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--edge-soft)}
+.pl-list li>div{flex:1;min-width:0}
+.pl-t{font-family:var(--f-serif);font-style:italic;font-size:18px;line-height:1.35;color:var(--bone)}
+.pl-why{font-family:var(--f-serif);font-size:14px;color:var(--ash);margin-top:4px}
+.pl-sig{font-family:var(--f-serif);font-style:italic;font-size:17px;color:var(--gold-2);margin-top:6px}
+.pl-sig span{font-family:var(--f-ui);font-style:normal;font-size:11.5px;color:var(--ash-2);margin-left:10px}
+.pl-st{font-family:var(--f-ui);font-size:12px;color:var(--ash-2);margin-top:2px}
+.pl-list li.is-broken .pl-t{text-decoration:line-through;text-decoration-color:rgba(232,120,90,.6);color:var(--ash)}
+.pl-list li.is-broken .pl-st{color:var(--ember-2)}
+.pl-acts{display:flex;gap:14px;margin-top:6px}
+.pl-acts button{font-family:var(--f-ui);font-size:12px;color:var(--ash);text-decoration:underline;text-underline-offset:3px}
+.pl-acts button.is-bad{color:var(--ember-2)}
+.pl-empty{font-family:var(--f-serif);font-style:italic;color:var(--ash);margin-bottom:14px}
+.pl-new textarea{display:block;width:100%;resize:none;margin-bottom:8px}
+.pl-row{display:flex;gap:8px;margin-bottom:10px}
+.pl-row input{flex:0 0 38%;min-width:0}
+.pl-row select{flex:1;min-width:0}
+.pl-new .btn{margin-bottom:8px}

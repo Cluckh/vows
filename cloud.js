@@ -36,6 +36,7 @@
     "ordo.arm": { ex: 1 },
     "ordo.gym": { log: 1, w: 1, cd: 1 },
     "ordo.bank": { seen: 1 },
+    "ordo.pledge": { list: 1 },
     "ordo.log": "list", "ordo.logdel": "set",
     "ordo.calls": 1, "ordo.starts": 1, "ordo.best": 1, "ordo.ach": 1, "ordo.spent": 1
   };

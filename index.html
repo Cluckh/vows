@@ -17,8 +17,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="fonts/CormorantSC-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/EBGaramond-500i-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="styles.css?v=116">
-<link rel="stylesheet" href="desk.css?v=3" media="(min-width:1100px)">
+<link rel="stylesheet" href="styles.css?v=117">
+<link rel="stylesheet" href="desk.css?v=4" media="(min-width:1100px)">
 </head>
 <body>
 <div class="scene" aria-hidden="true"><i class="scene__dusk"></i><i class="scene__night"></i></div>
@@ -175,6 +175,7 @@
       <path d="M5.6 4.2h13l-3 4 3 4h-13"/>
       <path d="M10.9 5.8v4.8M8.5 8.2h4.8"/>
     </symbol>
+    <symbol id="i-wax" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8c1.7 1 3.1.4 4.3 1.6s.9 2.6 2.2 3.6.3 2.9 1.2 4.2-.4 2.6-1 3.8-2 1.9-2.9 2.9-2.9.6-3.8 1.5-2.6-.6-3.8-1.2-2.9-.3-3.6-1.9-.3-2.6-1.2-3.8.3-2.9.3-4.2 1.3-2.6 2.6-3.2 1.9-1.9 3.2-1.9 1.3-1.3 2.5-1.4z"/><circle cx="12" cy="12" r="4.6"/><path d="M12 9.4v5.2M9.9 11.3h4.2"/></symbol>
     <symbol id="i-scroll" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
       <path d="M7 4.5h11.2a1.8 1.8 0 0 1 0 3.6H17v10.4a2 2 0 0 1-2 2H6.4"/>
       <path d="M7 4.5a1.8 1.8 0 0 0-1.8 1.8v12.1a2 2 0 1 0 4 0v-.8h7.8"/>
@@ -417,6 +418,7 @@
           <circle cx="110" cy="9" r="1.6" class="crest__dot"/>
         </svg>
       </header>
+      <div class="pl-strip" data-pltab="board"></div>
       <ul class="oaths" id="oaths"></ul>
       <footer class="board__foot">
         <div class="board__acts">
@@ -424,6 +426,7 @@
           <button class="replay" id="protoBtn" type="button"><svg><use href="#i-scroll"/></svg>протокол</button>
         </div>
         <div class="board__end">
+          <button class="icobtn icobtn--pl" type="button" data-plopen="board" aria-label="Клятви"><svg><use href="#i-wax"/></svg><i data-pln="board"></i></button>
           <button class="icobtn" id="vaultBtn" type="button" aria-label="Сховище"><svg><use href="#i-vault"/></svg></button>
           <button class="icobtn" id="musBtn" type="button" aria-label="Музика"><svg><use href="#i-lyre"/></svg></button>
           <button class="icobtn" id="sndBtn" type="button" aria-label="Звук"><svg id="sndIc"><use href="#i-bell"/></svg></button>
@@ -435,32 +438,37 @@
 
   <!-- — День — -->
   <div class="view" id="vDay" data-view="day">
-    <header class="vhead"><svg class="vhead__ic"><use href="#i-sun"/></svg><div class="vhead__title">День</div><div class="vhead__sub" id="daySub"></div></header>
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-sun"/></svg><div class="vhead__title">День</div><div class="vhead__sub" id="daySub"></div><button class="vhead__pl" type="button" data-plopen="day" aria-label="Клятви"><svg><use href="#i-wax"/></svg><i data-pln="day"></i></button></header>
+    <div class="pl-strip" data-pltab="day"></div>
       <button class="confess confess--day" id="confessBtn" type="button"><svg><use href="#i-scroll"/></svg><span class="confess__t">Сповідь дня</span><span class="confess__s" id="confessSt">як минув день?</span></button>
     <div id="dayBody"></div>
   </div>
 
   <!-- — Зброярня: тренування, робочі ваги, план від брата Северина — -->
   <div class="view" id="vArmory" data-view="armory">
-    <header class="vhead"><svg class="vhead__ic"><use href="#i-swords"/></svg><div class="vhead__title">Зброярня</div><div class="vhead__sub" id="arSub">зал, ваги й наступний плац</div></header>
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-swords"/></svg><div class="vhead__title">Зброярня</div><div class="vhead__sub" id="arSub">зал, ваги й наступний плац</div><button class="vhead__pl" type="button" data-plopen="armory" aria-label="Клятви"><svg><use href="#i-wax"/></svg><i data-pln="armory"></i></button></header>
+    <div class="pl-strip" data-pltab="armory"></div>
     <div id="armoryBody"></div>
   </div>
 
   <!-- — Літопис — -->
   <div class="view" id="vStats" data-view="stats">
-    <header class="vhead"><svg class="vhead__ic"><use href="#i-scroll"/></svg><div class="vhead__title">Літопис</div><div class="vhead__sub" id="stSub"></div></header>
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-scroll"/></svg><div class="vhead__title">Літопис</div><div class="vhead__sub" id="stSub"></div><button class="vhead__pl" type="button" data-plopen="stats" aria-label="Клятви"><svg><use href="#i-wax"/></svg><i data-pln="stats"></i></button></header>
+    <div class="pl-strip" data-pltab="stats"></div>
     <div id="statsBody"></div>
   </div>
 
   <!-- — Скарбниця: золото, реліквії, крамниця Сенешаля, книга банку — -->
   <div class="view" id="vTreasury" data-view="treasury">
-    <header class="vhead"><svg class="vhead__ic"><use href="#i-coin"/></svg><div class="vhead__title">Скарбниця</div><div class="vhead__sub" id="trSub">золото, спорядження й гроші Ордену</div></header>
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-coin"/></svg><div class="vhead__title">Скарбниця</div><div class="vhead__sub" id="trSub">золото, спорядження й гроші Ордену</div><button class="vhead__pl" type="button" data-plopen="treasury" aria-label="Клятви"><svg><use href="#i-wax"/></svg><i data-pln="treasury"></i></button></header>
+    <div class="pl-strip" data-pltab="treasury"></div>
     <div id="treasuryBody"></div>
   </div>
 
   <!-- — Цілі — -->
   <div class="view" id="vGoals" data-view="goals">
-    <header class="vhead"><svg class="vhead__ic"><use href="#i-medal"/></svg><div class="vhead__title">Цілі</div><div class="vhead__sub" id="glSub"></div></header>
+    <header class="vhead"><svg class="vhead__ic"><use href="#i-medal"/></svg><div class="vhead__title">Цілі</div><div class="vhead__sub" id="glSub"></div><button class="vhead__pl" type="button" data-plopen="goals" aria-label="Клятви"><svg><use href="#i-wax"/></svg><i data-pln="goals"></i></button></header>
+    <div class="pl-strip" data-pltab="goals"></div>
     <div id="goalsBody"></div>
   </div>
 </main>
@@ -549,12 +557,12 @@
 </div>
 
 <script src="sb.js?v=1"></script>
-<script src="cloud.js?v=6"></script>
-<script src="app.js?v=90"></script>
+<script src="cloud.js?v=7"></script>
+<script src="app.js?v=91"></script>
 <script src="hall.js?v=25"></script>
 <script src="day.js?v=149"></script>
-<script src="treasury.js?v=20"></script>
-<script src="gold.js?v=65"></script>
+<script src="treasury.js?v=21"></script>
+<script src="gold.js?v=66"></script>
 <script src="arm.js?v=18"></script>
 <script src="boot.js?v=50"></script>
 </body>

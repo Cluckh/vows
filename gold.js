@@ -421,7 +421,7 @@
   const wantAch = (ids) => want(ids.map((id) => "ach:" + id));
   const artName = (kind, id) => { let h = 2166136261; const s = kind + ":" + id; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, "0"); };
   let artBusy = false;
-  const SCENES = ["chest", "chestc", "shop", "treasury", "levelup", "night", "weekchest", "seal"];     // seal — воскова печатка ревізії (Скарбниця, з 24.11)
+  const SCENES = ["chest", "chestc", "shop", "treasury", "levelup", "night", "weekchest", "seal", "sealx"];     // seal / sealx — ціла й розбита печатка клятви (з 24.11)
   const scene = (n) => ART["scene:" + n] || null;
   /* звідки арти: з бази (Storage, з 20.11.2026); без входу в базу — зашифровані файли приватного сховища на GitHub, як раніше */
   const CLA = () => window.ORDO_CLOUD && window.ORDO_CLOUD.active() && window.ORDO_CLOUD.artBlob ? window.ORDO_CLOUD : null;

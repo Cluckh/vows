@@ -1325,7 +1325,7 @@
         const PL = (LS.get("ordo.pledge", null) || {}).list || {}, from = q.from || today(), end = q.until && q.until < today() ? q.until : today();
         const ids = q.pledge && q.pledge !== "all" ? [q.pledge] : Object.values(PL).filter((x) => x && !(x.broken && x.broken < from) && (x.from || x.d) <= from).map((x) => x.id);
         const L = ids.map((id) => PL[id]).filter(Boolean); if (!L.length) return;
-        const br = L.map((x) => x.broken).filter((b) => b && b >= from && b <= end).sort()[0];
+        const br = L.map((x) => x.broken).filter((b) => b && (q.pledge !== "all" || b >= from) && b <= end).sort()[0];     // конкретну клятву зламано (хоч і до старту) — квест не тримається
         if (br) { q.st = "fail"; q.end = br; q.at = Date.now(); return; }
         const st0 = L.map((x) => x.from || x.d).sort().pop(), a0 = st0 > from ? st0 : from, n = a0 > end ? 0 : diff(a0, end) + 1;
         if (n !== (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
@@ -1457,7 +1457,7 @@
   const wkKey = (k) => add(k, -(wd(k) - 1));                     // понеділок тижня
   function draw(rar, tag, only) {
     if (!only && rar !== "myth" && GEAR("questUp") > 0 && Q.clock.up !== wkKey(today())) { Q.clock.up = wkKey(today()); rar = rar === "legend" ? "myth" : "legend"; }     // спорядження: раз на тиждень — квест на рідкість вищий
-    const seen = new Set(Q.list.filter((q) => q.st !== "void" || q.reset).map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.app || appTracked(p.app));
+    const seen = new Set(Q.list.filter((q) => q.st !== "void" || q.reset).map((q) => q.pid)), can = (p) => (only ? p.id === only : !p.offerOn) && (p.type !== "budget" || (T() && T().ready() && (!p.limitPct || T().avgWeek(p.cats)))) && (!p.pledge || p.pledge === "all" || (() => { const x = ((LS.get("ordo.pledge", null) || {}).list || {})[p.pledge]; return !!(x && !x.broken); })()) && (!p.app || appTracked(p.app));
     let c = pool().filter((p) => (only || p.rar === rar) && can(p) && !seen.has(p.id) && (!tag || (p.tags || []).includes(tag)));
     const free = (p) => p.rar === rar && can(p) && !Q.list.some((q) => q.pid === p.id && (q.st === "active" || q.st === "offer"));
     if (!c.length && tag) c = pool().filter((p) => free(p) && (p.tags || []).includes(tag));      // тематичні можна повторювати

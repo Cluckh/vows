@@ -118,7 +118,7 @@
       const days = Math.max(0, Math.round((Date.parse(today()) - Date.parse(from)) / 864e5) + 1);
       return `<section class="st-sec dc${br ? " is-broken" : ""}"><div class="st-h">Печатка ревізії <em>${esc(dmy(x.d))}</em></div>
         <div class="dc-card"><p class="dc-t">${esc(x.t)}</p>${x.why ? `<p class="dc-why">${esc(x.why)}</p>` : ""}
-        <div class="dc-foot"><span class="dc-sig">${esc(x.sig || "")}</span>${seal}</div>
+        <div class="dc-foot"><span class="dc-sig">${esc(x.sig || "")}</span>${(() => { const G = window.ORDO_GOLD, im = G && G.scene && G.scene("seal"); return im ? `<img class="dc-seal dc-seal--art" src="${im}" alt="">` : seal; })()}</div>
         <p class="dc-st">${br ? `печатку зламано ${esc(dmy(br))} — рішення лишається, поновлюється з наступного дня` : `тримається <b>${days}</b> ${days % 10 === 1 && days % 100 !== 11 ? "день" : days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20) ? "дні" : "днів"} · від ${esc(dmy(from))}`}</p></div></section>`;
     }).join("");
   }

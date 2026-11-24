@@ -2215,3 +2215,4 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .dc-st b{color:var(--gold-2)}
 .dc.is-broken .dc-seal{opacity:.45;filter:grayscale(.6)}
 .dc.is-broken .dc-st{color:var(--ember-2)}
+.dc-seal--art{border-radius:50%;object-fit:cover;width:66px;height:66px}

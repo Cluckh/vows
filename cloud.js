@@ -194,11 +194,20 @@
     }
     return all;
   }
+  /* 24.11.2026: курсор «новіші за lastTs» пропускав записи, що закомітились пізніше за свою мітку часу (сервер банку ставить ts
+     на старті операції, а комітить за кілька секунд — тим часом пристрій уже бачив новіший запис з телефона). Так комп
+     «не побачив» виведення 100 золота й показував на 100 більше. Тепер: (1) кожен дозапит бере з перекриттям 10 хв
+     (повтори безпечні — applyRows порівнює значення); (2) раз на добу — повна звірка з базою, вона й лікує вже пропущене */
+  const OVERLAP = 10 * 60e3, FULL_EVERY = 24 * 3600e3;
+  const since = () => { const t = Date.parse(lastTs); return lastTs && t ? new Date(t - OVERLAP).toISOString() : lastTs; };
+  const fullDue = () => Date.now() - get("ordo.k.cloud.full", 0) > FULL_EVERY;
   let catching = null, caughtAt = 0;
   function catchUp() {
     if (!active) return Promise.resolve([]);
     if (catching) return catching;
-    catching = pullSince(lastTs).then(applyRows).catch(() => []).finally(() => { catching = null; caughtAt = Date.now(); });
+    const full = fullDue();
+    catching = pullSince(full ? "" : since()).then(async (rows) => { const ch = await applyRows(rows); if (full) put("ordo.k.cloud.full", Date.now()); return ch; })
+      .catch(() => []).finally(() => { catching = null; caughtAt = Date.now(); });
     return catching;
   }
 
@@ -246,7 +255,8 @@
       else {
         /* записи з момента завантаження до входу — у відправку (порівнюємо з тим, що було на старті, а не з уже зміненим) */
         localKeys().forEach((k) => { const b = Object.prototype.hasOwnProperty.call(BOOT, k) ? BOOT[k] : null; cache[k] = b == null ? new Map() : flatten(k, b); if (rawGet.call(localStorage, k) !== b) diffKey(k); });
-        changed = await applyRows(await pullSince(lastTs)); [...pend.keys()].forEach((p) => dirty.add(keyOf(p))); if (pend.size) sendDirty(); }
+        const full = fullDue(); changed = await applyRows(await pullSince(full ? "" : since())); if (full) put("ordo.k.cloud.full", Date.now());
+        [...pend.keys()].forEach((p) => dirty.add(keyOf(p))); if (pend.size) sendDirty(); }
       status = "ok";
     } catch (e) { status = "err"; lastErr = (e && e.message) || String(e); }
     subscribe();

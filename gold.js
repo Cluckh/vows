@@ -447,7 +447,7 @@
     const notify = () => {
       const A = API(); if (want.some(([k]) => k !== "relic" && k !== "scene") && A.tab && A.tab() === "stats" && A.renderStats) A.renderStats(); try { window.dispatchEvent(new Event("ordo-art")); } catch (e) {}
       if (el && el.classList.contains("open") && mode === "shop") render("shop");
-      refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); }
+      swapFaces(); refreshViews(); if (el && el.classList.contains("open") && mode === "relic") { const t = el.querySelector("[data-rleq]"); if (t) render("relic", t.dataset.rleq); }
     };
     try {
       let cache = null; try { cache = await caches.open("ordo-art"); } catch (e) {}
@@ -481,7 +481,10 @@
     } finally { artBusy = false; }
     if (ch && Object.keys(G.own).some((id) => !ART[id] && relic(id))) setTimeout(loadArts, 300);     // реліквія, що зʼявилась посеред завантаження, — наступним колом
   }
-  const face = (r, cls) => ART[r.id] ? `<img class="rl-img${cls ? " " + cls : ""}" src="${ART[r.id]}" alt="">` : gem(r.rar, cls);
+  const face = (r, cls) => ART[r.id] ? `<img class="rl-img${cls ? " " + cls : ""}" src="${ART[r.id]}" alt="">` : gem(r.rar, cls).replace("<svg ", `<svg data-rlf="${r.id}" data-rlc="${cls || ""}" `);
+  /* арт, що доїхав, коли вікно вже відкрите (скриня, здобич, новий предмет), — підставляємо на місце самоцвіта (з 24.11.2026) */
+  const swapFaces = () => document.querySelectorAll("svg[data-rlf]").forEach((n) => { const id = n.dataset.rlf; if (!ART[id]) return;
+    const im = document.createElement("img"); im.className = "rl-img" + (n.dataset.rlc ? " " + n.dataset.rlc : ""); im.src = ART[id]; im.alt = ""; n.replaceWith(im); });
   function html() {
     reconcile(); process(); setTimeout(loadArts, 50);
     const b = balance(), L = ledger(), mk = today().slice(0, 7);
@@ -800,5 +803,5 @@
   const goldFor = (id) => { const x = ledger().find((y) => y.id === id); return x ? x.g + (G.bon["rb:" + id] || 0) + (G.bon["bl:" + id] || 0) : 0; };
   /* виведення на білу (будь-якого стану, крім скасованих) — щоб сторожа Гідності не питала про власний переказ «на білу картку» */
   const whiteOuts = () => Object.values(G.out).filter((o) => o.kind === "white" && o.st !== "cancel").map((o) => ({ amt: o.amt, at: o.at || 0 }));
-  window.ORDO_GOLD = { _hist: history, stake, whiteOuts, artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
+  window.ORDO_GOLD = { _hist: history, want, stake, whiteOuts, artRetry, html, chip, tick, gear: (type) => bonusOf(type), elixir: (d) => !!(G.elix && G.elix[d]), balance, earned, reconcile, coin, can, use, tokens, unsealed, setUnsealed, srcLabel, srcShort, artName, artFor, gift, scene, goldFor, freeChest, chestUsed: (key) => !!G.proc["chest:" + key], chestOk, purge, tkIc, achArt, wantAch, whiteDone: () => Object.values(G.out).filter((o) => o.kind === "white" && o.st === "done" && live(o)).length, art: artKey, want };
 })();

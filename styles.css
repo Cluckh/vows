@@ -2195,3 +2195,6 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .st-log li.ev-x .lg-v{color:var(--ash)}
 .st-log li.ev-x .lg-w{color:var(--bone)}
 .lg-why{display:block;font-family:var(--f-serif);font-style:italic;color:var(--ash);margin-top:3px;text-align:right}
+/* «Сила є» — у шапці тренування після важкої ночі (з 24.11.2026) */
+.gy-strong{display:block;width:100%;margin-top:10px}
+.ar-warn--ok{color:var(--gold-2)}

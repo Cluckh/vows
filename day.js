@@ -837,6 +837,7 @@
     if (st === "done") {
       let m = 1 + bonus;
       if (t.type === "count" && t.target) m *= 1 + Math.min(0.2, Math.max(0, (r.cur / t.target - 1) * 0.4));   // перевиконання
+      if (isGym(t) && window.ORDO_ARM && window.ORDO_ARM.strongOn && window.ORDO_ARM.strongOn(k)) m *= 1.5;           // «Сила є» після важкої ночі — звичайні ваги, +50 % досвіду (з 24.11)
       return Math.round(base * m);
     }
     if (st === "fix") return Math.round(base * fixPct(t, r));
@@ -2301,7 +2302,7 @@
       h += `<div class="gs-kicker">Сон · ніч на ${human(t0)}</div><div class="sheet__title dy-sht">${morning ? "Доброго ранку. Як спав?" : "Сон — поправити"}</div>
         ${F ? `<p class="sl-focus"><svg><use href="#i-moon"/></svg>фокус «Сон»: <b>${esc(F.txt || "—")}</b>${F.open ? `<br><em>ще увімкнений — вимкни, коли встанеш; «Встав» поки — зараз</em>` : F.segs.length > 1 ? `<br><em>перерви між відрізками — «Не спав уночі»</em>` : ""}${F.nap ? `<br><em>удень — ${hm(F.nap)}</em>` : ""}</p>` : ""}
         <div class="sl-sts">${row("bed", "Ліг", sh.bed, 1)}${row("wakeV", "Встав", sh.wakeV, 1)}${row("awake", "Не спав уночі", dur(sh.awake))}${!morning ? row("nap", "Досипав", dur(sh.nap)) : ""}</div>
-        <div class="dy-chips sl-feel" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1", "розбитий"]].map(([v, n]) => chip(v, n, String(sh.q || sl.q || "") === v)).join("")}</div>
+        <div class="dy-chips sl-feel" data-dk="q">${[["3", "бадьоро"], ["2", "нормально"], ["1.5", "так собі"], ["1", "розбитий"]].map(([v, n]) => chip(v, n, String(sh.q || sl.q || "") === v)).join("")}</div>
         <div class="sl-q--row"><button type="button" class="sl-tog${sh.siren ? " is-on" : ""}" data-dv="siren" data-dk="sltog"><svg><use href="#i-siren"/></svg><span>тривога</span></button>
           <div class="dy-chips" data-dk="dream">${[["vivid", "сни"], ["bad", "кошмар"]].map(([v, n]) => chip(v, n, sh.dream === v)).join("")}</div></div>
         <p class="sl-total">${tot ? `сон <b>${hm(tot)}</b>` : ""}</p>
@@ -2335,7 +2336,7 @@
         } else if (tableOn) {
           const P = R && R.plan && sh.k === today() ? R.plan() : null, g = sh.gym;
           if (g.custom) h += `<div class="gy-head"><b>Довільний день</b><span>вправа за вправою — що робиш сьогодні</span><button type="button" class="gy-alt" data-ds="gplan">← план Зброярні</button></div>`;
-          else if (P && P.k === sh.k && !GYM.log[sh.k]) h += `<div class="gy-head"><b>День ${P.type}</b><span>${esc(P.label)}</span>${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}${!g.ex.some((e) => e.sets.some((x) => x.d)) ? `<button type="button" class="gy-alt" data-ds="gcustom">Довільний день — свої вправи</button>` : ""}</div>`;
+          else if (P && P.k === sh.k && !GYM.log[sh.k]) h += `<div class="gy-head"><b>День ${P.type}</b><span>${esc(P.label)}</span>${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}${P.soft && !P.strong ? `<button type="button" class="btn btn--line gy-strong" data-ds="gstrong">💪 Сила є — звичайні ваги · +50 % досвіду за зал</button>` : P.strong ? `<p class="ar-warn ar-warn--ok">💪 Сила є — звичайні ваги, +50 % досвіду за зал. <button type="button" class="gy-alt" data-ds="gweak">скасувати</button></p>` : ""}${!g.ex.some((e) => e.sets.some((x) => x.d)) ? `<button type="button" class="gy-alt" data-ds="gcustom">Довільний день — свої вправи</button>` : ""}</div>`;
           else if (!GYM.log[sh.k] && !g.ex.some((e) => e.sets.some((x) => x.d))) h += `<div class="gy-head"><button type="button" class="gy-alt" data-ds="gcustom">Довільний день — свої вправи</button></div>`;
           h += `<ol class="gy-how"><li>Роби вправи по черзі — підходи, повтори й вага вже стоять (повтори × кг).</li><li>Зробив підхід — тап на його номер: ✓. Усі підходи ✓ — вправа згортається.</li><li>Зробив інакше — виправ число. Менше підходів — «− підхід». Не робив — ×. Інша вправа — тап на назву, порядок — ↑ ↓.</li><li>Наприкінці — «Готово». Писати текст не обовʼязково.</li></ol>`;
           const lastTxt = (n) => { const e = R && R.catalog ? R.catalog().find((x) => x.n.toLowerCase() === (n || "").toLowerCase()) : null; if (!e) return ""; const st = R.stats(e).last; return st ? `минулого: ${fmtN(st.w)}${e.inv ? " кг компенс." : e.per ? " кг/стор" : " кг"} · ${st.reps.join("/")}` : ""; };
@@ -2739,6 +2740,13 @@
     if (a === "gtable") { sh.table = true; renderSheet(); return; }
     if (a === "gcustom") { readGym(); sh.gym = { ex: [], note: (sh.gym && sh.gym.note) || "", custom: 1 }; sh.gymTpl = gymSig(sh.gym); sh.pick = "new"; buzz("light"); renderSheet(); el0().scrollTop = 0; return; }
     if (a === "gplan") { sh.gym = null; sh.pick = null; buzz("light"); renderSheet(); return; }
+    if (a === "gstrong" || a === "gweak") {                                       // «Сила є»: план без зниження ваг — непройдені підходи беруть ваги нового плану
+      const R = window.ORDO_ARM; if (!R || !R.setStrong) return;
+      readGym(); R.setStrong(a === "gstrong"); const np = R.planTable() || [];
+      if (sh.gym && !sh.gym.custom) sh.gym.ex.forEach((e) => { const n = np.find((x) => (x.n || "").toLowerCase() === (e.n || "").toLowerCase()); if (!n) return;
+        e.sets.forEach((x, i) => { if (!x.d && n.sets[i]) { x.w = n.sets[i].w; x.r = n.sets[i].r; } }); });
+      sh.plan = np; fx(a === "gstrong" ? "yes" : null); buzz("medium"); renderSheet(); return;
+    }
     if (a === "cdadd") { readCardio(); const l = sh.cardio.iv[sh.cardio.iv.length - 1] || {}; sh.cardio.iv.push({ m: null, l: l.l == null ? null : l.l }); renderSheet(); setTimeout(() => { const i = el0().querySelectorAll(".cd-m"); if (i.length) i[i.length - 1].focus(); }, 50); return; }
     if (a === "cddel") { readCardio(); sh.cardio.iv.splice(+b.dataset.i, 1); renderSheet(); return; }
     if (a === "cdname") { readCardio(); sh.cardio.n = b.dataset.n; renderSheet(); return; }
@@ -2928,7 +2936,9 @@
       medalCheck.ok = 0; if (S.ban[due[0].id]) { setTimeout(medalCheck, 50); return; } }
     banBusy = true; S.ban[due[0].id] = 1; saveS();                               // позначаємо, щойно показали (а не після тапу) — інший пристрій дізнається одразу
     claimOk("ban:" + due[0].id).then((ok) => { if (!ok) { banBusy = false; setTimeout(medalCheck, 50); return; }
-      showBanner(due[0], due.length - 1, () => { banBusy = false; setTimeout(medalCheck, 350); }); });
+      /* 24.11: арт медалі — спершу просимо й чекаємо до ~4 с (банер без картинки виглядав порожнім); не встиг — підставимо, коли доїде */
+      const GD = window.ORDO_GOLD, a = due[0]; if (GD && GD.want && !(GD.achArt && GD.achArt(a.id))) GD.want(["ach:" + a.id]);
+      let n = 0; const go = () => { if (GD && GD.achArt && !GD.achArt(a.id) && n++ < 8) { setTimeout(go, 500); return; } showBanner(a, due.length - 1, () => { banBusy = false; setTimeout(medalCheck, 350); }); }; go(); });
   }
   function showBanner(a, more, done) {
     const gname = (ACH_G.find(([g]) => g === achG(a)) || [])[1] || "", gold = ACH[a.id] >= "2026-11-08" ? ECON.achGold(a.xp, ACH[a.id]) : 0;
@@ -2941,9 +2951,11 @@
       ${a.xp || gold ? `<p class="ach-ban__r">${gold ? `<b>+${fmtN(gold)}</b> золота` : ""}${a.xp ? `${gold ? " · " : ""}<b>+${fmtN(a.xp)}</b> досвіду` : ""}</p>` : `<p class="ach-ban__r">почесна — лише честь</p>`}
       <button class="btn btn--gold" type="button">${more > 0 ? `Далі · ще ${more}` : "Слава Ордену"}</button></div>`;
     document.body.appendChild(el); void el.offsetWidth; el.classList.add("on"); fx("date"); buzz("heavy");
+    const late = () => { const b = el.querySelector(".ach-big"); if (b && !b.querySelector("img") && window.ORDO_GOLD && window.ORDO_GOLD.achArt && window.ORDO_GOLD.achArt(a.id)) b.innerHTML = achFace(a, true); };
+    window.addEventListener("ordo-art", late);
     const t0 = performance.now();
     el.addEventListener("click", (e) => { if (performance.now() - t0 < 600 || (!e.target.closest("button") && e.target.closest(".ach-ban__card"))) return;
-      el.classList.remove("on"); setTimeout(() => { el.remove(); done(); }, 260); });
+      el.classList.remove("on"); window.removeEventListener("ordo-art", late); setTimeout(() => { el.remove(); done(); }, 260); });
   }
 
   /* ====================================================== ЛИСТИ-ЗВІТИ =====

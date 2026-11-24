@@ -2,7 +2,7 @@
    ORDO — Зброярня (тренування) і Бібліотека (книжки, ігри).
    Зброярня: вправи з робочими вагами (останні / найкращі), план наступного залу від брата Северина
    (спліт A/B, графік нд · вт · пт, пауза плечей 5 днів, після 7+ днів — ваги −25%, поганий сон — без прогресії,
-   ніч з тривогою: доспав — легкий зал (−15%), короткий сон — відпочинок; одна прогресія на сесію), місяць проти мети, історія з червня.
+   ніч з тривогою: доспав — легкий зал (−10%), короткий сон — відпочинок (−15%); «Сила є» — звичайні ваги, +50 % досвіду; одна прогресія на сесію), місяць проти мети, історія з червня.
    Бібліотека: що читаю (полиця Дня), прочитане, черга; пройдені ігри — статуетки (кинуте не заносимо).
    Стартові дані — у зашифрованому вмісті (D.ARMORY, D.LIBRARY); правки власника — ordo.arm / ordo.lib (синхронізуються).
    ========================================================================== */
@@ -104,25 +104,30 @@
     else if (lastT) reasons.push(`за чергою: минулого разу день ${lastT.type} (${human(lastT.k)})`);
     else reasons.push(`минулий день спліту не записано — почнемо з ${DS[0]} (можна змінити)`);
     /* дата наступного залу — з твоїх справ: найближча справа з міткою «зал» (не виконана й не скасована); нема таких — за графіком із логу */
-    let k = null, light = false, src = "task";
+    let k = null, light = false, lightPct = 0.15, src = "task";
     const siren = !!(Y.nightKind && Y.nightKind(t0) === "siren");
     const ng = Y.nextGym ? Y.nextGym(t0) : null;
     if (ng) k = ng.k;
     else { src = "plan"; for (let i = doneToday ? 1 : 0; i <= 9 && !k; i++) { const c = add(t0, i); if ((A.days || []).includes(wd(c)) && !(lastK && diff(lastK, c) < 2)) k = c; } }
     if (!k) k = add(t0, doneToday ? 1 : 0);
     if (k === t0 && siren) {                                                         // ніч з тривогою: зал лишається в плані — легший; короткий сон — порада перенести
-      const sm = Y.sleepMin ? Y.sleepMin(t0) : null; light = true;
+      const sm = Y.sleepMin ? Y.sleepMin(t0) : null; light = true; lightPct = sm != null && sm < 330 ? 0.15 : 0.1;     // 24.11, власник: доспав — лише −10 %
       warn.push(sm != null && sm < 330 ? `Ніч з тривогою і лише ${Math.floor(sm / 60)} год ${p2(sm % 60)} сну. Якщо розбитий — перенеси справу «зал» на завтра; підеш — легкий зал: ваги −15%, без рекордів.`
-        : sm != null ? `Ніч з тривогою, але ти доспав (${Math.floor(sm / 60)} год ${p2(sm % 60)}) — легкий зал: ваги −15%, без рекордів.` : "Ніч з тривогою — легкий зал: ваги −15%, без рекордів.");
+        : sm != null ? `Ніч з тривогою, але ти доспав (${Math.floor(sm / 60)} год ${p2(sm % 60)}) — легкий зал: ваги −10%, без рекордів.` : "Ніч з тривогою — легкий зал: ваги −10%, без рекордів.");
     }
     /* плечі — 5 днів паузи: якщо день спліту з плечима випадає зарано — інший день без плечей */
     const lastB = [...typed].reverse().find((x) => restDay(x.type));
     if (!manual && restDay(type) && lastB && diff(lastB.k, k) < 5) { const alt = DS.find((d) => !restDay(d)); if (alt && alt !== type) { reasons.push(`плечам пауза 5 днів після ${human(lastB.k)} — замість дня ${type} день ${alt}`); type = alt; } }
     reasons.push(src === "task" ? `дата — з твоєї справи «${(ng && ng.t) || "зал"}»` : `справи з міткою «зал» нема — за графіком ${(A.days || []).map((d) => WDS[d]).join(" · ")}`);
     const loh = k === t0 && Y.lohOn && Y.lohOn();
-    if (loh) { light = true; warn.unshift("✋ Lay on Hands: легкий зал — ваги −15%, по 2 підходи, без рекордів. Зовсім не можеш — перенеси справу «зал»."); }
+    if (loh) { light = true; lightPct = 0.15; warn.unshift("✋ Lay on Hands: легкий зал — ваги −15%, по 2 підходи, без рекордів. Зовсім не можеш — перенеси справу «зал»."); }
     if (k !== t0) light = false;
-    const pause = lastK ? diff(lastK, k) : 0, deload = pause >= 7, rough = k === t0 && Y.roughNight && Y.roughNight(t0) && !light;
+    const pause = lastK ? diff(lastK, k) : 0, deload = pause >= 7;
+    let rough = k === t0 && Y.roughNight && Y.roughNight(t0) && !light;
+    /* «Сила є» (з 24.11.2026): після тривожної чи важкої ночі власник сам каже, що сили вистачає — звичайний план без зниження ваг,
+       а справа «зал» того дня дає +50 % досвіду. Не для Lay on Hands і не для паузи 7+ днів (там зниження — захист суглобів) */
+    const soft = k === t0 && (light || rough) && !loh, strong = soft && !!(ARM.strong && ARM.strong[t0]);
+    if (strong) { light = false; rough = false; warn.length = 0; reasons.push("«Сила є» — звичайні ваги після важкої ночі, +50 % досвіду за зал"); }
     if (deload) warn.push(`Пауза ${pause} днів — ваги −25%, далі кроками вгору.`);
     if (rough) warn.push("Ніч була важкою — тільки закріплені ваги, без прогресії.");
     /* вправи дня: базові — завжди, далі ізоляція за чергою (давно не було — першою); усього 6, прес — фінішер */
@@ -146,7 +151,7 @@
       const L = s.last || { w: 0, reps: [10, 10, 10] }, n = loh ? 2 : Math.max(3, L.reps.length);
       let w = L.w, reps = Array.from({ length: n }, (_, i) => L.reps[i] || L.reps[L.reps.length - 1] || 10);
       if (deload && !e.body) { w = Math.max(0, Math.round((e.inv ? w * 1.25 : w * 0.75) / (e.step || 2.5)) * (e.step || 2.5)); reps = reps.map(() => 10); }
-      else if (light && !e.body) w = Math.max(0, Math.round((e.inv ? w * 1.15 : w * 0.85) / (e.step || 2.5)) * (e.step || 2.5));
+      else if (light && !e.body) w = Math.max(0, Math.round((e.inv ? w * (1 + lightPct) : w * (1 - lightPct)) / (e.step || 2.5)) * (e.step || 2.5));
       return { id: e.id, n: e.n, e, last: s.last, best: s.best, w, reps, prog: null };
     });
     /* 22.11: повернення до робочих ваг — після паузи ваги впали на чверть, а одна прогресія на тренування вела б назад місяцями.
@@ -167,7 +172,7 @@
       else { const rc = ex.find((x) => !x.e.body && !x.prog && x.reps.some((r) => r < 12)); if (rc) { rc.reps = rc.reps.map((r) => Math.min(12, r + 1)); rc.prog = "r"; prog = rc; } }
     }
     const nc = Y.nextCardio ? Y.nextCardio(t0) : null;
-    return { k, type, label: dayLabel(type), cardio: nc, reasons, warn, ex, prog, deload, rough, light, lastK, today: k === t0, doneToday };
+    return { k, type, label: dayLabel(type), cardio: nc, reasons, warn, ex, prog, deload, rough, light, lightPct, soft, strong, lastK, today: k === t0, doneToday };
   }
   /* план → таблиця для аркуша залу: підходи з цільовими повторами й вагою */
   const planSets = (p) => p.ex.map((x) => ({ n: x.n, sets: x.reps.map((r) => ({ r, w: x.e.body ? null : x.w })) }));
@@ -280,6 +285,7 @@
         <div class="ar-ab" role="group">${days().map((t) => `<button type="button" data-arab="${t}" class="${P.type === t ? "is-on" : ""}">День ${t}</button>`).join("")}</div></div>
         <p class="ar-split">${esc(P.label)}</p>
         ${P.warn.map((w) => `<p class="ar-warn">${esc(w)}</p>`).join("")}
+        ${P.soft && !P.strong ? `<button type="button" class="btn btn--line gy-strong" data-arstrong="1">💪 Сила є — звичайні ваги · +50 % досвіду за зал</button>` : P.strong ? `<p class="ar-warn ar-warn--ok">💪 Сила є — звичайні ваги, +50 % досвіду за зал. <button type="button" class="gy-alt" data-arstrong="0">скасувати</button></p>` : ""}
         <ul class="ar-plan">${P.ex.map((x) => `<li class="${x.prog ? "is-prog" : ""}" data-arex="${x.id}"><span class="ar-plan__n">${esc(x.n)}</span>
           <span class="ar-plan__l">${x.last ? esc(setsTxt(x.last, x.e)) : "—"}</span><span class="ar-plan__t">${x.prog ? "↑ " : "→ "}${esc(setsTxt({ w: x.w, reps: x.reps }, x.e))}</span></li>`).join("")}</ul>
         <p class="ar-why">${P.reasons.map(esc).join(" · ")}</p>
@@ -443,6 +449,7 @@
     if (!e.target.closest) return;
     if (e.target.closest("[data-lib]")) { show("lib"); return; }
     const v = e.target.closest("#armoryBody"); if (!v) return;
+    const sb = e.target.closest("[data-arstrong]"); if (sb) { setStrong(sb.dataset.arstrong === "1"); fx(sb.dataset.arstrong === "1" ? "yes" : null); renderArmory(); return; }
     const ab = e.target.closest("[data-arab]");
     if (ab) { const P0 = plan(); ARM.next = { type: ab.dataset.arab, from: today(), at: Date.now(), after: !!(P0 && P0.doneToday) }; saveA(); fx(null); renderArmory(); return; }
     const ex = e.target.closest("[data-arex]"); if (ex) { show("ex", ex.dataset.arex); return; }
@@ -476,5 +483,7 @@
     if (id === "g100" || id === "cd10") { const ms = months(), i = id === "g100" ? "gym" : "cardio"; return `${ms.map((m) => `${MN[+m.key.slice(5, 7) - 1].slice(0, 3).toLowerCase()} ${m[i]}`).join(" · ")} (до ${human(AR().seedTo || "2026-10-21")} — з логу)`; }
     return "";
   }
-  window.ORDO_ARM = { renderArmory, plan, planTable, achWhy, months, stats, catalog, counts, count, liftHit, gameDoneFor, libBooks, libGames, openLib: () => show("lib"), writer, reload };
+  const setStrong = (on) => { ARM.strong = ARM.strong || {}; if (on) ARM.strong[today()] = Date.now(); else delete ARM.strong[today()]; ARM.mt = Date.now(); saveA(); };
+  const strongOn = (k) => !!(ARM.strong && ARM.strong[k]);
+  window.ORDO_ARM = { renderArmory, plan, planTable, setStrong, strongOn, achWhy, months, stats, catalog, counts, count, liftHit, gameDoneFor, libBooks, libGames, openLib: () => show("lib"), writer, reload };
 })();

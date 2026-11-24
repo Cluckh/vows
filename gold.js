@@ -146,8 +146,16 @@
     const Dy = DAY(); if (!Dy || !Dy._state) return [];
     const { X, Q, S } = Dy._state();
     /* Звитяга: усе золото дня × (1 + ланцюг ідеальних днів без зривів до нього / 100) — day.js valor() */
-    const vm = (d) => 1 + ((Dy.valor ? Dy.valor(d) : 0) || 0) / 100;
-    return Object.entries(X.e || {}).filter(([, e]) => e.d >= START).map(([id, e]) => { const b = goldOf(id, e, Q, S), m = b > 0 ? vm(e.d) : 1; return { id, d: e.d, why: e.why, g: Math.round(b * m), vm: m }; }).filter((x) => x.g > 0);
+    /* з 24.11.2026: бонус Звитяги — не множник на кожен запис (3 золота × 1,02 = 3,06 → 3: малі бонуси губились в округленні),
+       а окремий рядок дня «vl:<день>» = сума золота дня × відсоток; дробові залишки накопичуються з дня в день, тож нічого не пропадає */
+    const vp = (d) => ((Dy.valor ? Dy.valor(d) : 0) || 0) / 100;
+    const L = Object.entries(X.e || {}).filter(([, e]) => e.d >= START).map(([id, e]) => { const b = goldOf(id, e, Q, S); return { id, d: e.d, why: e.why, g: Math.round(b), vm: b > 0 ? 1 + vp(e.d) : 1 }; }).filter((x) => x.g > 0);
+    const bv = (k) => { const v = G.bon[k]; return typeof v === "number" ? v : (v && v.amt) || 0; };       // бонус спорядження й благословення — теж золото дня
+    const base = {}; L.forEach((x) => { base[x.d] = (base[x.d] || 0) + x.g + bv("rb:" + x.id) + bv("bl:" + x.id); });
+    let acc = 0, paid = 0;
+    Object.keys(base).sort().forEach((d) => { const p = vp(d); if (!p) return; acc += base[d] * p; const g = Math.round(acc) - paid; paid += g;
+      if (g > 0) L.push({ id: "vl:" + d, d, why: `Звитяга +${Math.round(p * 100)} % до золота дня`, g, vm: 1 + p }); });
+    return L;
   }
   const sum = (o) => Object.values(o).reduce((a, x) => a + (typeof x === "number" ? x : x.amt || 0), 0);
   const earned = () => { const L = ledger(), ids = new Set(L.map((x) => x.id));
@@ -231,7 +239,7 @@
     }
     if (!G.starter) { G.starter = 1; const r = grant("ring", "посвята"); if (r) reveals.push(Object.assign(r, { why: "Дар Магістра Аврелія — на початок шляху з реліквіями" })); ch = true; }
     ledger().forEach((x) => {
-      if (G.proc[x.id]) return;
+      if (G.proc[x.id] || x.id.startsWith("vl:")) return;               // рядок Звитяги — без бонусів спорядження й благословень (лише відсоток від уже нарахованого)
       G.proc[x.id] = 1; ch = true;
       const cat = CAT[x.id.split(":")[0]], pct = bonusOf("gold", cat);
       if (pct > 0) G.bon["rb:" + x.id] = Math.round(x.g * pct);                                     // бонус активних реліквій
@@ -533,13 +541,13 @@
   /* повна історія золота: кожен запис книги досвіду з золотом (з бонусами спорядження й благословення), надходження (рівні, скрині, медалі,
      переплавлене, недільна скриня) і витрати (вивід на білу, крамниця). Нічого не групується — щоб без плутанини, звідки кожна монета */
   const KIND = { pd: "ідеальний день", pw: "ідеальний тиждень", gy: "зал", jr: "сповідь", st: "10 000 кроків", er: "ранній підйом", sl: "сон", nw: "нічна варта", rt: "повернення",
-    t: "справа дня", v: "чистий день обітниці", a: "медаль", mo: "слово храмовника", g: "ціль", gm: "ревю", vm: "віха обітниці", q: "квест" };
+    t: "справа дня", vl: "звитяга", v: "чистий день обітниці", a: "медаль", mo: "слово храмовника", g: "ціль", gm: "ревю", vm: "віха обітниці", q: "квест" };
   function history() {
     const rows = [];
     ledger().forEach((x) => {
       const p = x.id.split(":")[0], rb = G.bon["rb:" + x.id] || 0, bl = G.bon["bl:" + x.id] || 0, e = ((DAY() && DAY()._state && DAY()._state().X.e) || {})[x.id] || {};
       rows.push({ d: x.d, at: e.at || 0, g: x.g + (typeof rb === "number" ? rb : rb.amt || 0) + (typeof bl === "number" ? bl : bl.amt || 0), k: KIND[p] || "інше", t: x.why || KIND[p] || x.id,
-        x: [e.mul && e.mul !== 1 ? (e.mul < 1 ? `Lay on Hands ×${e.mul}` : `Відродження ×${e.mul}`) : "", x.vm > 1 ? `звитяга ×${x.vm.toFixed(2).replace(".", ",")}` : "", rb ? "спорядження" : "", bl ? "благословення" : ""].filter(Boolean).join(" · ") });
+        x: [e.mul && e.mul !== 1 ? (e.mul < 1 ? `Lay on Hands ×${e.mul}` : `Відродження ×${e.mul}`) : "", x.id.startsWith("vl:") ? "бонус дня" : "", rb ? "спорядження" : "", bl ? "благословення" : ""].filter(Boolean).join(" · ") });
     });
     Object.entries(G.inc).filter(([, v]) => fresh(v)).forEach(([k, v]) => rows.push({ d: new Date(v.at).toLocaleDateString("sv-SE"), at: v.at, g: v.amt || 0, k: k.startsWith("lv:") ? "рівень" : k.startsWith("stake:") ? "рукавиця" : k.startsWith("dup:") ? "переплавлено" : k.startsWith("wk:") ? "недільна скриня" : "скриня", t: v.why || k, x: "" }));
     Object.values(G.out).filter((o) => live(o) && fresh(o)).forEach((o) => rows.push({ d: new Date(o.at).toLocaleDateString("sv-SE"), at: o.at, g: -o.amt, k: o.kind === "white" ? "вивід" : o.kind === "stake" ? (o.st === "lost" ? "застава згоріла" : o.st === "won" ? "застава" : "застава · чекає") : "крамниця",

@@ -363,7 +363,7 @@ window.ORDO_START = function () {
   /* «ЧОМУ?» (з 23.11.2026, власник: «щоб в історії було видно, чому я відмовився») — перед видаленням чи відмовою (ціль, справа, квест, гра, книжка)
      коротке віконце з коментарем; запис { k: "gone", what, t, why } лягає в журнал (синхронізується) і видно в Літописі → «Записи».
      ORDO_WHY({ what, t, title, ok }) → true (зроблено, записано) | false (скасовано) */
-  const GONE_N = { goal: "Ціль", task: "Справа", quest: "Квест", game: "Гра", book: "Книжка" };
+  const GONE_N = { goal: "Ціль", task: "Справа", quest: "Квест", game: "Гра", book: "Книжка", pledge: "Клятва" };
   function askWhy(o) {
     return new Promise((res) => {
       let m = document.getElementById("whyModal");
@@ -423,7 +423,7 @@ window.ORDO_START = function () {
       m.innerHTML = `<div class="confirm__card pl-card"><div class="pl-h"><svg><use href="#i-wax"/></svg><b>Клятви</b><span>${esc(PL_TAB[tab] || "")}</span></div>
         ${L.length ? `<ul class="pl-list">${L.map((x) => `<li class="${x.broken ? "is-broken" : ""}">${plSeal(!!x.broken, "pl-seal--big")}<div><p class="pl-t">${esc(x.t)}</p>${x.why ? `<p class="pl-why">${esc(x.why)}</p>` : ""}
           <p class="pl-sig">${esc(x.sig || "")}<span>${fmtKey(x.d)}${x.vow && vowById(x.vow) ? ` · ${esc(vowById(x.vow).name)}` : ""}</span></p><p class="pl-st">${esc(plStat(x))}</p>
-          <div class="pl-acts"><button type="button" data-plhide="${x.id}">${x.hide ? "показувати у вкладці" : "сховати з вкладки"}</button>${x.broken ? "" : `<button type="button" class="is-bad" data-plbreak="${x.id}">зламав</button>`}</div></div></li>`).join("")}</ul>`
+          <div class="pl-acts"><button type="button" data-plhide="${x.id}">${x.hide ? "показувати у вкладці" : "сховати з вкладки"}</button>${x.broken ? "" : `<button type="button" class="is-bad" data-plbreak="${x.id}">зламав</button><button type="button" data-pldel="${x.id}">видалити</button>`}</div></div></li>`).join("")}</ul>`
           : `<p class="pl-empty">Записка собі з підписом і печаткою. Тримається, поки не зламаєш — а зламану вже не відновиш.</p>`}
         <div class="pl-new"><textarea class="dy-in" id="plT" rows="2" maxlength="200" placeholder="клятва — коротко, твоїми словами"></textarea>
           <div class="pl-row"><input class="dy-in" id="plS" maxlength="40" placeholder="підпис" value="${esc(sig)}">
@@ -435,6 +435,13 @@ window.ORDO_START = function () {
       if (e.target === m || e.target.closest("[data-plclose]")) { m.classList.remove("open"); return; }
       const P = plGet(), h = e.target.closest("[data-plhide]"), b = e.target.closest("[data-plbreak]");
       if (h) { const x = P.list[h.dataset.plhide]; if (x) { x.hide = !x.hide; x.mt = Date.now(); plSave(P); draw(); renderPledges(); FX.buzz("light"); } return; }
+      const dl = e.target.closest("[data-pldel]");
+      if (dl) { const x = P.list[dl.dataset.pldel]; if (!x || x.broken) return;          // зламану не видалиш — лише цілу (помилка, дубль)
+        m.classList.remove("open");
+        window.ORDO_WHY({ what: "pledge", t: x.t, title: "Видалити клятву", ok: "Видалити клятву" }).then((ok) => {
+          if (ok) { const Q = plGet(); delete Q.list[x.id]; plSave(Q); renderPledges(); FX.buzz("medium"); }
+          draw(); requestAnimationFrame(() => m.classList.add("open")); });
+        return; }
       if (b) { const x = P.list[b.dataset.plbreak]; if (!x || x.broken) return;
         if (!confirm(`Зламати клятву «${x.t}»? Назад її не повернеш — печатка лишиться розбитою.`)) return;
         x.broken = todayKey(); x.mt = Date.now(); plSave(P); logPush({ k: "pledge", t: x.t, d: x.broken, st: "broken" }); FX.play("no", true); FX.buzz("heavy"); draw(); renderPledges(); return; }

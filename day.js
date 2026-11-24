@@ -173,7 +173,7 @@
   const APPN = { reading: "читання", youtube: "YouTube", reddit: "Reddit", duolingo: "Duolingo" }, appName = (n) => APPN[n] || n;
   const appOf = (t) => t.app || { n: "duolingo", min: DUO_MIN, lim: false };
   /* квест рахується сам (без «+»): бюджет, програма, або одиниця з автоматичних джерел */
-  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /^bb$|^плюсових днів$|^днів без довгих сесій$|^днів зі стоп-лосом$|^сесій$/i.test((q.unit || "").trim()) || /вірн|сповід|вечор|ранк|тренуван|кардіо|(^|[^а-яіїєґ])зал|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
+  const qAuto = (q) => q.type === "budget" || !!q.app || !!q.weight || /^bb$|^плюсових днів$|^днів без довгих сесій$|^днів зі стоп-лосом$|^сесій$|^днів клятви$/i.test((q.unit || "").trim()) || /вірн|сповід|вечор|ранк|тренуван|кардіо|(^|[^а-яіїєґ])зал|крок|^роздач$|по голоду|без перебор|сторін/i.test((q.unit || "").trim());
   const appTracked = (n) => { for (let k = add(today(), -30); k <= today(); k = add(k, 1)) { const h = hDay(k) || {}; if ((h.apps && h.apps[n]) || (n === "duolingo" && h.duo && h.duo.min)) return true; } return false; };
   /* ручна правка з Екранного часу (S.appFix[день][програма] = хв) — сильніша за підрахунок подій: iOS не каже, коли екран заблоковано */
   const appFix = (k, n) => { const f = S.appFix && S.appFix[k]; return f && f[n] != null ? f[n] : null; };
@@ -1319,6 +1319,18 @@
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
         return;
       }
+      /* «днів клятви» (з 24.11.2026): дні, прожиті з клятвою від прийняття квесту. pledge — id клятви або "all" (усі, що тримались
+         на момент прийняття). Клятву зламано в строк квесту — квест провалено (клятви не відновлюються, квест теж) */
+      if (q.st === "active" && q.type === "count" && /^днів клятви$/i.test((q.unit || "").trim())) {
+        const PL = (LS.get("ordo.pledge", null) || {}).list || {}, from = q.from || today(), end = q.until && q.until < today() ? q.until : today();
+        const ids = q.pledge && q.pledge !== "all" ? [q.pledge] : Object.values(PL).filter((x) => x && !(x.broken && x.broken < from) && (x.from || x.d) <= from).map((x) => x.id);
+        const L = ids.map((id) => PL[id]).filter(Boolean); if (!L.length) return;
+        const br = L.map((x) => x.broken).filter((b) => b && b >= from && b <= end).sort()[0];
+        if (br) { q.st = "fail"; q.end = br; q.at = Date.now(); return; }
+        const st0 = L.map((x) => x.from || x.d).sort().pop(), a0 = st0 > from ? st0 : from, n = a0 > end ? 0 : diff(a0, end) + 1;
+        if (n !== (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
+        return;
+      }
       if (q.st === "active" && q.type === "count" && /ранк/i.test(q.unit || "")) {
         let n = 0; for (let k = q.from; k <= (q.until < today() ? q.until : today()); k = add(k, 1)) if (early(k) || roughNight(k)) n++;     /* ранок після тривожної ночі (сирена, безсоння) зараховується сам — власник 23.11: «з тривогами простий квест стає складним» */
         if (n > (q.cur || 0)) { q.cur = n; q.at = Date.now(); if (q.target && n >= q.target) { q.st = "done"; q.end = today(); pendingDone.push(q); } }
@@ -1461,7 +1473,7 @@
     let qid = "q" + hashStr((pid || p.id) + "|" + today()).toString(36); for (let n = 2; Q.list.some((x) => x.id === qid); n++) qid = "q" + hashStr((pid || p.id) + "|" + today()).toString(36) + "-" + n;
     return { id: qid, pid: pid || p.id, rar, giver: p.giver || "supreme", t: p.t, desc: p.desc || "", scope: p.scope || "day", days: p.days || 0,
       type: p.type === "count" || p.type === "budget" ? p.type : "do", target: p.target || null, unit: p.unit || "", xp: ECON.quest[rar] ? ECON.quest[rar][0] : p.xp || 0,
-      lift: p.lift && p.lift.ex ? { ex: p.lift.ex, w: +p.lift.w || 0, r: +p.lift.r || 0 } : null, cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, sessMax: +p.sessMax || null, stopBB: +p.stopBB || null, weight: p.weight || null,
+      lift: p.lift && p.lift.ex ? { ex: p.lift.ex, w: +p.lift.w || 0, r: +p.lift.r || 0 } : null, cats: p.cats || null, limitPct: p.limitPct || 0, limit: p.limit || 0, vow: p.vow || null, app: p.app || null, appMax: p.appMax != null ? p.appMax : null, sessMax: +p.sessMax || null, stopBB: +p.stopBB || null, pledge: p.pledge || null, weight: p.weight || null,
       offer: p.offer || "", accept: p.accept || "", decline: p.decline || "", done: p.done || "",
       chest: !!p.chest, hold: !!p.hold, flash: /^\d\d:\d\d$/.test(p.flash || "") ? p.flash : null, next: p.next && p.next.t ? p.next : null, step: p.step || 1,
       st: "offer", offerOn: today(), cur: 0 };
@@ -3057,6 +3069,8 @@
       apps: days14.map((k) => { const h = hDay(k) || {}, o = {}; Object.keys(Object.assign({}, h.apps || {}, (S.appFix || {})[k] || {})).map((n) => [n, { min: appMin(k, n) }]).forEach(([n, a]) => { if (a.min >= 1) o[n] = Math.floor(a.min); }); return Object.keys(o).length ? Object.assign({ d: k }, o) : null; }).filter(Boolean),
       perfectDays14: days14.filter((k) => perfect(k)).length,
       quests: Q.list.slice(-25).map((q) => ({ pid: q.pid, rar: q.rar, giver: q.giver, t: q.t, st: q.st, from: q.from || q.offerOn, until: q.until, cur: q.cur, target: q.target })),
+      pledges: Object.values((LS.get("ordo.pledge", null) || {}).list || {}).filter((x) => x && x.t).map((x) => ({ id: x.id, t: x.t, tab: x.tab, d: x.d, from: x.from || x.d, vow: x.vow || null, broken: x.broken || null, hidden: !!x.hide,
+        days: x.broken ? diff(x.from || x.d, x.broken) : diff(x.from || x.d, t0) + 1 })),     // клятви власника (з 24.11): для квестів «днів клятви» й слова на віхах
       achievements: Object.keys(ACH),
       armory: window.ORDO_ARM && window.ORDO_ARM.writer ? (() => { try { return window.ORDO_ARM.writer(); } catch (e) { return null; } })() : null,   // Зброярня й бібліотека: план залу, ваги, місяць, книжки, ігри
       goals: { month: goals(G.m && G.m[mk]), year: goals(G.y && G.y[yk]) },

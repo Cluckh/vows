@@ -2200,12 +2200,13 @@ button.dy-sum{display:block;width:100%;background:none;border:0;color:inherit;cu
 .ar-warn--ok{color:var(--gold-2)}
 /* КЛЯТВИ (з 24.11.2026): тонкий рядок у вкладці, печатка в шапці, вікно зі списком і формою */
 .vhead{position:relative}
-.vhead__pl{position:absolute;right:0;top:2px;width:36px;height:36px;display:grid;place-items:center;color:var(--ash-2);border-radius:50%}
+.vhead__pl{position:absolute;right:0;top:2px;height:34px;padding:0 6px;display:inline-flex;align-items:center;gap:5px;color:var(--ash-2);border-radius:99px}
 .vhead__pl:hover{color:var(--gold-2)}
-.vhead__pl svg,.icobtn--pl svg{width:22px;height:22px}
-.vhead__pl i,.icobtn--pl i{position:absolute;right:1px;top:1px;min-width:15px;height:15px;padding:0 3px;border-radius:99px;font-style:normal;font-family:var(--f-ui);font-size:10px;line-height:15px;text-align:center;color:#fff;background:#8f1d1d}
+.vhead__pl svg,.icobtn--pl svg{width:21px;height:21px}
+/* скільки клятв тримається у вкладці — спокійне число поруч, не «непрочитане» */
+.vhead__pl i,.icobtn--pl i{font-style:normal;font-family:var(--f-serif);font-size:15px;line-height:1;color:var(--gold)}
 .vhead__pl i:empty,.icobtn--pl i:empty{display:none}
-.icobtn--pl{position:relative}
+.icobtn--pl{position:relative;display:inline-flex;align-items:center;gap:4px;width:auto;padding:0 4px}
 .pl-strip{display:flex;flex-direction:column;gap:6px;margin:-6px 0 14px}
 .pl-strip:empty{display:none}
 .pl-line{display:flex;align-items:center;gap:10px;width:100%;padding:6px 10px;border-radius:10px;border:1px solid rgba(231,199,119,.16);background:rgba(143,29,29,.07);text-align:left;cursor:pointer}

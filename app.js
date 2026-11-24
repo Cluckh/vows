@@ -949,7 +949,7 @@ window.ORDO_START = function () {
   const tzHTML = (place) => (window.ORDO_DAY && window.ORDO_DAY.teaserHTML ? window.ORDO_DAY.teaserHTML(place) : "");
   function renderTreasury() {
     const box = $("treasuryBody"); if (!box) return;
-    box.innerHTML = tzHTML("treasury") + (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "");
+    box.innerHTML = tzHTML("treasury") + (window.ORDO_TREASURY && window.ORDO_TREASURY.decreeHTML ? window.ORDO_TREASURY.decreeHTML() : "") + (window.ORDO_GOLD ? window.ORDO_GOLD.html() : "") + (window.ORDO_TREASURY ? window.ORDO_TREASURY.statsHTML() : "");
   }
   function renderStats() {
     const box = $("statsBody"); if (!box) return;

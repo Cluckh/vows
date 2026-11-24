@@ -104,6 +104,24 @@
     const who = new Date().getDate() % 2 ? BK().giver || "supreme" : "supreme";
     return { who, text: fill(pick(L[sit]) || pick(L.steady) || "Скарбниця під наглядом.", o) };
   }
+  /* ПЕЧАТКИ РЕВІЗІЇ (з 24.11.2026): рішення власника після квесту «Ревізія скарбниці» — його слова, підпис і печатка.
+     Зберігаються в ordo.bank/decree (синхронізується). Під кожним — чесний стан: скільки днів тримається, а якщо обітниця
+     (vow) після дати «від» зірвалась — «печатку зламано <дата>» (зламане не ховаємо) */
+  const dmy = (k) => `${+k.slice(8, 10)} ${MG[+k.slice(5, 7) - 1]}${k.slice(0, 4) !== today().slice(0, 4) ? " " + k.slice(0, 4) : ""}`;
+  const seal = `<svg class="dc-seal" viewBox="0 0 64 64" aria-hidden="true"><path class="dc-wax" d="M32 3c5 3 9 1 13 5s3 8 7 11 1 9 4 13-1 8-3 12-6 6-9 9-9 2-12 5-8-2-12-4-9-1-11-6-1-8-4-12 1-9 1-13 4-8 8-10 6-6 10-6 4-4 8-4z"/><circle class="dc-ring" cx="32" cy="32" r="17"/><path class="dc-cross" d="M32 21v22M25 28h14"/></svg>`;
+  function decreeHTML() {
+    const L = Object.values(W.decree || {}).filter((x) => x && x.t).sort((a, b) => (a.d < b.d ? 1 : -1));
+    if (!L.length) return "";
+    const log = LS.get("ordo.log", []);
+    return L.map((x) => {
+      const from = x.from || x.d, br = x.vow ? log.filter((e) => e.k === "breach" && e.v === x.vow && e.d >= from).map((e) => e.d).sort()[0] : null;
+      const days = Math.max(0, Math.round((Date.parse(today()) - Date.parse(from)) / 864e5) + 1);
+      return `<section class="st-sec dc${br ? " is-broken" : ""}"><div class="st-h">Печатка ревізії <em>${esc(dmy(x.d))}</em></div>
+        <div class="dc-card"><p class="dc-t">${esc(x.t)}</p>${x.why ? `<p class="dc-why">${esc(x.why)}</p>` : ""}
+        <div class="dc-foot"><span class="dc-sig">${esc(x.sig || "")}</span>${seal}</div>
+        <p class="dc-st">${br ? `печатку зламано ${esc(dmy(br))} — рішення лишається, поновлюється з наступного дня` : `тримається <b>${days}</b> ${days % 10 === 1 && days % 100 !== 11 ? "день" : days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20) ? "дні" : "днів"} · від ${esc(dmy(from))}`}</p></div></section>`;
+    }).join("");
+  }
   function statsHTML() {
     if (!B || !B.months) return `<section class="st-sec tr"><div class="st-h">Скарбниця</div><p class="gl-empty">Книга скарбниці відкриється після першої виписки з банку.</p></section>`;
     const ms = Object.keys(B.months).sort(), cur = today().slice(0, 7);
@@ -263,5 +281,5 @@
     const h = H(); if (h && h.isOpen()) h.close();
   }
 
-  window.ORDO_TREASURY = { refresh, load, statsHTML, scenes, xfer, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {}, accs: () => (B && B.accs) || [], white: () => (B && B.white) || null };
+  window.ORDO_TREASURY = { refresh, load, statsHTML, decreeHTML, scenes, xfer, spentIn, avgWeek, savings, ready: () => !!(B && B.days), at: () => B && B.at ? B.at.slice(0, 10) : "", money, cats: () => (B && B.cats) || {}, accs: () => (B && B.accs) || [], white: () => (B && B.white) || null };
 })();

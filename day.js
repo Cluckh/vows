@@ -2508,6 +2508,8 @@
     }
     el.innerHTML = h;
     const gt = $("gyText"); if (gt) gt.oninput = () => gyAutosave(gt.value);
+    /* кардіо: «разом» — одразу під час вводу (25.11: показувало суму з моменту відкриття — 17 замість 20) */
+    if (sh && sh.cardio) el0().querySelectorAll("[data-cvm]").forEach((i) => { i.oninput = () => { readCardio(); const b = el0().querySelector(".cd-tot b"); if (b) b.textContent = `${fmtN(sh.cardio.iv.reduce((a, x) => a + (x.m || 0), 0))} хв`; }; });
     if (sh && sh.mode === "sleep") el0().querySelectorAll("[data-slt]").forEach((i) => { i.onchange = () => { if (i.value) { sh[i.dataset.slt] = i.value; renderSheet(); } }; });     // тап на час — системний вибір часу
     if (sh && sh.mode === "gym" && sh.gym) el0().querySelectorAll(".gy-r, .gy-w, #gyNote").forEach((i) => { i.onchange = () => readGym(); });     // числа — у чернетку
     const jt = $("jText"); if (jt) jt.oninput = () => jAutosave(jt.value);

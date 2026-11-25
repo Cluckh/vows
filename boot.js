@@ -674,7 +674,15 @@
     if (data) {
       /* синк — лише через базу (cloud.js): записи замість цілих знімків, живі підписки; перед стартом — свіже з бази (не довше 6 с). GitHub — лише резервна копія */
       const CL = window.ORDO_CLOUD;
-      if (CL && navigator.onLine !== false) { const r = await Promise.race([CL.init(mergeData).catch(() => ({ active: false })), new Promise((res) => setTimeout(() => res({ active: CL.active() }), 6000))]); cloudOn = !!(r && r.active); }
+      let r = null;
+      if (CL && navigator.onLine !== false) { r = await Promise.race([CL.init(mergeData).catch(() => ({ active: false })), new Promise((res) => setTimeout(() => res({ active: CL.active() }), 6000))]); cloudOn = !!(r && r.active); }
+      /* 25.11.2026: модулі (золото, Зброярня, скарбниця, книжки) читають свій стан ще під час завантаження сторінки — до того, як база
+         принесла свіже з іншого пристрою. Тож комп відкривав учорашню скриню вдруге. Прийшло нове перед стартом — один чистий перезапуск
+         (не частіше ніж раз на 30 с, щоб не зациклитись) */
+      if (cloudOn && CL.active() && r && r.changed && r.changed.length) {
+        let last = 0; try { last = +sessionStorage.getItem("ordo.bootReload") || 0; } catch (e) {}
+        if (Date.now() - last > 30e3) { try { sessionStorage.setItem("ordo.bootReload", String(Date.now())); } catch (e) {} location.reload(); return; }
+      }
       start(data); setTimeout(() => syncNow("now"), 20e3);      // резервна копія — у фоні, коли Орден уже відкритий
       if (!(CL && CL.active()) && LS.get("ordo.k.cloudAsk", "") !== day()) setTimeout(() => { LS.set("ordo.k.cloudAsk", day()); openVault(); }, 2600);   // ще не увійшов у базу — раз на день нагадати
       return;

@@ -227,7 +227,26 @@
   /* ще тягнемо копію з іншого пристрою (або вона вже тут, а памʼять стара) — нагороди, подвиги й скрині не рахуємо: інакше видамо вдруге те, що вже видано там */
   const held = () => !!(window.ORDO_VAULT && window.ORDO_VAULT.hold && window.ORDO_VAULT.hold());
   let heldT = null;
+  /* 25.11.2026: скрині, рівні, таємні предмети — лише на свіжих даних. Комп, відкритий зранку, перевіряв скрині ще до того,
+     як отримав з бази «цю скриню вже відкрито на телефоні», — і відкривав її вдруге. Тепер спершу дозапит у базу (ORDO_VAULT.fresh,
+     як для банерів медалей), а після повернення до вкладки — знову */
+  let freshOk = false, freshBusy = false, bootAt = Date.now();
+  const cloudSt = () => { const C = window.ORDO_CLOUD; try { return C && C.status ? C.status().status : "none"; } catch (e) { return "none"; } };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) freshOk = false; });
+  /* бази нема чи не увійшов — одразу; база ще під'єднується — чекаємо (≤ 10 с); під'єднана — свіжий дозапит (прийшло нове — буде
+     перезапуск, і нарахування підуть уже на свіжому стані; boot.js перезапускає й тоді, коли нове прийшло ще до старту) */
+  function freshGate() {
+    if (freshOk) return true;
+    if (freshBusy) return false;
+    const st = cloudSt();
+    if ((st === "off" || st === "sync") && Date.now() - bootAt < 10e3) { freshBusy = true; setTimeout(() => { freshBusy = false; process(); if (reveals.length) setTimeout(nextReveal, 1500); }, 400); return false; }
+    if ((st !== "ok" && st !== "saving") || !(window.ORDO_VAULT && window.ORDO_VAULT.fresh)) { freshOk = true; return true; }
+    freshBusy = true;
+    window.ORDO_VAULT.fresh().then((ok) => { freshBusy = false; if (ok) { freshOk = true; process(); if (reveals.length) setTimeout(nextReveal, 1500); refreshViews(); } }).catch(() => { freshBusy = false; });
+    return false;
+  }
   function process() {
+    if (!freshGate()) return;
     const Dy = DAY(); if (!Dy || !Dy._state || !relics().length) return false;
     if (held()) { clearTimeout(heldT); heldT = setTimeout(() => { if (process()) { save(); refreshViews(); setTimeout(nextReveal, 600); } }, 2000); return false; }
     const { Q } = Dy._state(); let ch = false;

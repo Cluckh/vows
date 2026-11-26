@@ -572,8 +572,9 @@
     if (!confirm(`Відновити дані з копії ${label}? Поточні дані на телефоні буде замінено.`)) return;
     applyData(r.data); location.reload();
   }
+  let vaultWired = false;
   function wireVault() {
-    const m = $("vaultModal"); if (!m) return;
+    const m = $("vaultModal"); if (!m || vaultWired) return; vaultWired = true;      // 26.11: і з воріт входу (до старту) — один раз
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeVault(); });
     m.addEventListener("click", async (e) => {
       if (e.target === m) return closeVault();
@@ -685,6 +686,7 @@
     gate(`<p class="gate__lead">Вміст відчинено. Тепер увійди в базу Ордену — звідти прийдуть усі твої дані.</p>
       <button class="btn btn--gold" id="gtCloud" type="button">Увійти в базу</button>
       <button class="btn btn--ghost" id="gtLocal" type="button">Продовжити без бази (лише цей пристрій)</button>`);
+    wireVault();                                                                    // кнопки Сховища живуть і до старту Ордену
     const up = () => { const m = $("vaultModal"); if (m) m.style.zIndex = "300"; openVault(); };      // Сховище — над воротами
     $("gtCloud").addEventListener("click", up);
     $("gtLocal").addEventListener("click", () => { if (confirm("Без бази Орден на цьому пристрої почнеться з нуля й не бачитиме даних з телефона. Точно?")) { LS.set("ordo.k.localOnly", 1); const m = $("vaultModal"); if (m) m.classList.remove("open"); start(data); } });

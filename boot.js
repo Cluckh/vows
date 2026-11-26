@@ -679,11 +679,24 @@
   /* сцени (події, моменти, квести) чекають, поки синхронізація не скаже, що вже бачено на іншому пристрої */
   window.ORDO_VAULT = { callKey, callShown, fresh, hold: () => reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, seal: sealObj, unseal: unsealObj };
 
+  /* пристрій ще жодного разу не входив у базу (новий чи очищений браузер) — не стартуємо порожній Орден (вітальний сценарій «Цілі на рік»
+     поверх справжніх даних); спершу вхід у базу, після нього — перезапуск. «Без бази» — лише свідомо, дрібним посиланням */
+  function cloudGate(data) {
+    gate(`<p class="gate__lead">Вміст відчинено. Тепер увійди в базу Ордену — звідти прийдуть усі твої дані.</p>
+      <button class="btn btn--gold" id="gtCloud" type="button">Увійти в базу</button>
+      <button class="btn btn--ghost" id="gtLocal" type="button">Продовжити без бази (лише цей пристрій)</button>`);
+    const up = () => { const m = $("vaultModal"); if (m) m.style.zIndex = "300"; openVault(); };      // Сховище — над воротами
+    $("gtCloud").addEventListener("click", up);
+    $("gtLocal").addEventListener("click", () => { if (confirm("Без бази Орден на цьому пристрої почнеться з нуля й не бачитиме даних з телефона. Точно?")) { LS.set("ordo.k.localOnly", 1); const m = $("vaultModal"); if (m) m.classList.remove("open"); start(data); } });
+    setTimeout(up, 300);
+  }
   async function afterUnlock(data) {
     const CL = window.ORDO_CLOUD; let cloudOk = false;
     if (CL && navigator.onLine !== false) { const r = await Promise.race([CL.init(mergeData).catch(() => ({ active: false })), new Promise((res) => setTimeout(() => res({ active: CL.active() }), 6000))]); cloudOk = !!(r && r.active); }
     if (cloudOk) { location.reload(); return; }                                    // база вже знає цей пристрій — чистий старт зі свіжими даними
-    start(data); setTimeout(() => { LS.set("ordo.k.cloudAsk", day()); openVault(); }, 1200);       // ще не увійшов у базу — одразу Сховище: вхід
+    /* 26.11: ще не увійшов у базу — НЕ стартуємо порожній Орден (він вважав пристрій новим і починав вітальний сценарій «Цілі на рік»):
+       спершу вхід у базу, після входу — перезапуск, і дані приходять звідти */
+    cloudGate(data);
   }
   async function boot() {
     let vault;
@@ -702,6 +715,7 @@
         let last = 0; try { last = +sessionStorage.getItem("ordo.bootReload") || 0; } catch (e) {}
         if (Date.now() - last > 30e3) { try { sessionStorage.setItem("ordo.bootReload", String(Date.now())); } catch (e) {} location.reload(); return; }
       }
+      if (CL && !CL.active() && !LS.get("ordo.k.cloud.init", 0) && !LS.get("ordo.k.localOnly", 0)) { cloudGate(data); return; }
       start(data); setTimeout(() => syncNow("now"), 20e3);      // резервна копія — у фоні, коли Орден уже відкритий
       if (!(CL && CL.active()) && LS.get("ordo.k.cloudAsk", "") !== day()) setTimeout(() => { LS.set("ordo.k.cloudAsk", day()); openVault(); }, 2600);   // ще не увійшов у базу — раз на день нагадати
       return;

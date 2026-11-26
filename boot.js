@@ -353,13 +353,19 @@
   const btnBusy = (b, on, label) => { if (!b) return; b.disabled = on; if (label) b.textContent = label; };
 
   function stepToken(vault) {
-    gate(`<p class="gate__lead">Вміст Ордену зашифровано. Щоб відчинити його на цьому телефоні й увімкнути автоматичні копії, встав токен доступу GitHub — один раз.</p>
+    gate(`<p class="gate__lead">Вміст Ордену зашифровано. Щоб відчинити його на цьому телефоні й увімкнути автоматичні копії, встав токен доступу GitHub або <b>ключ вмісту</b> з іншого пристрою (там: Сховище → «Скопіювати ключ вмісту»).</p>
       <label class="gate__f"><span>Токен доступу</span><input id="gtToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></label>
       <p class="gate__msg" id="gtMsg" hidden></p>
       <button class="btn btn--gold" id="gtNext" type="button">Далі</button>`);
     const go = async () => {
       const t = ($("gtToken").value || "").trim(); if (!t) { $("gtToken").focus(); return; }
       const b = $("gtNext"); btnBusy(b, true, "Перевіряю…"); msg("");
+      /* 26.11.2026: замість токена GitHub — ключ вмісту з іншого пристрою (Сховище → «Скопіювати ключ вмісту»): 44 знаки base64.
+         Відчиняє вміст без GitHub; дані приходять з бази після входу в неї (Сховище нагадає) */
+      if (!/^(github_pat_|ghp_)/.test(t) && /^[A-Za-z0-9+/]{42,44}=*$/.test(t)) {
+        try { const raw = unb64(t), data = JSON.parse(await open(raw, vault)); LS.set(K.content, b64(raw)); afterUnlock(data); return; }
+        catch (e) { btnBusy(b, false, "Далі"); msg("Ключ вмісту не підходить. Скопіюй його ще раз на телефоні: Сховище → «Скопіювати ключ вмісту»."); return; }
+      }
       try {
         const key = await gh("vault.key", { raw: true, token: t });
         if (!key) throw Object.assign(new Error("nokey"), { status: 404 });
@@ -549,6 +555,7 @@
       <div class="vt-push"><span class="vt-st ${pushOn() ? "is-ok" : ""}">${pushOn() ? "вісті від храмовників увімкнено" : "вісті від храмовників вимкнено"}</span>
         <button class="btn ${pushOn() ? "btn--ghost" : "btn--line"}" type="button" data-vt="${pushOn() ? "pushoff" : "push"}">${pushOn() ? "Вимкнути вісті" : "Увімкнути вісті від храмовників"}</button></div>
       <button class="btn btn--ghost" type="button" data-vt="token">Оновити токен</button>
+      <button class="btn btn--ghost" type="button" data-vt="ckey">Скопіювати ключ вмісту — для іншого пристрою</button>
       ${CL && CL.active() ? `<div class="vt-push"><span class="vt-st">«Швидкі команди» шлють події в базу: адреса й токен</span>
         <button class="btn btn--line" type="button" data-vt="ingurl">Скопіювати адресу</button><button class="btn btn--line" type="button" data-vt="ingtok">Скопіювати токен</button></div>` : token() ? `<button class="btn btn--ghost" type="button" data-vt="copytok">Токен для «Швидких команд»</button>` : ""}
       <button class="btn btn--ghost" type="button" data-vt="close">Закрити</button>`;
@@ -587,6 +594,12 @@
       if (act === "now") { await syncNow("force"); return; }
       if (act === "push") { a.disabled = true; try { await pushEnable(); } catch (err) { alert("Не вдалося ввімкнути вісті: " + (err && err.message || err)); } renderVault(); return; }
       if (act === "pushoff") { a.disabled = true; await pushDisable(); renderVault(); return; }
+      if (act === "ckey") {                                                          // ключ вмісту — відчинити Орден на іншому пристрої без GitHub
+        const v = LS.get(K.content, null); if (!v) return;
+        if (!confirm("Це ключ до всього вмісту Ордену. Вставляй його лише на своєму пристрої й нікому не пересилай. Скопіювати?")) return;
+        try { await navigator.clipboard.writeText(v); a.textContent = "Ключ скопійовано — встав у «Ворота Ордену» на іншому пристрої"; } catch (err) { prompt("Скопіюй ключ вмісту:", v); }
+        return;
+      }
       if (act === "ingurl" || act === "ingtok") {
         const k = await window.ORDO_CLOUD.ingestKey(); if (!k) { alert("Не вдалося отримати з бази. Спробуй ще раз."); return; }
         const v = act === "ingurl" ? k.url : k.token;
@@ -666,6 +679,12 @@
   /* сцени (події, моменти, квести) чекають, поки синхронізація не скаже, що вже бачено на іншому пристрої */
   window.ORDO_VAULT = { callKey, callShown, fresh, hold: () => reloadPending, backupNow, syncNow, open: openVault, pushDiag: () => setTimeout(pushRefresh, 1500), readSealed, seal: sealObj, unseal: unsealObj };
 
+  async function afterUnlock(data) {
+    const CL = window.ORDO_CLOUD; let cloudOk = false;
+    if (CL && navigator.onLine !== false) { const r = await Promise.race([CL.init(mergeData).catch(() => ({ active: false })), new Promise((res) => setTimeout(() => res({ active: CL.active() }), 6000))]); cloudOk = !!(r && r.active); }
+    if (cloudOk) { location.reload(); return; }                                    // база вже знає цей пристрій — чистий старт зі свіжими даними
+    start(data); setTimeout(() => { LS.set("ordo.k.cloudAsk", day()); openVault(); }, 1200);       // ще не увійшов у базу — одразу Сховище: вхід
+  }
   async function boot() {
     let vault;
     try { vault = await loadVault(); }

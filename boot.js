@@ -556,6 +556,7 @@
         <button class="btn ${pushOn() ? "btn--ghost" : "btn--line"}" type="button" data-vt="${pushOn() ? "pushoff" : "push"}">${pushOn() ? "Вимкнути вісті" : "Увімкнути вісті від храмовників"}</button></div>
       <button class="btn btn--ghost" type="button" data-vt="token">Оновити токен</button>
       <button class="btn btn--ghost" type="button" data-vt="ckey">Скопіювати ключ вмісту — для іншого пристрою</button>
+      ${CL && CL.active() ? `<button class="btn btn--ghost" type="button" data-vt="resync">Звірити з базою — якщо числа на пристроях різні</button>` : ""}
       ${CL && CL.active() ? `<div class="vt-push"><span class="vt-st">«Швидкі команди» шлють події в базу: адреса й токен</span>
         <button class="btn btn--line" type="button" data-vt="ingurl">Скопіювати адресу</button><button class="btn btn--line" type="button" data-vt="ingtok">Скопіювати токен</button></div>` : token() ? `<button class="btn btn--ghost" type="button" data-vt="copytok">Токен для «Швидких команд»</button>` : ""}
       <button class="btn btn--ghost" type="button" data-vt="close">Закрити</button>`;
@@ -595,6 +596,13 @@
       if (act === "now") { await syncNow("force"); return; }
       if (act === "push") { a.disabled = true; try { await pushEnable(); } catch (err) { alert("Не вдалося ввімкнути вісті: " + (err && err.message || err)); } renderVault(); return; }
       if (act === "pushoff") { a.disabled = true; await pushDisable(); renderVault(); return; }
+      if (act === "resync") {                                                         // пристрій = база (невідправлене своє лишається)
+        if (!confirm("Привести цей пристрій точно до стану бази? Те, що ще не відправлене, лишиться. Після звірки Орден перезапуститься.")) return;
+        a.disabled = true; a.textContent = "Звіряю…";
+        try { const r = await window.ORDO_CLOUD.resyncAll(); if (!r || !r.ok) throw new Error("база недоступна"); a.textContent = `Звірено (змін: ${r.changed}) — перезапускаю…`; setTimeout(() => location.reload(), 700); }
+        catch (err) { a.disabled = false; a.textContent = "Не вдалося звірити — спробуй ще раз"; }
+        return;
+      }
       if (act === "ckey") {                                                          // ключ вмісту — відчинити Орден на іншому пристрої без GitHub
         const v = LS.get(K.content, null); if (!v) return;
         if (!confirm("Це ключ до всього вмісту Ордену. Вставляй його лише на своєму пристрої й нікому не пересилай. Скопіювати?")) return;

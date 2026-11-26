@@ -326,9 +326,29 @@
     try { const { data, error } = await sb.storage.from("art").download(`${user.id}/${n}`); return error || !data || !data.size ? null : data; } catch (e) { return null; }
   }
 
+  /* «Звірити з базою» (26.11.2026): пристрій стає точно таким, як база. Тягнемо все; кожен ключ даних збираємо з рядків бази;
+     ще не відправлене (pend) лишаємо своє. Локальне, чого в базі нема, — геть (так зникають «зайві» записи, що лишились після збою) */
+  async function resyncAll() {
+    if (!active) return { ok: false };
+    await sendDirty().catch(() => {});
+    const rows = await pullSince(""), byKey = {};
+    for (const r of rows) { if (r.ts > lastTs) lastTs = r.ts; if (r.del) continue; const k = keyOf(r.path); if (!DATA_KEY(k)) continue; (byKey[k] = byKey[k] || new Map()).set(r.path, await openVal(r.val)); }
+    const keys = new Set(Object.keys(byKey).concat(localKeys().filter(DATA_KEY)));
+    let n = 0;
+    for (const k of keys) {
+      const m = byKey[k] || new Map();
+      for (const [p, x] of pend) if (keyOf(p) === k) { if (x.del) m.delete(p); else m.set(p, x.v); }     // своє невідправлене — сильніше
+      const sv = m.size ? unflatten(k, m) : null, cur = rawGet.call(localStorage, k);
+      if (sv == null) { if (cur != null && ![...pend.keys()].some((p) => keyOf(p) === k)) { rawDel.call(localStorage, k); n++; } continue; }
+      if (sv !== cur) { rawSet.call(localStorage, k, sv); n++; }
+      cache[k] = m;
+    }
+    put("ordo.k.cloud.ts", lastTs); put("ordo.k.cloud.full", Date.now());
+    return { ok: true, changed: n };
+  }
   window.ORDO_CLOUD = {
     artBlob, srvGet, srvSet, srvOn, call, ingestKey, pushSub,
-    init, whenReady, signIn, signUp, signOut, claim, catchUp, onSet, flush: sendDirty,
+    init, whenReady, signIn, signUp, signOut, claim, catchUp, onSet, flush: sendDirty, resyncAll,
     active: () => active, user: () => user && user.email, status: () => ({ status, err: lastErr, pend: pend.size, ts: lastTs, caughtAt }),
     _t: { flatten, unflatten }
   };

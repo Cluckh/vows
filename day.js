@@ -3154,7 +3154,7 @@
     const sc = $("scrim"); if (sc) sc.addEventListener("click", () => { if (sh) closeSheet(); });
     const seed = (D().DAY || {}).seed;
     if (seed && seed.tasks && S.seeded !== seed.v) {
-      seed.tasks.forEach((t) => { if (!S.tasks[t.id]) S.tasks[t.id] = Object.assign({ diff: "normal", rep: { f: "none" }, created: today() }, t, { mt: Date.now() }); });
+      seed.tasks.forEach((t) => { if (!S.tasks[t.id]) S.tasks[t.id] = Object.assign({ diff: "normal", rep: { f: "none" }, created: today() }, t, { mt: 0 }); });     // 26.11: заготовка — mt 0: при злитті будь-яка справжня правка сильніша (порожній старт компа перезаписав справи власника)
       S.seeded = seed.v; saveS();
     }
     appMigrate();

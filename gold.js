@@ -254,7 +254,7 @@
     if (!G.v2 && relics().some((r) => r.slot)) {                // 8.11: реліквії → спорядження тієї ж рідкості; усе знято — вдягаєш сам
       const MV = D().RELIC_MOVE || {};
       Object.keys(G.own).forEach((id) => { const to = MV[id]; if (to && relic(to)) { if (!G.own[to]) G.own[to] = { at: Date.now(), src: `перековано: ${id}` }; delete G.own[id]; } else if (!relic(id)) delete G.own[id]; });
-      G.eq = []; G.eqAt = Date.now(); G.v2 = 1; G.starter = 1; ch = true;
+      const had = Object.keys(G.own || {}).length > 0; G.eq = []; G.eqAt = had ? Date.now() : 0; G.v2 = 1; G.starter = 1; ch = true;     // 26.11: порожній пристрій — eqAt 0, щоб не «зняти» спорядження на інших
     }
     if (!G.starter) { G.starter = 1; const r = grant("ring", "посвята"); if (r) reveals.push(Object.assign(r, { why: "Дар Магістра Аврелія — на початок шляху з реліквіями" })); ch = true; }
     ledger().forEach((x) => {

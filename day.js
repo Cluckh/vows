@@ -3194,7 +3194,9 @@
     if ((!S.sleep[t0] || S.sleep[t0].reset) && hm >= DAWN && hm < "13:00" && !isNight()) morning(Date.now());          // ранковий звіт — щоранку, не лише до восьмої
   }
   function morning(t0) {
-    const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };
+    /* 27.11: ритуал — першим. Поки ранковий ритуал сьогодні не вирішено (ще питаємо базу, чи він був на іншому пристрої, чи він іде) —
+       звіт про сон чекає; раніше він встигав відкритись у ці кілька секунд очікування */
+    const busy = () => { const i = $("intro"); return (i && !i.hasAttribute("hidden")) || LS.get("ordo.lastIntro", "") !== today() || document.querySelector(".rite.open, .sheet.open, .confirm.open, .kc, .hall.open"); };
     if ((S.sleep[today()] && !S.sleep[today()].reset) || Date.now() - t0 > 15 * 60e3 || (S.slAsk || LS.get("ordo.k.slAsk", "")) === today()) return;
     if (busy() || held()) { setTimeout(() => morning(t0), 1500); return; }
     S.slAsk = today(); saveS(); claimOk("sl:" + today()).then((ok) => { if (ok) openSheet("sleep", null, today()); });          // сам — раз на день; змахнув — далі через «ранковий звіт ›»
